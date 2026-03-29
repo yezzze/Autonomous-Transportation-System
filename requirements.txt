@@ -1,0 +1,41 @@
+# Core LangGraph and LangChain dependencies
+langgraph>=0.3.5
+langchain>=0.3.19
+langchain-community>=0.3.19
+langchain-experimental>=0.3.4
+langchain-openai>=0.3.8
+langchain-deepseek>=0.1.2
+langchain-core>=0.1.0
+
+# HTTP and async support
+httpx>=0.28.1
+
+# Environment and configuration
+python-dotenv>=1.0.1
+
+# Web crawling and parsing
+readabilipy>=0.3.0
+markdownify>=1.1.0
+
+# Browser automation (requires Python 3.11+)
+browser-use>=0.1.0
+
+# API server and web framework
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.1
+sse-starlette>=1.6.5
+
+# Data analysis
+numpy>=2.2.3
+
+# Additional utilities
+requests>=2.31.0
+pydantic>=2.7.4
+nest-asyncio>=1.5.8
+
+# Vector search and embeddings (for large-scale agent retrieval)
+hnswlib>=0.8.0
+sentence-transformers>=2.2.2
+
+# MCP (Model Context Protocol) support
+mcp>=0.9.0

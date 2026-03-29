@@ -1,0 +1,51 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+*.pyo
+*.pyd
+build/
+dist/
+wheels/
+*.egg-info
+.coverage
+agent_history.gif
+
+# Virtual environments
+.venv
+venv/
+
+# Environment variables
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Package manager
+uv.lock
+
+# Docker related
+Dockerfile
+.dockerignore
+docker-compose*.yml
+DOCKER_*.md
+scripts/docker-*.sh
+docs/部署运维/Docker*.md
+
+# Temporary / generated
+amp
+amp/
+data/
+
+# PDF documents
+*.pdf
+
+# GitHub Copilot config
+.github/
