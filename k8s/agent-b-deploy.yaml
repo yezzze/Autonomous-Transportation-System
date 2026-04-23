@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-b
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-b
+  template:
+    metadata:
+      labels:
+        app: agent-b
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: ["agent-a"]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: agent-b
+          image: agent-b-worker:v3
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_SERVERS
+              value: "nats://nats:4222"
+            - name: IN_SUBJECT
+              value: "workflow.demo.agent.b.in"
+            - name: C_IN_SUBJECT
+              value: "workflow.demo.agent.c.in"
+            - name: OUT_SUBJECT
+              value: "workflow.demo.agent.a.reply"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"

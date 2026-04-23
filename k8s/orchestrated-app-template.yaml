@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-app
+  labels:
+    app: external-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: external-app
+  template:
+    metadata:
+      labels:
+        app: external-app
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: "<filled-by-orchestrator>"
+      containers:
+        - name: external-app
+          image: "<filled-by-orchestrator>"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_SERVERS
+              value: "nats://nats:4222"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+              nvidia.com/gpu: "0"

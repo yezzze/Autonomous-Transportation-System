@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-a-grpc
+spec:
+  selector:
+    app: agent-a
+  type: NodePort
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: 50051
+      targetPort: 50051
+      nodePort: 30051

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats-a
+  template:
+    metadata:
+      labels:
+        app: nats-a
+    spec:
+      containers:
+        - name: nats
+          image: nats:2.10
+          args:
+            - "-js"
+            - "--store_dir=/data"
+            - "--cluster_name=cluster-a"
+            - "--cluster=nats://0.0.0.0:6222"
+            - "--gateway_name=gw-a"
+            - "--gateway=nats://0.0.0.0:7222"
+            - "--gateway_advertise=nats-a.default.svc.cluster.local:7222"
+            - "--gateway_connect=name:gw-b,url:nats://nats-b.cross-cluster.svc.cluster.local:7222"
+          ports:
+            - containerPort: 4222
+              name: client
+            - containerPort: 6222
+              name: cluster
+            - containerPort: 7222
+              name: gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-a
+spec:
+  selector:
+    app: nats-a
+  ports:
+    - name: client
+      port: 4222
+      targetPort: 4222
+    - name: gateway
+      port: 7222
+      targetPort: 7222

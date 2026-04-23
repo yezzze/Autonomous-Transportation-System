@@ -1,0 +1,23 @@
+[x] 应用启动时由编排器在 Pod/Deployment spec 中配置内存、cpu、gpu 等资源
+    - Autonomous-Transportation-System:
+      POST /api/apps/{app_id}/start 支持 resource_config
+      AppManager -> AppLogicEngine -> AgentLifecycleManager -> AgentScheduler 全链路透传
+      AGENT_DEPLOY_BACKEND=kubernetes 时由 ASD 创建/patch Deployment spec
+
+[x] 应用扩容由编排器更新 replicas 和 resources 完成
+    - Autonomous-Transportation-System:
+      PATCH /api/agents/deployments/{deployment_id}/scale
+      AgentScheduler.scale_deployment() 更新 replicas/cpu/memory/gpu
+      Kubernetes 后端 patch Deployment.spec.replicas 和 container.resources
+
+[x] 通信部分支持 node 之间、集群之间（跨 Node 调度 + multicluster NATS 示例）
+    - K8S_demo:
+      k8s/agent-*-deploy.yaml 使用 Service + podAntiAffinity 支持跨 Node
+      k8s/multicluster/nats-cluster-a.yaml 和 nats-cluster-b.yaml 提供 NATS Gateway 示例
+    - Autonomous-Transportation-System:
+      Kubernetes 后端注入 NATS_SERVERS，node_id 可映射为 nodeSelector
+
+[x] 提供容器化应用通信参考 API（runtime_api.NatsComm，Pod 内直接使用 NATS）
+    - K8S_demo:
+      runtime_api/NatsComm 支持 send/receive/serve/request/respond
+      examples/ 提供外部容器化应用收发和 request/reply 示例

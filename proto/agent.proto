@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package agent;
+
+service AgentService {
+  rpc Infer (InferRequest) returns (InferResponse);
+}
+
+message InferRequest {
+  string text = 1;
+}
+
+message InferResponse {
+  string result = 1;
+}
