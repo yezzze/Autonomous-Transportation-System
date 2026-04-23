@@ -230,6 +230,7 @@ class AgentLifecycleManager:
                 node_id=instance.resource_config.node_id,
                 cpu_cores=instance.resource_config.cpu_cores,
                 memory_mb=instance.resource_config.memory_mb,
+                gpu_count=instance.resource_config.gpu_count,
             )
             if not success:
                 logger.warning(
@@ -249,6 +250,7 @@ class AgentLifecycleManager:
                 node_id=instance.resource_config.node_id,
                 cpu_cores=instance.resource_config.cpu_cores,
                 memory_mb=instance.resource_config.memory_mb,
+                gpu_count=instance.resource_config.gpu_count,
             )
         except Exception as e:
             logger.warning(f"[ALCM→RRDC] 资源释放异常（非关键）: {e}")
@@ -265,6 +267,7 @@ class AgentLifecycleManager:
                 node_id=instance.resource_config.node_id,
                 cpu_cores=instance.resource_config.cpu_cores,
                 memory_mb=instance.resource_config.memory_mb,
+                gpu_count=instance.resource_config.gpu_count,
             )
         except Exception as e:
             logger.warning(f"[ALCM→ASD] 部署调用异常（非关键）: {e}")

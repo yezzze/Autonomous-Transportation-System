@@ -17,6 +17,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from src.app.models import GuidanceFile
+from src.runtime.models import ResourceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,11 @@ class AppLogicEngine:
     # 工作流生命周期
     # ------------------------------------------------------------------
 
-    async def start_app(self, app_id: str) -> Optional[str]:
+    async def start_app(
+        self,
+        app_id: str,
+        resource_config: Optional[ResourceConfig] = None,
+    ) -> Optional[str]:
         """
         启动应用
 
@@ -112,6 +117,7 @@ class AppLogicEngine:
 
         Args:
             app_id: 应用 ID
+            resource_config: 启动时为每个 Agent 实例申请的资源
 
         Returns:
             workflow_handle（str），失败返回 None
@@ -138,7 +144,11 @@ class AppLogicEngine:
         )
 
         # 部署并订阅 Agent 实例（对应接口文档 §2 ORCH→RUN）
-        instance_ids = self._deploy_and_subscribe(guidance, workflow_handle)
+        instance_ids = self._deploy_and_subscribe(
+            guidance,
+            workflow_handle,
+            resource_config=resource_config,
+        )
         self._instance_ids[app_id] = instance_ids
 
         # 启动后台工作流任务
@@ -353,7 +363,10 @@ class AppLogicEngine:
     # ------------------------------------------------------------------
 
     def _deploy_and_subscribe(
-        self, guidance: GuidanceFile, workflow_handle: str
+        self,
+        guidance: GuidanceFile,
+        workflow_handle: str,
+        resource_config: Optional[ResourceConfig] = None,
     ) -> List[str]:
         """
         为 agents_required 中的每个能力部署 Agent 实例，并订阅到本工作流。
@@ -385,6 +398,7 @@ class AppLogicEngine:
                 instance = alcm.deploy_agent(
                     agent_id=agent_id,
                     image_id=image_id,
+                    resource_config=resource_config,
                 )
                 # 工作流订阅（引用计数 +1）
                 alcm.subscribe(instance.instance_id, workflow_handle)

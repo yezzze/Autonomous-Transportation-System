@@ -1,7 +1,6 @@
 import logging
 
 from src.config import TEAM_MEMBERS
-from src.graph import build_graph
 from langchain_community.adapters.openai import convert_message_to_dict
 import uuid
 
@@ -19,8 +18,17 @@ def enable_debug_logging():
 
 logger = logging.getLogger(__name__)
 
-# Create the graph
-graph = build_graph()
+graph = None
+
+
+def get_workflow_graph():
+    """Build the LangGraph workflow lazily so management APIs can start without LLM/search keys."""
+    global graph
+    if graph is None:
+        from src.graph import build_graph
+
+        graph = build_graph()
+    return graph
 
 # Cache for coordinator messages
 coordinator_cache = []
@@ -61,7 +69,9 @@ async def run_agent_workflow(
     is_handoff_case = False
 
     # TODO: extract message content from object, specifically for on_chat_model_stream
-    async for event in graph.astream_events(
+    workflow_graph = get_workflow_graph()
+
+    async for event in workflow_graph.astream_events(
         {
             # Constants
             "TEAM_MEMBERS": TEAM_MEMBERS,

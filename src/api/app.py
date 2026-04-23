@@ -14,7 +14,6 @@ from sse_starlette.sse import EventSourceResponse
 import asyncio
 from typing import AsyncGenerator, Dict, List, Any
 
-from src.graph import build_graph
 from src.config import TEAM_MEMBERS
 from src.service.workflow_service import run_agent_workflow
 
@@ -36,10 +35,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-
-# Create the graph
-graph = build_graph()
-
 
 # ======================================================================
 # ARDC Gossip 端点（主 API 服务也支持 peer 同步）
@@ -193,6 +188,7 @@ class InstallAppRequest(BaseModel):
     orchestration_mode: str = Field("adaptive", description="编排模式: adaptive|sequential|magentic")
     agents_required: List[str] = Field(default_factory=list, description="所需 Agent 能力列表")
     constraints: Dict[str, Any] = Field(default_factory=dict, description="约束条件（如 max_rounds, timeout_seconds）")
+    images: List[Dict[str, Any]] = Field(default_factory=list, description="可选 Agent 镜像清单")
     skills_md: Optional[str] = Field(None, description="Skills.md 内容：应用专属技能指引")
 
 
@@ -201,6 +197,24 @@ class InstallAppResponse(BaseModel):
     name: str
     status: str
     message: str
+
+
+class ResourceConfigRequest(BaseModel):
+    cpu_cores: float = Field(1.0, gt=0, description="CPU 核心数")
+    memory_mb: int = Field(512, gt=0, description="内存 MB")
+    node_id: str = Field("localhost", description="目标节点 ID 或 kubernetes nodeSelector")
+    gpu_count: int = Field(0, ge=0, description="GPU 数量")
+
+
+class StartAppRequest(BaseModel):
+    resource_config: Optional[ResourceConfigRequest] = None
+
+
+class ScaleDeploymentRequest(BaseModel):
+    replicas: Optional[int] = Field(None, ge=1, description="目标副本数")
+    cpu_cores: Optional[float] = Field(None, gt=0, description="新的 CPU 核心数")
+    memory_mb: Optional[int] = Field(None, gt=0, description="新的内存 MB")
+    gpu_count: Optional[int] = Field(None, ge=0, description="新的 GPU 数量")
 
 
 @app.get("/api/apps/", summary="获取所有应用列表")
@@ -255,7 +269,7 @@ async def install_app(request: InstallAppRequest):
     """
     try:
         from src.app.app_manager import get_app_manager
-        from src.app.models import GuidanceFile
+        from src.app.models import AgentImage, GuidanceFile
         import uuid
 
         app_id = f"app_{uuid.uuid4().hex[:8]}"
@@ -268,7 +282,22 @@ async def install_app(request: InstallAppRequest):
             skills_content=request.skills_md,
         )
         manager = get_app_manager()
-        app_info = manager.install(name=request.name, guidance_file=guidance)
+        images = []
+        for item in request.images:
+            images.append(
+                AgentImage(
+                    image_id=item["image_id"],
+                    name=item.get("name") or item["image_id"].split(":")[0],
+                    version=item.get("version", "latest"),
+                    capability=item.get("capability") or item.get("name") or item["image_id"].split(":")[0],
+                    description=item.get("description", ""),
+                    exposed_external=item.get("exposed_external", False),
+                    metadata=item.get("metadata", {}),
+                    registered=item.get("registered", False),
+                )
+            )
+
+        app_info = manager.install(name=request.name, guidance_file=guidance, images=images)
 
         return InstallAppResponse(
             app_id=app_info.app_id,
@@ -282,16 +311,21 @@ async def install_app(request: InstallAppRequest):
 
 
 @app.post("/api/apps/{app_id}/start", summary="启动应用")
-async def start_app(app_id: str):
+async def start_app(app_id: str, request: Optional[StartAppRequest] = None):
     """
     APPM: 启动应用，触发编排层工作流
     对应接口文档 §2 启动应用
     """
     try:
         from src.app.app_manager import get_app_manager
+        from src.runtime.models import ResourceConfig
 
         manager = get_app_manager()
-        handle = await manager.start(app_id)
+        resource_config = None
+        if request and request.resource_config:
+            resource_config = ResourceConfig(**request.resource_config.model_dump())
+
+        handle = await manager.start(app_id, resource_config=resource_config)
 
         if handle is None:
             app = manager.get_app(app_id)
@@ -306,6 +340,7 @@ async def start_app(app_id: str):
             "app_id": app_id,
             "workflow_handle": handle,
             "status": "running",
+            "resource_config": resource_config.to_dict() if resource_config else None,
             "app_interface_url": f"/api/apps/{app_id}/interface",
             "message": "启动成功",
         }
@@ -582,6 +617,33 @@ async def list_agent_deployments():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.patch("/api/agents/deployments/{deployment_id}/scale", summary="扩缩容 Agent 部署")
+async def scale_agent_deployment(deployment_id: str, request: ScaleDeploymentRequest):
+    """
+    ASD: 更新部署副本数和资源配置。
+    Kubernetes 后端会 patch Deployment.spec.replicas 与容器 resources。
+    """
+    try:
+        from src.service.agent_scheduler import get_agent_scheduler
+
+        scheduler = get_agent_scheduler()
+        record = scheduler.scale_deployment(
+            deployment_id=deployment_id,
+            replicas=request.replicas,
+            cpu_cores=request.cpu_cores,
+            memory_mb=request.memory_mb,
+            gpu_count=request.gpu_count,
+        )
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"部署 {deployment_id} 不存在")
+        return {"deployment": record.to_dict(), "message": "扩缩容成功"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"scale_agent_deployment error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ======================================================================
 # Web UI
 # ======================================================================
@@ -679,4 +741,3 @@ async def demo_toggle_vehicleB():
     set_vehicleB_failed(new_state)
     get_demo_bus().publish("demo:status", {"vehicleB_failed": new_state})
     return {"vehicleB_failed": new_state, "message": f"VehicleB 故障模拟: {'开启' if new_state else '关闭'}"}
-

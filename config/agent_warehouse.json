@@ -1,3 +1,37 @@
 {
-  "images": []
+  "images": [
+    {
+      "image_id": "agent-a-grpc:v2",
+      "name": "agent-a",
+      "version": "v2",
+      "capability": "agent-a",
+      "description": "gRPC entrypoint that publishes work to NATS and returns replies",
+      "exposed_external": false,
+      "metadata": {},
+      "created_at": "2026-04-22T18:45:58.601869",
+      "registered": true
+    },
+    {
+      "image_id": "agent-b-worker:v3",
+      "name": "agent-b",
+      "version": "v3",
+      "capability": "agent-b",
+      "description": "NATS worker that forwards work to agent-c and replies to agent-a",
+      "exposed_external": false,
+      "metadata": {},
+      "created_at": "2026-04-22T18:45:58.601880",
+      "registered": true
+    },
+    {
+      "image_id": "agent-c-worker:v1",
+      "name": "agent-c",
+      "version": "v1",
+      "capability": "agent-c",
+      "description": "NATS worker that processes requests from agent-b",
+      "exposed_external": false,
+      "metadata": {},
+      "created_at": "2026-04-22T18:45:58.601887",
+      "registered": true
+    }
+  ]
 }

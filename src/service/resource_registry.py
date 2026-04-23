@@ -217,6 +217,7 @@ class ResourceRegistry:
         node_id: str,
         cpu_cores: float,
         memory_mb: int,
+        gpu_count: int = 0,
     ) -> bool:
         """
         为 Agent 部署分配资源
@@ -225,6 +226,7 @@ class ResourceRegistry:
             node_id:    目标节点 ID
             cpu_cores:  申请的 CPU 核心数
             memory_mb:  申请的内存 (MB)
+            gpu_count:  申请的 GPU 数量
 
         Returns:
             True 分配成功，False 资源不足或节点不存在
@@ -234,18 +236,25 @@ class ResourceRegistry:
             logger.warning(f"[RRDC] allocate 失败: node_id={node_id} 不存在")
             return False
 
-        if node.cpu_available < cpu_cores or node.mem_available_mb < memory_mb:
+        if (
+            node.cpu_available < cpu_cores
+            or node.mem_available_mb < memory_mb
+            or node.gpu_available < gpu_count
+        ):
             logger.warning(
                 f"[RRDC] allocate 失败: 资源不足 "
-                f"(需cpu={cpu_cores},mem={memory_mb}MB; "
-                f"可用cpu={node.cpu_available},mem={node.mem_available_mb}MB)"
+                f"(需cpu={cpu_cores},mem={memory_mb}MB,gpu={gpu_count}; "
+                f"可用cpu={node.cpu_available},mem={node.mem_available_mb}MB,"
+                f"gpu={node.gpu_available})"
             )
             return False
 
         node.cpu_available -= cpu_cores
         node.mem_available_mb -= memory_mb
+        node.gpu_available -= gpu_count
         logger.info(
-            f"[RRDC] 分配资源: node={node_id}, cpu={cpu_cores}, mem={memory_mb}MB"
+            f"[RRDC] 分配资源: node={node_id}, cpu={cpu_cores}, "
+            f"mem={memory_mb}MB, gpu={gpu_count}"
         )
         return True
 
@@ -254,6 +263,7 @@ class ResourceRegistry:
         node_id: str,
         cpu_cores: float,
         memory_mb: int,
+        gpu_count: int = 0,
     ) -> bool:
         """
         释放 Agent 占用的资源
@@ -262,6 +272,7 @@ class ResourceRegistry:
             node_id:    目标节点 ID
             cpu_cores:  归还的 CPU 核心数
             memory_mb:  归还的内存 (MB)
+            gpu_count:  归还的 GPU 数量
 
         Returns:
             True 释放成功，False 节点不存在
@@ -276,8 +287,10 @@ class ResourceRegistry:
         node.mem_available_mb = min(
             node.mem_available_mb + memory_mb, node.mem_total_mb
         )
+        node.gpu_available = min(node.gpu_available + gpu_count, node.gpu_count)
         logger.info(
-            f"[RRDC] 释放资源: node={node_id}, cpu={cpu_cores}, mem={memory_mb}MB"
+            f"[RRDC] 释放资源: node={node_id}, cpu={cpu_cores}, "
+            f"mem={memory_mb}MB, gpu={gpu_count}"
         )
         return True
 

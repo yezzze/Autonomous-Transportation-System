@@ -18,6 +18,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from src.app.models import AgentImage, AppInfo, GuidanceFile
+from src.runtime.models import ResourceConfig
 
 APPS_STORE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "apps_store.json")
 
@@ -181,7 +182,11 @@ class AppManager:
     # 启动 / 停止
     # ------------------------------------------------------------------
 
-    async def start(self, app_id: str) -> Optional[str]:
+    async def start(
+        self,
+        app_id: str,
+        resource_config: Optional[ResourceConfig] = None,
+    ) -> Optional[str]:
         """
         启动应用
 
@@ -192,6 +197,7 @@ class AppManager:
 
         Args:
             app_id: 应用 ID
+            resource_config: 启动时传给编排器的容器资源配置
 
         Returns:
             workflow_handle（str），失败返回 None
@@ -209,7 +215,7 @@ class AppManager:
 
         try:
             engine = self._get_engine()
-            handle = await engine.start_app(app_id)
+            handle = await engine.start_app(app_id, resource_config=resource_config)
 
             if handle:
                 app.workflow_handle = handle

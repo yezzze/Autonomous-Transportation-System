@@ -8,10 +8,12 @@
 - 将运行实例注册/注销到 ARDC（AgentRegistryClient）
 
 本机部署：使用 subprocess 启动 agent_server.py，支持动态端口分配。
-跨节点部署：node_id 非 localhost 时降级 mock（通过跨主机 HTTP dispatch 链路处理）。
+跨节点部署：subprocess 后端下 node_id 非 localhost 时降级 mock；kubernetes 后端下
+由 Deployment nodeSelector 交给 K8s 调度。
 """
 import logging
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -34,6 +36,11 @@ class DeploymentRecord:
         node_id: str,
         cpu_cores: float,
         memory_mb: int,
+        gpu_count: int = 0,
+        replicas: int = 1,
+        backend: str = "subprocess",
+        namespace: Optional[str] = None,
+        k8s_deployment_name: Optional[str] = None,
         status: str = "deploying",
     ):
         self.deployment_id = deployment_id
@@ -42,6 +49,11 @@ class DeploymentRecord:
         self.node_id = node_id
         self.cpu_cores = cpu_cores
         self.memory_mb = memory_mb
+        self.gpu_count = gpu_count
+        self.replicas = replicas
+        self.backend = backend
+        self.namespace = namespace
+        self.k8s_deployment_name = k8s_deployment_name
         self.status = status  # deploying | running | stopping | stopped | failed
         self.created_at = datetime.utcnow().isoformat()
         self.updated_at = self.created_at
@@ -54,6 +66,11 @@ class DeploymentRecord:
             "node_id": self.node_id,
             "cpu_cores": self.cpu_cores,
             "memory_mb": self.memory_mb,
+            "gpu_count": self.gpu_count,
+            "replicas": self.replicas,
+            "backend": self.backend,
+            "namespace": self.namespace,
+            "k8s_deployment_name": self.k8s_deployment_name,
             "status": self.status,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -85,6 +102,12 @@ class AgentScheduler:
         self._processes: Dict[str, subprocess.Popen] = {}
         # agent_id → 分配的端口
         self._agent_ports: Dict[str, int] = {}
+        self.deploy_backend = os.getenv("AGENT_DEPLOY_BACKEND", "subprocess").strip().lower()
+        self.k8s_namespace = os.getenv("K8S_NAMESPACE", "default")
+        self.agent_container_port = int(os.getenv("AGENT_CONTAINER_PORT", "8000"))
+        self.nats_servers = os.getenv("NATS_SERVERS", "nats://nats:4222")
+        self.enable_health_probe = os.getenv("AGENT_ENABLE_HEALTH_PROBE", "false").lower() == "true"
+        self.ensure_nats = os.getenv("AGENT_ENSURE_NATS", "true").lower() == "true"
         logger.info("AgentScheduler (ASD) 初始化完成")
 
     # ------------------------------------------------------------------
@@ -127,6 +150,205 @@ class AgentScheduler:
             base = base[: -len("_agent")]       # e.g. "search"
         return base
 
+    @staticmethod
+    def _safe_k8s_name(value: str) -> str:
+        name = re.sub(r"[^a-z0-9-]+", "-", value.lower()).strip("-")
+        if not name:
+            name = f"agent-{uuid.uuid4().hex[:8]}"
+        return name[:63].rstrip("-")
+
+    @staticmethod
+    def _cpu_quantity(cpu_cores: float) -> str:
+        if cpu_cores < 1:
+            return f"{int(cpu_cores * 1000)}m"
+        if float(cpu_cores).is_integer():
+            return str(int(cpu_cores))
+        return str(cpu_cores)
+
+    @staticmethod
+    def _resource_requirements(cpu_cores: float, memory_mb: int, gpu_count: int = 0) -> Dict:
+        resources = {
+            "requests": {
+                "cpu": AgentScheduler._cpu_quantity(cpu_cores),
+                "memory": f"{memory_mb}Mi",
+            },
+            "limits": {
+                "cpu": AgentScheduler._cpu_quantity(cpu_cores),
+                "memory": f"{memory_mb}Mi",
+            },
+        }
+        if gpu_count > 0:
+            resources["limits"]["nvidia.com/gpu"] = str(gpu_count)
+        return resources
+
+    @staticmethod
+    def _load_kube_config() -> None:
+        try:
+            from kubernetes import config
+
+            try:
+                config.load_incluster_config()
+            except Exception:
+                config.load_kube_config()
+        except ImportError as exc:
+            raise RuntimeError(
+                "Kubernetes backend requires the 'kubernetes' Python package. "
+                "Install it with: pip install kubernetes"
+            ) from exc
+
+    def _node_selector(self, node_id: str) -> Dict[str, str]:
+        if node_id in {"localhost", "127.0.0.1", "host.docker.internal", "node_localhost"}:
+            return {}
+        if "=" in node_id:
+            key, value = node_id.split("=", 1)
+            return {key: value}
+        return {"kubernetes.io/hostname": node_id}
+
+    def _deploy_kubernetes(self, record: DeploymentRecord, capability: str) -> DeploymentRecord:
+        self._load_kube_config()
+        from kubernetes import client
+        from kubernetes.client.rest import ApiException
+
+        apps = client.AppsV1Api()
+        core = client.CoreV1Api()
+
+        namespace = record.namespace or self.k8s_namespace
+        if self.ensure_nats:
+            self._ensure_kubernetes_nats(namespace, apps, core)
+
+        deployment_name = record.k8s_deployment_name or self._safe_k8s_name(record.agent_id)
+        record.namespace = namespace
+        record.k8s_deployment_name = deployment_name
+        labels = {"app": deployment_name, "agent-id": deployment_name}
+        is_agent_a = record.agent_id.startswith("agent-a") or "agent-a-grpc" in record.image_id
+        container_port = 50051 if is_agent_a else self.agent_container_port
+        service_port = 50051 if is_agent_a else self.agent_container_port
+        service_type = "NodePort" if is_agent_a else "ClusterIP"
+        container = {
+            "name": "agent",
+            "image": record.image_id,
+            "imagePullPolicy": os.getenv("AGENT_IMAGE_PULL_POLICY", "IfNotPresent"),
+            "ports": [{"containerPort": container_port}],
+            "env": [
+                {"name": "AGENT_ID", "value": record.agent_id},
+                {"name": "AGENT_CAPABILITY", "value": capability},
+                {"name": "NATS_SERVERS", "value": self.nats_servers},
+            ],
+            "resources": self._resource_requirements(record.cpu_cores, record.memory_mb, record.gpu_count),
+        }
+        if self.enable_health_probe:
+            probe = {"httpGet": {"path": "/health", "port": container_port}}
+            container["readinessProbe"] = {**probe, "initialDelaySeconds": 5, "periodSeconds": 5}
+            container["livenessProbe"] = {**probe, "initialDelaySeconds": 20, "periodSeconds": 10}
+
+        pod_spec = {
+            "containers": [container],
+        }
+        node_selector = self._node_selector(record.node_id)
+        if node_selector:
+            pod_spec["nodeSelector"] = node_selector
+
+        deployment_body = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": deployment_name, "labels": labels},
+            "spec": {
+                "replicas": record.replicas,
+                "selector": {"matchLabels": labels},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": pod_spec,
+                },
+            },
+        }
+        service_body = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": deployment_name, "labels": labels},
+            "spec": {
+                "selector": labels,
+                "ports": [{"name": "grpc" if is_agent_a else "http", "port": service_port, "targetPort": container_port}],
+                "type": service_type,
+            },
+        }
+        if is_agent_a:
+            service_body["spec"]["ports"][0]["nodePort"] = int(os.getenv("AGENT_A_NODE_PORT", "30051"))
+
+        try:
+            apps.create_namespaced_deployment(namespace=namespace, body=deployment_body)
+        except ApiException as exc:
+            if exc.status != 409:
+                raise
+            apps.patch_namespaced_deployment(name=deployment_name, namespace=namespace, body=deployment_body)
+
+        try:
+            core.create_namespaced_service(namespace=namespace, body=service_body)
+        except ApiException as exc:
+            if exc.status != 409:
+                raise
+            core.patch_namespaced_service(name=deployment_name, namespace=namespace, body=service_body)
+
+        record.status = "running"
+        record.updated_at = datetime.utcnow().isoformat()
+        self._register_to_ardc(record.agent_id, record.node_id, port=self.agent_container_port, capability=capability)
+        return record
+
+    def _ensure_kubernetes_nats(self, namespace: str, apps, core) -> None:
+        """Ensure the in-cluster NATS service exists for agent Pod communication."""
+        from kubernetes.client.rest import ApiException
+
+        labels = {"app": "nats"}
+        deployment_body = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": "nats", "labels": labels},
+            "spec": {
+                "replicas": 1,
+                "selector": {"matchLabels": labels},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "nats",
+                                "image": os.getenv("NATS_IMAGE", "nats:2.10"),
+                                "args": ["-js", "--store_dir=/data"],
+                                "ports": [
+                                    {"containerPort": 4222, "name": "client"},
+                                    {"containerPort": 8222, "name": "monitor"},
+                                ],
+                            }
+                        ]
+                    },
+                },
+            },
+        }
+        service_body = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "nats", "labels": labels},
+            "spec": {
+                "selector": labels,
+                "ports": [
+                    {"name": "client", "port": 4222, "targetPort": 4222},
+                    {"name": "monitor", "port": 8222, "targetPort": 8222},
+                ],
+                "type": "ClusterIP",
+            },
+        }
+
+        try:
+            apps.create_namespaced_deployment(namespace=namespace, body=deployment_body)
+        except ApiException as exc:
+            if exc.status != 409:
+                raise
+
+        try:
+            core.create_namespaced_service(namespace=namespace, body=service_body)
+        except ApiException as exc:
+            if exc.status != 409:
+                raise
+
     # ------------------------------------------------------------------
     # 核心部署接口
     # ------------------------------------------------------------------
@@ -138,6 +360,8 @@ class AgentScheduler:
         node_id: str = "localhost",
         cpu_cores: float = 1.0,
         memory_mb: int = 512,
+        gpu_count: int = 0,
+        replicas: int = 1,
     ) -> DeploymentRecord:
         """
         部署一个 Agent 实例
@@ -154,6 +378,8 @@ class AgentScheduler:
             node_id:    目标节点 ID
             cpu_cores:  CPU 核心数分配
             memory_mb:  内存分配（MB）
+            gpu_count:  GPU 数量
+            replicas:   Kubernetes 后端副本数
 
         Returns:
             DeploymentRecord
@@ -169,6 +395,10 @@ class AgentScheduler:
             node_id=node_id,
             cpu_cores=cpu_cores,
             memory_mb=memory_mb,
+            gpu_count=gpu_count,
+            replicas=replicas,
+            backend=self.deploy_backend,
+            namespace=self.k8s_namespace if self.deploy_backend == "kubernetes" else None,
             status="deploying",
         )
 
@@ -178,8 +408,19 @@ class AgentScheduler:
 
         logger.info(
             f"[ASD] 部署 Agent — image_id={image_id}, agent_id={agent_id}, "
-            f"node={node_id}, cpu={cpu_cores}, mem={memory_mb}MB"
+            f"node={node_id}, cpu={cpu_cores}, mem={memory_mb}MB, gpu={gpu_count}, "
+            f"replicas={replicas}, backend={self.deploy_backend}"
         )
+
+        if self.deploy_backend == "kubernetes":
+            capability = self._capability_from_image(image_id)
+            try:
+                return self._deploy_kubernetes(record, capability)
+            except Exception as exc:
+                record.status = "failed"
+                record.updated_at = datetime.utcnow().isoformat()
+                logger.error(f"[ASD] Kubernetes 部署失败: agent_id={agent_id}, error={exc}")
+                return record
 
         # 跨节点时降级 mock（本机以外的节点通过跨主机 HTTP dispatch 处理）
         _LOCAL_IDS = {"localhost", "127.0.0.1", "host.docker.internal"}
@@ -235,6 +476,66 @@ class AgentScheduler:
         )
         return record
 
+    def scale_deployment(
+        self,
+        deployment_id: str,
+        replicas: Optional[int] = None,
+        cpu_cores: Optional[float] = None,
+        memory_mb: Optional[int] = None,
+        gpu_count: Optional[int] = None,
+    ) -> Optional[DeploymentRecord]:
+        """更新部署副本数和资源配置；Kubernetes 后端会 patch Deployment spec。"""
+        record = self._deployments.get(deployment_id)
+        if not record:
+            logger.warning(f"[ASD] scale_deployment: deployment_id={deployment_id} 不存在")
+            return None
+
+        if replicas is not None:
+            record.replicas = replicas
+        if cpu_cores is not None:
+            record.cpu_cores = cpu_cores
+        if memory_mb is not None:
+            record.memory_mb = memory_mb
+        if gpu_count is not None:
+            record.gpu_count = gpu_count
+
+        if record.backend == "kubernetes":
+            self._load_kube_config()
+            from kubernetes import client
+
+            apps = client.AppsV1Api()
+            container_patch = {
+                "name": "agent",
+                "resources": self._resource_requirements(
+                    record.cpu_cores,
+                    record.memory_mb,
+                    record.gpu_count,
+                ),
+            }
+            patch = {
+                "spec": {
+                    "replicas": record.replicas,
+                    "template": {
+                        "spec": {
+                            "containers": [container_patch],
+                        }
+                    },
+                }
+            }
+            apps.patch_namespaced_deployment(
+                name=record.k8s_deployment_name,
+                namespace=record.namespace or self.k8s_namespace,
+                body=patch,
+            )
+
+        record.updated_at = datetime.utcnow().isoformat()
+        logger.info(
+            f"[ASD] 扩缩容完成: deployment_id={deployment_id}, "
+            f"replicas={record.replicas}, cpu={record.cpu_cores}, "
+            f"memory={record.memory_mb}MB, gpu={record.gpu_count}"
+        )
+        return record
+
     def shutdown_agent(self, agent_id: str, force: bool = False) -> bool:
         """
         关闭指定 Agent 的所有运行实例
@@ -264,6 +565,8 @@ class AgentScheduler:
                 )
                 rec.status = "stopped"
                 rec.updated_at = datetime.utcnow().isoformat()
+                if rec.backend == "kubernetes" and rec.k8s_deployment_name:
+                    self._delete_kubernetes_workload(rec)
 
         # 终止 subprocess 进程（若存在）
         proc = self._processes.pop(agent_id, None)
@@ -281,6 +584,29 @@ class AgentScheduler:
         self._deregister_from_ardc(agent_id)
         logger.info(f"[ASD] ✅ 关闭成功: agent_id={agent_id}")
         return True
+
+    def _delete_kubernetes_workload(self, record: DeploymentRecord) -> None:
+        try:
+            from kubernetes import client
+            from kubernetes.client.rest import ApiException
+
+            self._load_kube_config()
+            namespace = record.namespace or self.k8s_namespace
+            name = record.k8s_deployment_name
+            apps = client.AppsV1Api()
+            core = client.CoreV1Api()
+            try:
+                apps.delete_namespaced_deployment(name=name, namespace=namespace)
+            except ApiException as exc:
+                if exc.status != 404:
+                    raise
+            try:
+                core.delete_namespaced_service(name=name, namespace=namespace)
+            except ApiException as exc:
+                if exc.status != 404:
+                    raise
+        except Exception as exc:
+            logger.warning(f"[ASD] Kubernetes 清理失败（非关键）: {exc}")
 
     def health_check(self, agent_id: str) -> Dict:
         """
@@ -337,6 +663,8 @@ class AgentScheduler:
         node_id = last_dep.node_id
         cpu_cores = last_dep.cpu_cores
         memory_mb = last_dep.memory_mb
+        gpu_count = last_dep.gpu_count
+        replicas = last_dep.replicas
 
         logger.info(
             f"[ASD] 重部署 Agent — agent_id={agent_id}, "
@@ -353,6 +681,8 @@ class AgentScheduler:
             node_id=node_id,
             cpu_cores=cpu_cores,
             memory_mb=memory_mb,
+            gpu_count=gpu_count,
+            replicas=replicas,
         )
         logger.info(f"[ASD] ✅ 重部署成功: agent_id={agent_id}, new_dep={new_record.deployment_id}")
 
