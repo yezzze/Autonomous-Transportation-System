@@ -1,0 +1,4 @@
+grpcio==1.71.0
+grpcio-tools==1.71.0
+nats-py==2.9.0
+dataclasses==0.8; python_version < "3.7"

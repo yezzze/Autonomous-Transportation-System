@@ -11,15 +11,15 @@
 - 提供容器化应用可复用的 NATS 通信 API：`runtime_api.NatsComm`
 
 ## 2. 目录说明
-- `agent_a/`: gRPC 接口服务，接收请求并发布到 NATS
+- `agent_gRPC/`: gRPC 接口服务，接收请求并通过 `runtime_api.NatsComm` 发布到 NATS
 - `agent_b/`: NATS 消费者，处理后回传结果
 - `runtime_api/`: 给其他容器化应用复用的 NATS 通信 API
 - `examples/`: 外部应用调用 NATS API 的参考示例
 - `control_api/`: 早期 HTTP 管理原型，不作为应用间通信推荐路径
 - `k8s/`: K8s 清单
-  - `agent-a-deploy.yaml`
+  - `agent-grpc-deploy.yaml`
   - `agent-b-deploy.yaml`
-  - `agent-a-svc.yaml`
+  - `agent-grpc-svc.yaml`
   - `nats.yaml`
   - `hpa.yaml`
   - `orchestrated-app-template.yaml`
@@ -27,14 +27,14 @@
 
 ## 3. 构建镜像
 ```bash
-docker build -t agent-a-grpc:v2 ./agent_a
+docker build -f agent_gRPC/Dockerfile -t agent-grpc:v1 .
 docker build -f agent_b/Dockerfile -t agent-b-worker:v3 .
 docker build -f agent_c/Dockerfile -t agent-c-worker:v1 .
 ```
 
 如果是 Minikube：
 ```bash
-minikube image load agent-a-grpc:v2
+minikube image load agent-grpc:v1
 minikube image load agent-b-worker:v3
 minikube image load agent-c-worker:v1
 minikube image load nats:2.10
@@ -43,8 +43,8 @@ minikube image load nats:2.10
 ## 4. 部署
 ```bash
 kubectl apply -f k8s/nats.yaml
-kubectl apply -f k8s/agent-a-deploy.yaml
-kubectl apply -f k8s/agent-a-svc.yaml
+kubectl apply -f k8s/agent-grpc-deploy.yaml
+kubectl apply -f k8s/agent-grpc-svc.yaml
 kubectl apply -f k8s/agent-b-deploy.yaml
 kubectl apply -f k8s/agent-c-deploy.yaml
 kubectl apply -f k8s/hpa.yaml
@@ -60,7 +60,7 @@ kubectl get hpa
 ## 5. 业务调用（gRPC）
 本机转发后测试：
 ```bash
-kubectl port-forward service/agent-a-grpc 50051:50051
+kubectl port-forward service/agent-grpc 50051:50051
 python client.py
 ```
 预期输出：
@@ -98,7 +98,7 @@ Kubernetes 部署模式：
 minikube start
 kubectl apply -f /home/t/K8S_demo/k8s/nats.yaml
 
-cd /home/t/Projects/gs/Autonomous-Transportation-System
+cd /home/t/Projects/czl/Autonomous-Transportation-System
 conda activate k8s
 export PYTHONPATH=$PWD
 export USE_LLM_SIMULATOR=true
@@ -154,7 +154,7 @@ curl -X POST http://localhost:8000/api/apps/app_xxx/start \
 Kubernetes 模式启动后检查：
 ```bash
 kubectl get deploy,svc,pods
-curl http://localhost:8000/api/agents/deployments
+curl http://localhost:8001/api/agents/deployments
 ```
 
 不想每次手写 HTTP 请求，可以使用封装好的 CLI：
@@ -213,13 +213,13 @@ resources:
 
 如果要把内存从 `1Gi` 扩到 `2Gi`，编排器应该更新 Deployment spec：
 ```bash
-kubectl patch deployment agent-a --type merge -p '{
+kubectl patch deployment agent-grpc --type merge -p '{
   "spec": {
     "replicas": 2,
     "template": {
       "spec": {
         "containers": [{
-          "name": "agent-a",
+          "name": "agent-grpc",
           "resources": {
             "requests": {"cpu": "1", "memory": "1Gi"},
             "limits": {"cpu": "2", "memory": "2Gi"}
@@ -237,7 +237,7 @@ GPU 前提：节点必须安装 GPU 驱动与 `nvidia-device-plugin`，并且 `n
 
 ### 7.1 不同 Node 间
 - K8s Service 天生支持跨 Node 访问
-- `agent-a/agent-b` 的调度里加了 `podAntiAffinity`，会优先分散到不同 Node
+- `agent_gRPC/agent-b` 的调度里加了 `podAntiAffinity`，会优先分散到不同 Node
 - 查看 Pod 落点：
 ```bash
 kubectl get pods -o wide
@@ -320,7 +320,7 @@ async def main():
     comm = NatsComm()
     try:
         messages = await comm.receive(
-            subject="workflow.demo.agent.a.reply",
+            subject="workflow.demo.agent.grpc.reply.*",
             durable="external-app-reply-consumer",
             batch=10,
             timeout_sec=10,
@@ -391,8 +391,24 @@ python examples/external_app_request.py
 ```
 
 ## 9. 常用排查
+如果当前 shell 设置了 `HTTP_PROXY/HTTPS_PROXY`，访问 Minikube apiserver 需要绕过代理：
+
 ```bash
-kubectl logs deployment/agent-a
+export NO_PROXY="$(minikube ip),192.168.49.2,localhost,127.0.0.1"
+```
+
+```bash
+kubectl logs deployment/agent-grpc -f
 kubectl logs deployment/agent-b
+kubectl logs deployment/agent-c
 kubectl describe pod <pod-name>
 ```
+
+如果是通过编排器动态启动，Deployment 名可能来自 agent_id，例如旧配置可能是 `agent-a-agent`，新配置通常会变成 `agent-grpc` 或以 `agent-grpc` 开头的安全 K8s 名。可以先用下面命令确认真实名字：
+
+```bash
+kubectl get deploy
+kubectl logs deployment/<真实 deployment 名> -f
+```
+
+`agent_gRPC` 只有收到 gRPC 请求后才会打印 `received gRPC request`、`sending request`、`received reply payload` 这一类消息。如果只启动 Pod 而没有运行 `python client.py` 或其他 gRPC 调用，日志里通常只会看到启动和 subject 配置。

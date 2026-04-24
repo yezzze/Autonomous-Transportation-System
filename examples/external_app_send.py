@@ -11,6 +11,7 @@ async def main():
             payload={
                 "workflow_id": "external-app-1",
                 "text": "hello from another container",
+                "reply_subject": "workflow.demo.agent.grpc.reply.external-app-1",
             },
         )
         print("sent:", ack)

@@ -1,6 +1,6 @@
 import sys
 import os
-sys.path.append("./agent_a")
+sys.path.append("./agent_gRPC")
 
 import grpc
 import agent_pb2 as pb2
@@ -8,7 +8,7 @@ import agent_pb2_grpc as pb2_grpc
 
 
 def run():
-    target = os.environ.get("AGENT_A_ADDR", "127.0.0.1:50051")
+    target = os.environ.get("AGENT_GRPC_ADDR") or os.environ.get("AGENT_A_ADDR", "localhost:50051")
     channel = grpc.insecure_channel(target)
     stub = pb2_grpc.AgentServiceStub(channel)
 

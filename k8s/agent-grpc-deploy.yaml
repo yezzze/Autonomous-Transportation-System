@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: agent-a
+  name: agent-grpc
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: agent-a
+      app: agent-grpc
   template:
     metadata:
       labels:
-        app: agent-a
+        app: agent-grpc
     spec:
       affinity:
         podAntiAffinity:
@@ -24,8 +24,8 @@ spec:
                       values: ["agent-b"]
                 topologyKey: kubernetes.io/hostname
       containers:
-        - name: agent-a
-          image: agent-a-grpc:v2
+        - name: agent-grpc
+          image: agent-grpc:v1
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_SERVERS

@@ -21,7 +21,7 @@ spec:
                   matchExpressions:
                     - key: app
                       operator: In
-                      values: ["agent-a"]
+                      values: ["agent-grpc"]
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: agent-b
@@ -35,7 +35,7 @@ spec:
             - name: C_IN_SUBJECT
               value: "workflow.demo.agent.c.in"
             - name: OUT_SUBJECT
-              value: "workflow.demo.agent.a.reply"
+              value: "workflow.demo.agent.grpc.reply.default"
           resources:
             requests:
               cpu: "200m"

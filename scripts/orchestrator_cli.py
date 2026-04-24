@@ -89,14 +89,14 @@ def cmd_run_demo(args) -> None:
 def cmd_k8s_demo(args) -> None:
     agents_required = ["agent-b", "agent-c"]
     images = []
-    if getattr(args, "include_agent_a", False):
-        agents_required.insert(0, "agent-a")
+    if getattr(args, "include_agent_grpc", False):
+        agents_required.insert(0, "agent-grpc")
         images.append(
             {
-                "image_id": args.agent_a_image,
-                "name": "agent-a",
-                "version": args.agent_a_image.split(":")[-1] if ":" in args.agent_a_image else "latest",
-                "capability": "agent-a",
+                "image_id": args.agent_grpc_image,
+                "name": "agent-grpc",
+                "version": args.agent_grpc_image.split(":")[-1] if ":" in args.agent_grpc_image else "latest",
+                "capability": "agent-grpc",
                 "description": "gRPC entrypoint that publishes work to NATS and returns replies",
             }
         )
@@ -107,7 +107,7 @@ def cmd_k8s_demo(args) -> None:
                 "name": "agent-b",
                 "version": args.agent_b_image.split(":")[-1] if ":" in args.agent_b_image else "latest",
                 "capability": "agent-b",
-                "description": "NATS worker that forwards work to agent-c and replies to agent-a",
+                "description": "NATS worker that forwards work to agent-c and replies to agent-grpc",
             },
             {
                 "image_id": args.agent_c_image,
@@ -120,7 +120,7 @@ def cmd_k8s_demo(args) -> None:
     )
     install_body = {
         "name": args.name,
-        "task_description": "启动 agent-a/agent-b/agent-c，通过 gRPC + NATS 完成通信",
+        "task_description": "启动 agent-grpc/agent-b/agent-c，通过 gRPC + NATS 完成通信",
         "orchestration_mode": "adaptive",
         "agents_required": agents_required,
         "constraints": {
@@ -144,10 +144,10 @@ def cmd_k8s_demo(args) -> None:
     start_result = request_json("POST", args.base_url, f"/api/apps/{app_id}/start", start_body)
     print("started:")
     print_json(start_result)
-    if getattr(args, "include_agent_a", False):
-        print("next: run python client.py against Agent A gRPC on localhost:50051 or NodePort 30051")
+    if getattr(args, "include_agent_grpc", False):
+        print("next: run python client.py against agent_gRPC on localhost:50051 or NodePort 30051")
     else:
-        print("next: start your remote agent-a gRPC entry, then run python client.py")
+        print("next: start your remote agent_gRPC entry, then run python client.py")
 
 
 def cmd_stop(args) -> None:
@@ -184,7 +184,7 @@ def add_install_args(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Convenience CLI for the Autonomous Transportation orchestrator API")
-    parser.add_argument("--base-url", default="http://localhost:8000", help="Orchestrator API base URL")
+    parser.add_argument("--base-url", default="http://localhost:8001", help="Orchestrator API base URL")
     sub = parser.add_subparsers(dest="command")
 
     install = sub.add_parser("install", help="Install an app")
@@ -213,13 +213,13 @@ def build_parser() -> argparse.ArgumentParser:
     add_resource_args(k8s_demo)
     k8s_demo.set_defaults(func=cmd_k8s_demo)
 
-    agents_abc = sub.add_parser("agents-abc", help="Install and start agent-a/agent-b/agent-c through the orchestrator")
+    agents_abc = sub.add_parser("agents-abc", help="Install and start agent-grpc/agent-b/agent-c through the orchestrator")
     agents_abc.add_argument("--name", default="k8s-nats-abc-demo", help="Application name")
-    agents_abc.add_argument("--agent-a-image", default="agent-a-grpc:v2", help="Agent A image")
+    agents_abc.add_argument("--agent-grpc-image", "--agent-a-image", dest="agent_grpc_image", default="agent-grpc:v1", help="agent_gRPC image")
     agents_abc.add_argument("--agent-b-image", default="agent-b-worker:v3", help="Agent B image")
     agents_abc.add_argument("--agent-c-image", default="agent-c-worker:v1", help="Agent C image")
     agents_abc.add_argument("--timeout", type=int, default=120, help="Workflow timeout seconds")
-    agents_abc.set_defaults(include_agent_a=True)
+    agents_abc.set_defaults(include_agent_grpc=True)
     add_resource_args(agents_abc)
     agents_abc.set_defaults(func=cmd_k8s_demo)
 

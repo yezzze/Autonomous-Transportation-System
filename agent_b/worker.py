@@ -5,7 +5,7 @@ import re
 from runtime_api import NatsComm
 
 IN_SUBJECT = os.environ.get("IN_SUBJECT", "workflow.demo.agent.b.in")
-OUT_SUBJECT = os.environ.get("OUT_SUBJECT", "workflow.demo.agent.a.reply")
+OUT_SUBJECT = os.environ.get("OUT_SUBJECT", "workflow.demo.agent.grpc.reply.default")
 C_IN_SUBJECT = os.environ.get("C_IN_SUBJECT", "workflow.demo.agent.c.in")
 B_REPLY_PREFIX = os.environ.get("B_REPLY_PREFIX", "workflow.demo.agent.b.c.reply")
 DURABLE = os.environ.get("DURABLE", "agent-b-consumer")
@@ -55,12 +55,13 @@ async def main():
         log(f"received Agent C reply workflow_id={workflow_id}: {c_reply.payload}")
 
         result = f"Agent B processed with Agent C: {c_result}"
+        final_reply_subject = data.get("reply_subject") or OUT_SUBJECT
         reply = {
             "workflow_id": workflow_id,
             "result": result,
         }
-        log(f"publishing final reply to Agent A: {reply}")
-        await comm.send(OUT_SUBJECT, reply)
+        log(f"publishing final reply to {final_reply_subject}: {reply}")
+        await comm.send(final_reply_subject, reply)
 
     try:
         log(f"subscribing to {IN_SUBJECT}, forwarding to {C_IN_SUBJECT}")
