@@ -54,6 +54,12 @@ def get_ui_html() -> str:
     border-color: #4a6cf7; background: #fff; }
   .form-group textarea { resize: vertical; min-height: 72px; }
   .form-group small { font-size: 12px; color: #999; }
+  .choice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .choice-item { border: 1px solid #d0d6e0; border-radius: 8px; background: #fafbfc;
+                 padding: 10px 12px; display: flex; align-items: flex-start; gap: 10px; }
+  .choice-item input { margin-top: 3px; }
+  .choice-item strong { display: block; font-size: 13px; color: #223; }
+  .choice-item span { display: block; font-size: 12px; color: #667; line-height: 1.4; }
 
   /* Buttons */
   .btn { padding: 8px 18px; border: none; border-radius: 7px; cursor: pointer;
@@ -192,9 +198,22 @@ def get_ui_html() -> str:
             <textarea id="f-task" placeholder="描述该应用要完成的任务，如：搜索并总结用户提供的主题"></textarea>
           </div>
           <div class="form-group">
-            <label>所需 Agent 能力</label>
-            <input id="f-agents" type="text" placeholder="search, nlp, code（逗号分隔）">
-            <small>留空表示不限制</small>
+            <label>Agent 选择</label>
+            <div id="f-agent-choices" class="choice-grid">
+              <label class="choice-item">
+                <input type="checkbox" value="agent-grpc">
+                <div><strong>agent_gRPC</strong><span>gRPC 入口，接收远程请求并发布到 NATS</span></div>
+              </label>
+              <label class="choice-item">
+                <input type="checkbox" value="agent-b">
+                <div><strong>Agent B</strong><span>NATS worker，转发到 Agent C 并回传结果</span></div>
+              </label>
+              <label class="choice-item">
+                <input type="checkbox" value="agent-c">
+                <div><strong>Agent C</strong><span>NATS worker，处理消息并返回转换结果</span></div>
+              </label>
+            </div>
+            <small>从镜像仓库读取并去重展示，默认只显示 gRPC/B/C 三个选项</small>
           </div>
           <div class="form-group">
             <label>超时（秒）</label>
@@ -344,12 +363,14 @@ function toggleCollapse(header) {
 // ====================================================================
 // Tab: APPS
 // ====================================================================
+let warehouseImages = [];
 
 // 记住哪些查询面板是展开的，以及面板里的输入内容和结果
 const _openPanels = new Set();       // app_id → 查询面板 open
 const _panelInput = {};              // app_id → 查询输入框内容
 const _panelResult = {};             // app_id → 查询结果
 const _pendingQueries = new Set();   // app_id → 查询请求进行中
+const _openStartPanels = new Set();  // app_id → 启动面板 open
 // 编辑面板状态
 const _openEditPanels = new Set();   // app_id → 编辑面板 open
 const _editName = {};                // app_id → 名称输入内容
@@ -382,6 +403,12 @@ function _saveQueryState() {
       _openEditPanels.delete(appId);
     }
   });
+  // 保存启动面板状态
+  document.querySelectorAll('[id^="sp-"]').forEach(el => {
+    const appId = el.id.slice(3);
+    if (el.classList.contains('open')) _openStartPanels.add(appId);
+    else _openStartPanels.delete(appId);
+  });
 }
 
 function _restoreQueryState() {
@@ -409,6 +436,10 @@ function _restoreQueryState() {
       const skillsEl = document.getElementById('es-' + appId);
       if (skillsEl && _editSkills[appId] != null) skillsEl.value = _editSkills[appId];
     }
+  });
+  _openStartPanels.forEach(appId => {
+    const panel = document.getElementById('sp-' + appId);
+    if (panel) panel.classList.add('open');
   });
 }
 
@@ -442,6 +473,48 @@ async function loadApps() {
   }
 }
 
+async function loadWarehouseImages() {
+  try {
+    const res = await fetch(`${API}/api/warehouse/images`);
+    const data = await res.json();
+    warehouseImages = dedupeWarehouseImages(data.images || []);
+    renderAgentChoices(warehouseImages);
+  } catch(e) {
+    warehouseImages = [];
+    renderAgentChoices([]);
+  }
+}
+
+function dedupeWarehouseImages(images) {
+  const preferred = ['agent-grpc', 'agent-b', 'agent-c'];
+  const byCap = new Map();
+  for (const img of images) {
+    if (!img || !img.capability) continue;
+    if (!preferred.includes(img.capability)) continue;
+    if (!byCap.has(img.capability)) byCap.set(img.capability, img);
+  }
+  return preferred.filter(cap => byCap.has(cap)).map(cap => byCap.get(cap));
+}
+
+function renderAgentChoices(images) {
+  const host = document.getElementById('f-agent-choices');
+  const fallback = [
+    { capability: 'agent-grpc', name: 'agent_gRPC', description: 'gRPC 入口，接收远程请求并发布到 NATS' },
+    { capability: 'agent-b', name: 'agent-b', description: 'NATS worker，转发到 Agent C 并回传结果' },
+    { capability: 'agent-c', name: 'agent-c', description: 'NATS worker，处理消息并返回转换结果' },
+  ];
+  const list = images.length ? images : fallback;
+  host.innerHTML = list.map(img => `
+    <label class="choice-item">
+      <input type="checkbox" value="${escHtml(img.capability)}">
+      <div>
+        <strong>${escHtml((img.name || img.capability).replace('agent-', 'Agent '))}</strong>
+        <span>${escHtml(img.description || img.image_id || img.capability)}</span>
+      </div>
+    </label>
+  `).join('');
+}
+
 function renderApps(apps) {
   const tbody = document.getElementById('apps-tbody');
   if (!apps.length) {
@@ -457,7 +530,7 @@ function renderApps(apps) {
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${a.status==='idle'||a.status==='stopped'
-            ? `<button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">▶ 启动</button>`
+            ? `<button class="btn btn-success btn-sm" onclick="toggleStart('${a.app_id}')">▶ 启动</button>`
             : ''}
           ${a.status==='running'
             ? `<button class="btn btn-warning btn-sm" onclick="toggleQuery('${a.app_id}')">💬 查询</button>
@@ -465,6 +538,37 @@ function renderApps(apps) {
             : ''}
           <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${a.app_id}')">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="uninstallApp('${a.app_id}')">🗑</button>
+        </div>
+        <!-- 编辑面板 -->
+        <div class="query-panel" id="sp-${a.app_id}">
+          <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#445">
+              <input id="sa-${a.app_id}" type="checkbox" checked>
+              自动分配资源
+            </label>
+            <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+              <div>
+                <label style="font-size:12px;color:#778">CPU</label>
+                <input id="sc-${a.app_id}" type="number" min="0.1" step="0.1" placeholder="自动" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#778">内存 MB</label>
+                <input id="sm-${a.app_id}" type="number" min="128" step="128" placeholder="自动" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#778">GPU</label>
+                <input id="sg-${a.app_id}" type="number" min="0" step="1" placeholder="自动" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#778">节点</label>
+                <input id="sn-${a.app_id}" type="text" placeholder="自动" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:13px">
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button class="btn btn-ghost btn-sm" onclick="toggleStart('${a.app_id}')">取消</button>
+              <button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">确认启动</button>
+            </div>
+          </div>
         </div>
         <!-- 编辑面板 -->
         <div class="query-panel" id="ep-${a.app_id}">
@@ -506,14 +610,26 @@ async function installApp() {
   const name = document.getElementById('f-name').value.trim();
   const task = document.getElementById('f-task').value.trim();
   if (!name || !task) { showAlert('apps-alert','error','请填写应用名称和任务描述'); return; }
-  const agentsRaw = document.getElementById('f-agents').value.trim();
-  const agents = agentsRaw ? agentsRaw.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const selected = [...document.querySelectorAll('#f-agent-choices input[type="checkbox"]:checked')].map(el => el.value);
+  const agents = selected;
   const skillsMd = document.getElementById('f-skills').value.trim() || null;
+  const images = warehouseImages
+    .filter(img => selected.includes(img.capability))
+    .map(img => ({
+      image_id: img.image_id,
+      name: img.name,
+      version: img.version,
+      capability: img.capability,
+      description: img.description,
+      exposed_external: !!img.exposed_external,
+      metadata: img.metadata || {}
+    }));
   const body = {
     name,
     task_description: task,
     orchestration_mode: document.getElementById('f-mode').value,
     agents_required: agents,
+    images,
     constraints: { timeout_seconds: parseInt(document.getElementById('f-timeout').value)||120 },
     skills_md: skillsMd
   };
@@ -526,6 +642,7 @@ async function installApp() {
     showAlert('apps-alert','success',`✅ 安装成功：${data.name}（${data.app_id}）`);
     document.getElementById('f-name').value='';
     document.getElementById('f-task').value='';
+    document.querySelectorAll('#f-agent-choices input[type="checkbox"]').forEach(el => { el.checked = false; });
     loadApps();
   } catch(e) {
     showAlert('apps-alert','error',`❌ 安装失败：${e.message}`);
@@ -534,14 +651,41 @@ async function installApp() {
 
 async function startApp(appId) {
   try {
-    const res = await fetch(`${API}/api/apps/${appId}/start`, {method:'POST'});
+    const auto = document.getElementById(`sa-${appId}`)?.checked ?? true;
+    let body = {};
+    if (!auto) {
+      const cpu = document.getElementById(`sc-${appId}`)?.value.trim();
+      const memory = document.getElementById(`sm-${appId}`)?.value.trim();
+      const gpu = document.getElementById(`sg-${appId}`)?.value.trim();
+      const node = document.getElementById(`sn-${appId}`)?.value.trim();
+      const rc = {};
+      if (cpu) rc.cpu_cores = parseFloat(cpu);
+      if (memory) rc.memory_mb = parseInt(memory, 10);
+      if (gpu !== '') rc.gpu_count = parseInt(gpu, 10);
+      if (node) rc.node_id = node;
+      if (Object.keys(rc).length) body.resource_config = rc;
+    }
+    const res = await fetch(`${API}/api/apps/${appId}/start`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail||JSON.stringify(data));
     showAlert('apps-alert','success',`▶ 启动成功：${data.workflow_handle}`);
+    document.getElementById(`sp-${appId}`)?.classList.remove('open');
+    _openStartPanels.delete(appId);
     loadApps();
   } catch(e) {
     showAlert('apps-alert','error',`❌ 启动失败：${e.message}`);
   }
+}
+
+function toggleStart(appId) {
+  const panel = document.getElementById(`sp-${appId}`);
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) _openStartPanels.add(appId);
+  else _openStartPanels.delete(appId);
 }
 
 async function stopApp(appId) {
@@ -828,6 +972,7 @@ async function checkServer() {
 }
 
 // Load initial tab and start auto-refresh
+loadWarehouseImages();
 loadApps();
 checkServer();
 setInterval(() => TAB_LOADERS[activeTab](), 5000);

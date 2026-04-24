@@ -15,6 +15,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
+    os.environ.setdefault("AGENT_DEPLOY_BACKEND", "kubernetes")
     logger.info("Starting LangManus API server")
     from src.config.env import REASONING_MODEL, REASONING_BASE_URL, BASIC_MODEL, BASIC_BASE_URL, VL_MODEL
     logger.info(f"[LLM] reasoning : {REASONING_MODEL}  ({REASONING_BASE_URL})")

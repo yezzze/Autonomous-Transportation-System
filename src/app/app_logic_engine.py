@@ -12,6 +12,7 @@
 - §3 停止应用（ALRE → ORCH 部分）
 """
 import asyncio
+import copy
 import logging
 import uuid
 from typing import Dict, List, Optional
@@ -151,12 +152,24 @@ class AppLogicEngine:
         )
         self._instance_ids[app_id] = instance_ids
 
+        # deploy_only 应用只负责把 Agent 服务拉起，不执行编排工作流
+        if guidance.metadata.get("deploy_only"):
+            logger.info(f"[ALRE] deploy_only 应用已启动: app_id={app_id}, workflow_handle={workflow_handle}")
+            return workflow_handle
+
         # 启动后台工作流任务
         task = asyncio.create_task(
             self._run_workflow(app_id, guidance, workflow_handle),
             name=f"workflow_{app_id}",
         )
         self._running_tasks[app_id] = task
+        task.add_done_callback(
+            lambda finished_task, _app_id=app_id, _handle=workflow_handle: self._on_workflow_done(
+                _app_id,
+                _handle,
+                finished_task,
+            )
+        )
         logger.info(f"[ALRE] ✅ 工作流已启动: {workflow_handle}")
         return workflow_handle
 
@@ -175,7 +188,17 @@ class AppLogicEngine:
         Returns:
             True 表示成功停止，False 表示未找到运行中任务
         """
+        guidance = self._guidance_files.get(app_id)
         task = self._running_tasks.get(app_id)
+        if guidance and guidance.metadata.get("deploy_only"):
+            workflow_handle = self._workflow_handles.get(app_id)
+            self._unsubscribe_instances(app_id, workflow_handle)
+            self._running_tasks.pop(app_id, None)
+            if app_id in self._workflow_handles:
+                del self._workflow_handles[app_id]
+            logger.info(f"[ALRE] ✅ deploy_only 应用已停止: app_id={app_id}")
+            return True
+
         if not task or task.done():
             logger.warning(f"[ALRE] stop_app: app_id={app_id} 无运行中工作流")
             return False
@@ -214,6 +237,9 @@ class AppLogicEngine:
 
     def is_running(self, app_id: str) -> bool:
         """检查应用是否正在运行"""
+        guidance = self._guidance_files.get(app_id)
+        if guidance and guidance.metadata.get("deploy_only"):
+            return bool(self._instance_ids.get(app_id))
         task = self._running_tasks.get(app_id)
         return task is not None and not task.done()
 
@@ -358,6 +384,34 @@ class AppLogicEngine:
             logger.error(f"[ALRE] 工作流异常: app_id={app_id}, error={e}")
             raise
 
+    def _on_workflow_done(self, app_id: str, workflow_handle: str, task: asyncio.Task) -> None:
+        """后台工作流结束后同步应用状态，避免 UI 长时间显示 running。"""
+        if task.cancelled():
+            return
+
+        exc = task.exception()
+        if exc is None:
+            return
+
+        logger.warning(f"[ALRE] 工作流失败回调: app_id={app_id}, error={exc}")
+        self._unsubscribe_instances(app_id, workflow_handle)
+        self._running_tasks.pop(app_id, None)
+        if self._workflow_handles.get(app_id) == workflow_handle:
+            self._workflow_handles.pop(app_id, None)
+
+        try:
+            from src.app.app_manager import get_app_manager
+
+            manager = get_app_manager()
+            app = manager.get_app(app_id)
+            if app:
+                app.workflow_handle = None
+                app.app_interface_url = None
+                app.update_status("error", str(exc))
+                manager._save_to_disk()
+        except Exception as callback_exc:
+            logger.warning(f"[ALRE] 回写应用错误状态失败: app_id={app_id}, error={callback_exc}")
+
     # ------------------------------------------------------------------
     # ALCM 集成（§2/§3 ORCH↔RUN 生命周期）
     # ------------------------------------------------------------------
@@ -393,12 +447,17 @@ class AppLogicEngine:
                 images = warehouse.find_by_capability(capability)
                 image_id = images[0].image_id if images else f"img_{capability}_default"
                 agent_id = f"{capability}_agent"
+                effective_resource_config = (
+                    copy.deepcopy(resource_config)
+                    if resource_config is not None
+                    else self._auto_resource_config(capability)
+                )
 
                 # 部署 Agent 实例
                 instance = alcm.deploy_agent(
                     agent_id=agent_id,
                     image_id=image_id,
-                    resource_config=resource_config,
+                    resource_config=effective_resource_config,
                 )
                 # 工作流订阅（引用计数 +1）
                 alcm.subscribe(instance.instance_id, workflow_handle)
@@ -413,6 +472,68 @@ class AppLogicEngine:
         except Exception as e:
             logger.warning(f"[ALRE→ALCM] 部署 Agent 实例失败（非关键）: {e}")
             return []
+
+    def _auto_resource_config(self, capability: str) -> ResourceConfig:
+        """
+        自动为 capability 挑选资源配置：
+        1. 优先选 tag 命中的在线节点
+        2. 其次选任意有余量的在线节点
+        3. 根据能力给一组保守默认资源
+        """
+        cpu = 0.5
+        memory_mb = 512
+        gpu = 0
+
+        if capability in {"agent-grpc", "agent-a"}:
+            cpu = 0.5
+            memory_mb = 512
+        elif capability == "agent-b":
+            cpu = 0.5
+            memory_mb = 512
+        elif capability == "agent-c":
+            cpu = 0.5
+            memory_mb = 512
+        elif capability in {"vision"}:
+            cpu = 1.0
+            memory_mb = 1024
+            gpu = 1
+        elif capability in {"compute", "nlp", "code_execution"}:
+            cpu = 1.0
+            memory_mb = 1024
+
+        try:
+            from src.service.resource_registry import get_resource_registry
+
+            registry = get_resource_registry()
+            candidates = registry.query_available_resources(
+                min_cpu=cpu,
+                min_mem_mb=memory_mb,
+                tags=[capability],
+            )
+            if not candidates:
+                candidates = registry.query_available_resources(
+                    min_cpu=cpu,
+                    min_mem_mb=memory_mb,
+                )
+            if candidates:
+                chosen = candidates[0]
+                if gpu > chosen.gpu_available:
+                    gpu = 0
+                return ResourceConfig(
+                    cpu_cores=cpu,
+                    memory_mb=memory_mb,
+                    node_id=chosen.node_id,
+                    gpu_count=gpu,
+                )
+        except Exception as exc:
+            logger.warning(f"[ALRE] 自动资源分配失败，回退默认配置: capability={capability}, error={exc}")
+
+        return ResourceConfig(
+            cpu_cores=cpu,
+            memory_mb=memory_mb,
+            node_id="localhost",
+            gpu_count=gpu,
+        )
 
     def _unsubscribe_instances(
         self, app_id: str, workflow_handle: Optional[str]

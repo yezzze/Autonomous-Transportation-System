@@ -200,10 +200,10 @@ class InstallAppResponse(BaseModel):
 
 
 class ResourceConfigRequest(BaseModel):
-    cpu_cores: float = Field(1.0, gt=0, description="CPU 核心数")
-    memory_mb: int = Field(512, gt=0, description="内存 MB")
-    node_id: str = Field("localhost", description="目标节点 ID 或 kubernetes nodeSelector")
-    gpu_count: int = Field(0, ge=0, description="GPU 数量")
+    cpu_cores: Optional[float] = Field(None, gt=0, description="CPU 核心数")
+    memory_mb: Optional[int] = Field(None, gt=0, description="内存 MB")
+    node_id: Optional[str] = Field(None, description="目标节点 ID 或 kubernetes nodeSelector")
+    gpu_count: Optional[int] = Field(None, ge=0, description="GPU 数量")
 
 
 class StartAppRequest(BaseModel):
@@ -614,6 +614,22 @@ async def list_agent_deployments():
         running = scheduler.get_running_agents()
         return {"deployments": [r.to_dict() for r in running]}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/warehouse/images", summary="获取 Agent 镜像仓库列表")
+async def list_warehouse_images():
+    """
+    AW: 获取当前仓库中的镜像列表，供 UI 安装应用时选择能力与镜像。
+    """
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+
+        warehouse = get_agent_warehouse()
+        images = warehouse.list_images()
+        return {"images": [img.to_dict() for img in images]}
+    except Exception as e:
+        logger.error(f"list_warehouse_images error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

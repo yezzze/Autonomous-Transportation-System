@@ -202,7 +202,23 @@ class AgentScheduler:
         if "=" in node_id:
             key, value = node_id.split("=", 1)
             return {key: value}
-        return {"kubernetes.io/hostname": node_id}
+
+        try:
+            from kubernetes import client
+
+            core = client.CoreV1Api()
+            node_names = {node.metadata.name for node in core.list_node().items}
+            if node_id in node_names:
+                return {"kubernetes.io/hostname": node_id}
+            logger.warning(
+                "[ASD] node_id=%s 不是当前 Kubernetes 节点名，忽略 nodeSelector；"
+                "如需强制调度请使用 key=value 形式",
+                node_id,
+            )
+            return {}
+        except Exception as exc:
+            logger.warning("[ASD] 查询 Kubernetes 节点失败，跳过 nodeSelector: node_id=%s, error=%s", node_id, exc)
+            return {}
 
     def _deploy_kubernetes(self, record: DeploymentRecord, capability: str) -> DeploymentRecord:
         self._load_kube_config()
@@ -220,10 +236,16 @@ class AgentScheduler:
         record.namespace = namespace
         record.k8s_deployment_name = deployment_name
         labels = {"app": deployment_name, "agent-id": deployment_name}
-        is_agent_a = record.agent_id.startswith("agent-a") or "agent-a-grpc" in record.image_id
-        container_port = 50051 if is_agent_a else self.agent_container_port
-        service_port = 50051 if is_agent_a else self.agent_container_port
-        service_type = "NodePort" if is_agent_a else "ClusterIP"
+        is_grpc_entry = (
+            record.agent_id.startswith("agent-grpc")
+            or record.agent_id.startswith("agent-a")
+            or "agent-grpc" in record.image_id
+            or "agent-a-grpc" in record.image_id
+            or capability in {"agent-grpc", "agent-a"}
+        )
+        container_port = 50051 if is_grpc_entry else self.agent_container_port
+        service_port = 50051 if is_grpc_entry else self.agent_container_port
+        service_type = "NodePort" if is_grpc_entry else "ClusterIP"
         container = {
             "name": "agent",
             "image": record.image_id,
@@ -267,12 +289,14 @@ class AgentScheduler:
             "metadata": {"name": deployment_name, "labels": labels},
             "spec": {
                 "selector": labels,
-                "ports": [{"name": "grpc" if is_agent_a else "http", "port": service_port, "targetPort": container_port}],
+                "ports": [{"name": "grpc" if is_grpc_entry else "http", "port": service_port, "targetPort": container_port}],
                 "type": service_type,
             },
         }
-        if is_agent_a:
-            service_body["spec"]["ports"][0]["nodePort"] = int(os.getenv("AGENT_A_NODE_PORT", "30051"))
+        if is_grpc_entry:
+            grpc_node_port = os.getenv("AGENT_GRPC_NODE_PORT") or os.getenv("AGENT_A_NODE_PORT")
+            if grpc_node_port:
+                service_body["spec"]["ports"][0]["nodePort"] = int(grpc_node_port)
 
         try:
             apps.create_namespaced_deployment(namespace=namespace, body=deployment_body)
@@ -290,7 +314,7 @@ class AgentScheduler:
 
         record.status = "running"
         record.updated_at = datetime.utcnow().isoformat()
-        self._register_to_ardc(record.agent_id, record.node_id, port=self.agent_container_port, capability=capability)
+        self._register_to_ardc(record.agent_id, record.node_id, port=service_port, capability=capability)
         return record
 
     def _ensure_kubernetes_nats(self, namespace: str, apps, core) -> None:

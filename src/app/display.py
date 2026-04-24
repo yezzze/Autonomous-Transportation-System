@@ -13,6 +13,32 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _dedupe_apps(apps: List[Dict]) -> List[Dict]:
+    """按 name 去重，同名应用优先保留运行中的，否则保留更新时间最新的。"""
+    best_by_name: Dict[str, Dict] = {}
+    for app in apps:
+        name = app.get("name") or app.get("app_id")
+        current = best_by_name.get(name)
+        if current is None:
+            best_by_name[name] = app
+            continue
+
+        current_running = current.get("status") == "running"
+        app_running = app.get("status") == "running"
+        if app_running and not current_running:
+            best_by_name[name] = app
+            continue
+        if current_running and not app_running:
+            continue
+
+        if (app.get("updated_at") or "") >= (current.get("updated_at") or ""):
+            best_by_name[name] = app
+
+    result = list(best_by_name.values())
+    result.sort(key=lambda item: ((item.get("name") or ""), (item.get("app_id") or "")))
+    return result
+
+
 def get_running_app_list() -> List[Dict]:
     """
     获取当前运行中的应用列表
@@ -39,6 +65,7 @@ def get_running_app_list() -> List[Dict]:
             }
         )
 
+    result = _dedupe_apps(result)
     logger.debug(f"[DISP] 运行中应用列表: {len(result)} 个")
     return result
 
@@ -54,7 +81,7 @@ def get_all_app_list() -> List[Dict]:
 
     manager = get_app_manager()
     all_apps = manager.list_apps()
-    return [app.to_dict() for app in all_apps]
+    return _dedupe_apps([app.to_dict() for app in all_apps])
 
 
 def get_app_interface(app_id: str) -> Optional[Dict]:
