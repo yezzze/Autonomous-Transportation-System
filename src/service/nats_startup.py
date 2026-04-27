@@ -41,7 +41,9 @@ class NatsStartupConfig:
         service_type: str = "ClusterIP",
         jetstream: bool = True,
         store_dir: str = "/data",
-        max_payload: str = "8MB",
+        max_payload: str = "8388608",
+        config_dir: str = "/etc/nats-config",
+        config_file_name: str = "nats.conf",
         extra_args: List[str] = None,
         servers: str = "",
     ):
@@ -57,6 +59,8 @@ class NatsStartupConfig:
         self.jetstream = jetstream
         self.store_dir = store_dir
         self.max_payload = max_payload
+        self.config_dir = config_dir
+        self.config_file_name = config_file_name
         self.extra_args = extra_args or []
         self.servers = servers
 
@@ -76,7 +80,9 @@ class NatsStartupConfig:
             service_type=os.getenv("NATS_SERVICE_TYPE", "ClusterIP"),
             jetstream=_env_bool("NATS_JETSTREAM", True),
             store_dir=os.getenv("NATS_STORE_DIR", "/data"),
-            max_payload=os.getenv("NATS_MAX_PAYLOAD", "8MB"),
+            max_payload=os.getenv("NATS_MAX_PAYLOAD", "8388608"),
+            config_dir=os.getenv("NATS_CONFIG_DIR", "/etc/nats-config"),
+            config_file_name=os.getenv("NATS_CONFIG_FILE_NAME", "nats.conf"),
             extra_args=shlex.split(os.getenv("NATS_EXTRA_ARGS", "")),
             servers=os.getenv("NATS_SERVERS", f"nats://{service_name}:{client_port}"),
         )
@@ -88,15 +94,35 @@ class NatsStartupConfig:
 
     def server_args(self) -> List[str]:
         """生成 nats-server 容器启动参数。"""
-        args: List[str] = []
-        if self.jetstream:
-            args.append("-js")
-            if self.store_dir:
-                args.append(f"--store_dir={self.store_dir}")
-        if self.max_payload:
-            args.append(f"--max_payload={self.max_payload}")
+        args: List[str] = ["-c", f"{self.config_dir}/{self.config_file_name}"]
         args.extend(self.extra_args)
         return args
+
+    def config_text(self) -> str:
+        """生成 nats-server 配置文件内容。"""
+        lines = [
+            f"port: {self.client_port}",
+            f"http_port: {self.monitor_port}",
+        ]
+        if self.max_payload:
+            lines.append(f"max_payload: {self.max_payload}")
+        if self.jetstream:
+            lines.append("jetstream {")
+            if self.store_dir:
+                lines.append(f"  store_dir: \"{self.store_dir}\"")
+            lines.append("}")
+        return "\n".join(lines) + "\n"
+
+    def config_map_body(self) -> Dict:
+        """生成挂载给 NATS 使用的 Kubernetes ConfigMap body。"""
+        return {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": f"{self.deployment_name}-config", "labels": self.labels},
+            "data": {
+                self.config_file_name: self.config_text(),
+            },
+        }
 
     def deployment_body(self) -> Dict:
         """生成 Kubernetes Deployment body。"""
@@ -106,6 +132,12 @@ class NatsStartupConfig:
             "ports": [
                 {"containerPort": self.client_port, "name": "client"},
                 {"containerPort": self.monitor_port, "name": "monitor"},
+            ],
+            "volumeMounts": [
+                {
+                    "name": "nats-config",
+                    "mountPath": self.config_dir,
+                }
             ],
         }
         args = self.server_args()
@@ -121,7 +153,15 @@ class NatsStartupConfig:
                 "selector": {"matchLabels": self.labels},
                 "template": {
                     "metadata": {"labels": self.labels},
-                    "spec": {"containers": [container]},
+                    "spec": {
+                        "containers": [container],
+                        "volumes": [
+                            {
+                                "name": "nats-config",
+                                "configMap": {"name": f"{self.deployment_name}-config"},
+                            }
+                        ],
+                    },
                 },
             },
         }

@@ -18,6 +18,8 @@ NATS_ENV_KEYS = [
     "NATS_JETSTREAM",
     "NATS_STORE_DIR",
     "NATS_MAX_PAYLOAD",
+    "NATS_CONFIG_DIR",
+    "NATS_CONFIG_FILE_NAME",
     "NATS_EXTRA_ARGS",
     "NATS_SERVERS",
 ]
@@ -39,7 +41,16 @@ def test_nats_startup_defaults_match_demo_nats(monkeypatch):
 
     assert cfg.servers == "nats://nats:4222"
     assert container["image"] == "nats:2.10"
-    assert container["args"] == ["-js", "--store_dir=/data", "--max_payload=8MB"]
+    assert container["args"] == ["-c", "/etc/nats-config/nats.conf"]
+    assert cfg.config_text() == (
+        "port: 4222\n"
+        "http_port: 8222\n"
+        "max_payload: 8388608\n"
+        "jetstream {\n"
+        "  store_dir: \"/data\"\n"
+        "}\n"
+    )
+    assert cfg.config_map_body()["data"]["nats.conf"] == cfg.config_text()
     assert container["ports"] == [
         {"containerPort": 4222, "name": "client"},
         {"containerPort": 8222, "name": "monitor"},
@@ -60,7 +71,9 @@ def test_nats_startup_reads_env(monkeypatch):
     monkeypatch.setenv("NATS_MONITOR_PORT", "8223")
     monkeypatch.setenv("NATS_SERVICE_TYPE", "NodePort")
     monkeypatch.setenv("NATS_STORE_DIR", "/jetstream")
-    monkeypatch.setenv("NATS_MAX_PAYLOAD", "4MB")
+    monkeypatch.setenv("NATS_MAX_PAYLOAD", "4194304")
+    monkeypatch.setenv("NATS_CONFIG_DIR", "/config")
+    monkeypatch.setenv("NATS_CONFIG_FILE_NAME", "server.conf")
     monkeypatch.setenv("NATS_EXTRA_ARGS", "--debug --trace")
 
     cfg = NatsStartupConfig.from_env()
@@ -72,13 +85,15 @@ def test_nats_startup_reads_env(monkeypatch):
     assert deployment["metadata"]["name"] == "nats-main"
     assert deployment["spec"]["replicas"] == 2
     assert container["image"] == "nats:2.11"
-    assert container["args"] == [
-        "-js",
-        "--store_dir=/jetstream",
-        "--max_payload=4MB",
-        "--debug",
-        "--trace",
-    ]
+    assert container["args"] == ["-c", "/config/server.conf", "--debug", "--trace"]
+    assert cfg.config_text() == (
+        "port: 4223\n"
+        "http_port: 8223\n"
+        "max_payload: 4194304\n"
+        "jetstream {\n"
+        "  store_dir: \"/jetstream\"\n"
+        "}\n"
+    )
     assert service["metadata"]["name"] == "nats-bus"
     assert service["spec"]["ports"][0]["port"] == 4223
     assert service["spec"]["ports"][1]["port"] == 8223
@@ -93,4 +108,9 @@ def test_nats_startup_can_disable_jetstream(monkeypatch):
 
     cfg = NatsStartupConfig.from_env()
 
-    assert cfg.server_args() == ["--max_payload=8MB", "--port=4222"]
+    assert cfg.server_args() == ["-c", "/etc/nats-config/nats.conf", "--port=4222"]
+    assert cfg.config_text() == (
+        "port: 4222\n"
+        "http_port: 8222\n"
+        "max_payload: 8388608\n"
+    )

@@ -329,8 +329,20 @@ class AgentScheduler:
         """确保集群内 NATS Deployment/Service 存在；已存在时按启动配置 patch 更新。"""
         from kubernetes.client.rest import ApiException
 
+        config_map_body = self.nats_config.config_map_body()
         deployment_body = self.nats_config.deployment_body()
         service_body = self.nats_config.service_body()
+
+        try:
+            core.create_namespaced_config_map(namespace=namespace, body=config_map_body)
+        except ApiException as exc:
+            if exc.status != 409:
+                raise
+            core.patch_namespaced_config_map(
+                name=config_map_body["metadata"]["name"],
+                namespace=namespace,
+                body=config_map_body,
+            )
 
         try:
             apps.create_namespaced_deployment(namespace=namespace, body=deployment_body)
