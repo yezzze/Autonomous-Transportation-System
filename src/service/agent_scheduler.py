@@ -22,6 +22,9 @@ import uuid
 from typing import Dict, List, Optional
 from datetime import datetime
 
+from src.service.agent_startup import AgentStartupConfig
+from src.service.nats_startup import NatsStartupConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,6 +46,7 @@ class DeploymentRecord:
         k8s_deployment_name: Optional[str] = None,
         status: str = "deploying",
     ):
+        """初始化一条部署记录，记录调度输入、运行状态和 Kubernetes 资源名。"""
         self.deployment_id = deployment_id
         self.agent_id = agent_id
         self.image_id = image_id
@@ -59,6 +63,7 @@ class DeploymentRecord:
         self.updated_at = self.created_at
 
     def to_dict(self) -> Dict:
+        """把部署记录转换成 API 可直接返回的字典结构。"""
         return {
             "deployment_id": self.deployment_id,
             "agent_id": self.agent_id,
@@ -94,6 +99,7 @@ class AgentScheduler:
     )
 
     def __init__(self):
+        """初始化调度器状态，并从 server 启动环境读取 Agent/NATS 启动配置。"""
         # 部署记录字典: deployment_id → DeploymentRecord
         self._deployments: Dict[str, DeploymentRecord] = {}
         # agent_id → deployment_id 的反向索引（一个 agent_id 可能对应多个部署）
@@ -102,34 +108,39 @@ class AgentScheduler:
         self._processes: Dict[str, subprocess.Popen] = {}
         # agent_id → 分配的端口
         self._agent_ports: Dict[str, int] = {}
-        self.deploy_backend = os.getenv("AGENT_DEPLOY_BACKEND", "subprocess").strip().lower()
-        self.k8s_namespace = os.getenv("K8S_NAMESPACE", "default")
-        self.agent_container_port = int(os.getenv("AGENT_CONTAINER_PORT", "8000"))
-        self.nats_servers = os.getenv("NATS_SERVERS", "nats://nats:4222")
-        self.enable_health_probe = os.getenv("AGENT_ENABLE_HEALTH_PROBE", "false").lower() == "true"
-        self.ensure_nats = os.getenv("AGENT_ENSURE_NATS", "true").lower() == "true"
-        logger.info("AgentScheduler (ASD) 初始化完成")
+        self.startup_config = AgentStartupConfig.from_env()
+        self.deploy_backend = self.startup_config.deploy_backend
+        self.k8s_namespace = self.startup_config.k8s_namespace
+        self.nats_config = NatsStartupConfig.from_env()
+        self.nats_servers = self.nats_config.servers
+        self.ensure_nats = self.startup_config.ensure_nats
+        logger.info(
+            "AgentScheduler (ASD) 初始化完成: backend=%s, nats_servers=%s, ensure_nats=%s",
+            self.deploy_backend,
+            self.nats_servers,
+            self.ensure_nats,
+        )
 
     # ------------------------------------------------------------------
     # 私有工具方法
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _allocate_port() -> int:
+    def _allocate_port(host: str = "127.0.0.1") -> int:
         """从操作系统申请一个随机空闲端口"""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
+            s.bind((host, 0))
             return s.getsockname()[1]
 
     @staticmethod
-    def _wait_for_ready(port: int, timeout: float = 8.0) -> bool:
+    def _wait_for_ready(port: int, host: str = "127.0.0.1", timeout: float = 8.0) -> bool:
         """轮询 /health 直到 agent_server 就绪或超时"""
         import urllib.request
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
                 with urllib.request.urlopen(
-                    f"http://127.0.0.1:{port}/health", timeout=0.5
+                    f"http://{host}:{port}/health", timeout=0.5
                 ) as resp:
                     if resp.status == 200:
                         return True
@@ -152,6 +163,7 @@ class AgentScheduler:
 
     @staticmethod
     def _safe_k8s_name(value: str) -> str:
+        """把任意 agent_id 转成合法 Kubernetes 资源名。"""
         name = re.sub(r"[^a-z0-9-]+", "-", value.lower()).strip("-")
         if not name:
             name = f"agent-{uuid.uuid4().hex[:8]}"
@@ -159,6 +171,7 @@ class AgentScheduler:
 
     @staticmethod
     def _cpu_quantity(cpu_cores: float) -> str:
+        """把浮点 CPU 核数转换成 Kubernetes CPU quantity。"""
         if cpu_cores < 1:
             return f"{int(cpu_cores * 1000)}m"
         if float(cpu_cores).is_integer():
@@ -167,6 +180,7 @@ class AgentScheduler:
 
     @staticmethod
     def _resource_requirements(cpu_cores: float, memory_mb: int, gpu_count: int = 0) -> Dict:
+        """根据资源配置生成 Kubernetes container.resources。"""
         resources = {
             "requests": {
                 "cpu": AgentScheduler._cpu_quantity(cpu_cores),
@@ -183,6 +197,7 @@ class AgentScheduler:
 
     @staticmethod
     def _load_kube_config() -> None:
+        """加载 Kubernetes 配置，优先使用集群内配置，失败后回退本机 kubeconfig。"""
         try:
             from kubernetes import config
 
@@ -197,7 +212,8 @@ class AgentScheduler:
             ) from exc
 
     def _node_selector(self, node_id: str) -> Dict[str, str]:
-        if node_id in {"localhost", "127.0.0.1", "host.docker.internal", "node_localhost"}:
+        """根据 node_id 生成 Kubernetes nodeSelector；本机目标不限制调度节点。"""
+        if self.startup_config.is_local_node(node_id):
             return {}
         if "=" in node_id:
             key, value = node_id.split("=", 1)
@@ -221,6 +237,7 @@ class AgentScheduler:
             return {}
 
     def _deploy_kubernetes(self, record: DeploymentRecord, capability: str) -> DeploymentRecord:
+        """用 Kubernetes Deployment/Service 启动 Agent，并注册到 ARDC。"""
         self._load_kube_config()
         from kubernetes import client
         from kubernetes.client.rest import ApiException
@@ -236,20 +253,16 @@ class AgentScheduler:
         record.namespace = namespace
         record.k8s_deployment_name = deployment_name
         labels = {"app": deployment_name, "agent-id": deployment_name}
-        is_grpc_entry = (
-            record.agent_id.startswith("agent-grpc")
-            or record.agent_id.startswith("agent-a")
-            or "agent-grpc" in record.image_id
-            or "agent-a-grpc" in record.image_id
-            or capability in {"agent-grpc", "agent-a"}
+        is_grpc_entry = self.startup_config.is_grpc_entry(
+            record.agent_id,
+            record.image_id,
+            capability,
         )
-        container_port = 50051 if is_grpc_entry else self.agent_container_port
-        service_port = 50051 if is_grpc_entry else self.agent_container_port
-        service_type = "NodePort" if is_grpc_entry else "ClusterIP"
+        container_port, service_port, service_type, service_port_name = self.startup_config.k8s_ports(is_grpc_entry)
         container = {
-            "name": "agent",
+            "name": self.startup_config.agent_container_name,
             "image": record.image_id,
-            "imagePullPolicy": os.getenv("AGENT_IMAGE_PULL_POLICY", "IfNotPresent"),
+            "imagePullPolicy": self.startup_config.image_pull_policy,
             "ports": [{"containerPort": container_port}],
             "env": [
                 {"name": "AGENT_ID", "value": record.agent_id},
@@ -258,10 +271,7 @@ class AgentScheduler:
             ],
             "resources": self._resource_requirements(record.cpu_cores, record.memory_mb, record.gpu_count),
         }
-        if self.enable_health_probe:
-            probe = {"httpGet": {"path": "/health", "port": container_port}}
-            container["readinessProbe"] = {**probe, "initialDelaySeconds": 5, "periodSeconds": 5}
-            container["livenessProbe"] = {**probe, "initialDelaySeconds": 20, "periodSeconds": 10}
+        container.update(self.startup_config.health_probes(container_port))
 
         pod_spec = {
             "containers": [container],
@@ -289,14 +299,12 @@ class AgentScheduler:
             "metadata": {"name": deployment_name, "labels": labels},
             "spec": {
                 "selector": labels,
-                "ports": [{"name": "grpc" if is_grpc_entry else "http", "port": service_port, "targetPort": container_port}],
+                "ports": [{"name": service_port_name, "port": service_port, "targetPort": container_port}],
                 "type": service_type,
             },
         }
-        if is_grpc_entry:
-            grpc_node_port = os.getenv("AGENT_GRPC_NODE_PORT") or os.getenv("AGENT_A_NODE_PORT")
-            if grpc_node_port:
-                service_body["spec"]["ports"][0]["nodePort"] = int(grpc_node_port)
+        if is_grpc_entry and self.startup_config.grpc_node_port:
+            service_body["spec"]["ports"][0]["nodePort"] = self.startup_config.grpc_node_port
 
         try:
             apps.create_namespaced_deployment(namespace=namespace, body=deployment_body)
@@ -318,60 +326,42 @@ class AgentScheduler:
         return record
 
     def _ensure_kubernetes_nats(self, namespace: str, apps, core) -> None:
-        """Ensure the in-cluster NATS service exists for agent Pod communication."""
+        """确保集群内 NATS Deployment/Service 存在；已存在时按启动配置 patch 更新。"""
         from kubernetes.client.rest import ApiException
 
-        labels = {"app": "nats"}
-        deployment_body = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {"name": "nats", "labels": labels},
-            "spec": {
-                "replicas": 1,
-                "selector": {"matchLabels": labels},
-                "template": {
-                    "metadata": {"labels": labels},
-                    "spec": {
-                        "containers": [
-                            {
-                                "name": "nats",
-                                "image": os.getenv("NATS_IMAGE", "nats:2.10"),
-                                "args": ["-js", "--store_dir=/data"],
-                                "ports": [
-                                    {"containerPort": 4222, "name": "client"},
-                                    {"containerPort": 8222, "name": "monitor"},
-                                ],
-                            }
-                        ]
-                    },
-                },
-            },
-        }
-        service_body = {
-            "apiVersion": "v1",
-            "kind": "Service",
-            "metadata": {"name": "nats", "labels": labels},
-            "spec": {
-                "selector": labels,
-                "ports": [
-                    {"name": "client", "port": 4222, "targetPort": 4222},
-                    {"name": "monitor", "port": 8222, "targetPort": 8222},
-                ],
-                "type": "ClusterIP",
-            },
-        }
+        deployment_body = self.nats_config.deployment_body()
+        service_body = self.nats_config.service_body()
 
         try:
             apps.create_namespaced_deployment(namespace=namespace, body=deployment_body)
         except ApiException as exc:
             if exc.status != 409:
                 raise
+            apps.patch_namespaced_deployment(
+                name=self.nats_config.deployment_name,
+                namespace=namespace,
+                body=deployment_body,
+            )
 
         try:
             core.create_namespaced_service(namespace=namespace, body=service_body)
         except ApiException as exc:
             if exc.status != 409:
                 raise
+            core.patch_namespaced_service(
+                name=self.nats_config.service_name,
+                namespace=namespace,
+                body=service_body,
+            )
+
+        logger.info(
+            "[ASD] NATS ensured: namespace=%s, deployment=%s, service=%s, image=%s, args=%s",
+            namespace,
+            self.nats_config.deployment_name,
+            self.nats_config.service_name,
+            self.nats_config.image,
+            self.nats_config.server_args(),
+        )
 
     # ------------------------------------------------------------------
     # 核心部署接口
@@ -447,8 +437,7 @@ class AgentScheduler:
                 return record
 
         # 跨节点时降级 mock（本机以外的节点通过跨主机 HTTP dispatch 处理）
-        _LOCAL_IDS = {"localhost", "127.0.0.1", "host.docker.internal"}
-        if node_id not in _LOCAL_IDS:
+        if not self.startup_config.is_local_node(node_id):
             logger.warning(
                 f"[ASD] node_id={node_id} 非本机，降级为 mock 部署（跨节点由 dispatch_subtask_to_remote_aoe 处理）"
             )
@@ -459,7 +448,7 @@ class AgentScheduler:
             return record
 
         # ── 本机真实 subprocess 部署 ──────────────────────────────────
-        port = self._allocate_port()
+        port = self._allocate_port(self.startup_config.subprocess_host)
         capability = self._capability_from_image(image_id)
 
         env = {
@@ -470,14 +459,18 @@ class AgentScheduler:
         }
 
         proc = subprocess.Popen(
-            [sys.executable, "agent_server.py", str(port)],
+            self.startup_config.subprocess_command(sys.executable, port),
             cwd=self._PROJECT_ROOT,
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
 
-        ready = self._wait_for_ready(port, timeout=15.0)
+        ready = self._wait_for_ready(
+            port,
+            host=self.startup_config.subprocess_host,
+            timeout=self.startup_config.subprocess_ready_timeout,
+        )
         if not ready:
             proc.kill()
             proc.wait()
@@ -610,6 +603,7 @@ class AgentScheduler:
         return True
 
     def _delete_kubernetes_workload(self, record: DeploymentRecord) -> None:
+        """删除 Kubernetes 后端创建的 Agent Deployment/Service；清理失败只记录警告。"""
         try:
             from kubernetes import client
             from kubernetes.client.rest import ApiException
@@ -743,13 +737,13 @@ class AgentScheduler:
         port: Optional[int] = None,
         capability: Optional[str] = None,
     ):
-        """将运行中的 Agent 实例注册到 ARDC，更新 ip/port/status"""
+        """将运行中的 Agent 实例注册到 ARDC，更新 ip/port/status。"""
         try:
             from src.service.agent_registry import get_registry_client
 
             registry = get_registry_client()
             if port is not None and capability is not None:
-                ip = "127.0.0.1" if node_id in {"localhost", "127.0.0.1"} else node_id
+                ip = self.startup_config.subprocess_host if self.startup_config.is_local_node(node_id) else node_id
                 registry.register_agent(
                     agent_id=agent_id,
                     ip=ip,
@@ -763,7 +757,7 @@ class AgentScheduler:
             logger.warning(f"[ASD→ARDC] 注册失败（非关键）: {e}")
 
     def _deregister_from_ardc(self, agent_id: str):
-        """从 ARDC 注销，设为 offline"""
+        """从 ARDC 注销 Agent，将状态设为 offline。"""
         try:
             from src.service.agent_registry import get_registry_client
 
