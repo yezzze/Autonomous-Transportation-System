@@ -4,6 +4,9 @@ FastAPI application for LangManus.
 
 import json
 import logging
+import os
+import re
+import uuid
 from typing import Dict, List, Any, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -52,6 +55,28 @@ class _DispatchRequest(BaseModel):
     source_aoe_url: str = ""
 
 
+class _NatsPublishRequest(BaseModel):
+    """由 AOE 代发 NATS 消息，默认投递到本 AOE 管理集群的 NATS。"""
+    subject: str = Field(..., description="要发布的 NATS subject")
+    payload: Dict[str, Any] = Field(default_factory=dict, description="JSON payload")
+    reply_subject: Optional[str] = Field(None, description="需要等待的 reply subject")
+    servers: Optional[List[str]] = Field(
+        None,
+        description="可选 NATS servers；默认使用当前 AOE 的 NATS_SERVERS",
+    )
+    stream: str = Field("WORKFLOW", description="JetStream stream 名称")
+    stream_subjects: List[str] = Field(
+        default_factory=lambda: ["workflow.demo.>"],
+        description="stream 不存在时创建使用的 subjects",
+    )
+    timeout_sec: float = Field(30.0, description="等待 reply 的超时时间")
+
+
+def _safe_nats_token(value: str) -> str:
+    token = re.sub(r"[^a-zA-Z0-9_-]+", "-", value)
+    return token.strip("-") or uuid.uuid4().hex[:8]
+
+
 class _SessionRegistry:
     """跟踪远端 AOE 发来的跨主体会话，支持运行中任务取消。"""
 
@@ -96,6 +121,93 @@ async def registry_sync(req: _RegistrySyncRequest):
         "received_agents": len(req.agents),
         "merged_count": merged_count,
     }
+
+
+@app.get("/api/registry/agents", summary="查看本集群与 peer 集群 Agent")
+async def list_registry_agents():
+    """返回本地 Agent、peer 同步 Agent 和去重合并后的视图。"""
+    try:
+        from src.service.agent_registry import get_registry_client
+
+        registry = get_registry_client()
+        return registry.get_agents_by_source()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/comm/nats/publish", summary="通过当前 AOE 向本集群 NATS 投递消息")
+async def publish_nats_message(req: _NatsPublishRequest):
+    """
+    由 AOE 代调用本集群 NATS。
+
+    用法示例：从集群 B 调集群 A 时，直接请求集群 A 的这个 HTTP 端点；
+    端点会使用集群 A AOE 的 NATS_SERVERS，把消息投给集群 A 内的 Agent B/C。
+    """
+    try:
+        from nats.aio.client import Client as NATS
+        from nats.errors import TimeoutError as NatsTimeoutError
+        from nats.js.errors import NotFoundError
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"缺少 nats-py 依赖，请安装 nats-py 后重启 AOE: {e}",
+        )
+
+    servers = req.servers or [
+        item.strip()
+        for item in os.getenv("NATS_SERVERS", "nats://nats:4222").split(",")
+        if item.strip()
+    ]
+    nc = NATS()
+    try:
+        await nc.connect(
+            servers=servers,
+            connect_timeout=5,
+            reconnect_time_wait=2,
+            max_reconnect_attempts=3,
+        )
+        js = nc.jetstream()
+        try:
+            await js.stream_info(req.stream)
+        except NotFoundError:
+            await js.add_stream(name=req.stream, subjects=req.stream_subjects)
+
+        reply_sub = None
+        durable = None
+        if req.reply_subject:
+            durable = f"aoe-reply-{_safe_nats_token(req.reply_subject)}-{uuid.uuid4().hex[:6]}"
+            reply_sub = await js.pull_subscribe(req.reply_subject, durable=durable)
+
+        ack = await js.publish(req.subject, json.dumps(req.payload).encode())
+        response: Dict[str, Any] = {
+            "status": "sent",
+            "servers": servers,
+            "subject": req.subject,
+            "stream": ack.stream,
+            "seq": ack.seq,
+        }
+
+        if reply_sub:
+            try:
+                messages = await reply_sub.fetch(1, timeout=req.timeout_sec)
+            except NatsTimeoutError:
+                response["reply"] = None
+                response["reply_status"] = "timeout"
+            else:
+                raw = messages[0]
+                await raw.ack()
+                response["reply_status"] = "received"
+                response["reply_subject"] = raw.subject
+                response["reply"] = json.loads(raw.data.decode())
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("[NATS Publish] failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if nc.is_connected:
+            await nc.drain()
 
 
 @app.post("/orchestration/dispatch", summary="跨 AOE 子任务分发接收端")

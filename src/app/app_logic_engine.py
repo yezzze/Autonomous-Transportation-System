@@ -445,12 +445,14 @@ class AppLogicEngine:
             for capability in guidance.agents_required:
                 # 从 AW 查找对应能力的镜像
                 images = warehouse.find_by_capability(capability)
-                image_id = images[0].image_id if images else f"img_{capability}_default"
+                image = images[0] if images else None
+                image_id = image.image_id if image else f"img_{capability}_default"
                 agent_id = f"{capability}_agent"
                 effective_resource_config = (
                     copy.deepcopy(resource_config)
                     if resource_config is not None
-                    else self._auto_resource_config(capability)
+                    else self._resource_config_from_image(image)
+                    or self._auto_resource_config(capability)
                 )
 
                 # 部署 Agent 实例
@@ -472,6 +474,20 @@ class AppLogicEngine:
         except Exception as e:
             logger.warning(f"[ALRE→ALCM] 部署 Agent 实例失败（非关键）: {e}")
             return []
+
+    def _resource_config_from_image(self, image) -> Optional[ResourceConfig]:
+        """从 AgentImage.metadata.k8s 读取默认资源配置。"""
+        if image is None:
+            return None
+        k8s_config = image.metadata.get("k8s", {}) if image.metadata else {}
+        if not k8s_config:
+            return None
+        return ResourceConfig(
+            cpu_cores=float(k8s_config.get("cpu_cores", 1.0)),
+            memory_mb=int(k8s_config.get("memory_mb", 512)),
+            node_id=str(k8s_config.get("node_id", "localhost")),
+            gpu_count=int(k8s_config.get("gpu_count", 0)),
+        )
 
     def _auto_resource_config(self, capability: str) -> ResourceConfig:
         """
@@ -496,6 +512,14 @@ class AppLogicEngine:
         elif capability in {"vision"}:
             cpu = 1.0
             memory_mb = 1024
+            gpu = 1
+        elif capability == "perception2intermediatefeature":
+            cpu = 2.0
+            memory_mb = 4096
+            gpu = 1
+        elif capability == "cooperativefeaturefusiondetectionviz":
+            cpu = 2.0
+            memory_mb = 8192
             gpu = 1
         elif capability in {"compute", "nlp", "code_execution"}:
             cpu = 1.0

@@ -77,9 +77,17 @@ class AgentLifecycleManager:
         self._agent_index.setdefault(agent_id, []).append(instance.instance_id)
 
         # 3. 调用 ASD 部署
-        self._call_asd_deploy(instance)
+        deployment = self._call_asd_deploy(instance)
 
-        # 4. 标记运行中
+        # 4. 根据 ASD 结果标记实例状态
+        if deployment is not None and getattr(deployment, "status", None) == "failed":
+            instance.set_status("error")
+            logger.error(
+                f"[ALCM] 部署失败: instance_id={instance.instance_id}, "
+                f"agent_id={agent_id}, image_id={image_id}"
+            )
+            return instance
+
         instance.set_status("running")
 
         logger.info(
@@ -261,7 +269,7 @@ class AgentLifecycleManager:
             from src.service.agent_scheduler import get_agent_scheduler
 
             scheduler = get_agent_scheduler()
-            scheduler.deploy_agent(
+            return scheduler.deploy_agent(
                 image_id=instance.image_id,
                 agent_id=instance.agent_id,
                 node_id=instance.resource_config.node_id,
@@ -271,6 +279,7 @@ class AgentLifecycleManager:
             )
         except Exception as e:
             logger.warning(f"[ALCM→ASD] 部署调用异常（非关键）: {e}")
+            return None
 
     def _call_asd_shutdown(self, instance: AgentInstance):
         """调用 ASD 关闭实例"""

@@ -32,6 +32,40 @@
       "metadata": {},
       "created_at": "2026-04-24T00:00:00",
       "registered": true
+    },
+    {
+      "image_id": "perception2intermediatefeature-agent:0.1.1",
+      "name": "Perception2IntermediateFeature",
+      "version": "0.1.1",
+      "capability": "perception2intermediatefeature",
+      "description": "Perception agent that converts raw autonomous-driving perception inputs into intermediate features",
+      "exposed_external": false,
+      "metadata": {
+        "k8s": {
+          "cpu_cores": 2.0,
+          "memory_mb": 4096,
+          "gpu_count": 1
+        }
+      },
+      "created_at": "2026-04-27T00:00:00",
+      "registered": true
+    },
+    {
+      "image_id": "cooperativefeaturefusiondetectionviz-agent:0.1.1",
+      "name": "CooperativeFeatureFusionDetectionViz",
+      "version": "0.1.1",
+      "capability": "cooperativefeaturefusiondetectionviz",
+      "description": "Cooperative feature fusion, detection, and visualization agent for autonomous transportation workflows",
+      "exposed_external": false,
+      "metadata": {
+        "k8s": {
+          "cpu_cores": 2.0,
+          "memory_mb": 8192,
+          "gpu_count": 1
+        }
+      },
+      "created_at": "2026-04-27T00:00:00",
+      "registered": true
     }
   ]
 }

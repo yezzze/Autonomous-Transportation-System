@@ -275,6 +275,20 @@ class AgentRegistryClient:
         """仅返回本地 online agents，用于向 peer 推送"""
         return [a for a in self._mock_agents if a.get("status") == "online"]
 
+    def get_agents_by_source(self) -> Dict[str, Any]:
+        """返回按来源分组的 Agent 视图，用于跨集群查看。"""
+        return {
+            "local": self.get_local_agents(),
+            "peers": {
+                peer_url: {
+                    "last_seen": self._peer_last_seen.get(peer_url),
+                    "agents": agents,
+                }
+                for peer_url, agents in self._peer_agents.items()
+            },
+            "merged": self._merge_all_agents(),
+        }
+
     def sync_from_peer(self, peer_url: str, agents: List[AgentInfo]) -> int:
         """
         接收来自 peer 节点的 agent 列表，更新内部 peer 缓存。

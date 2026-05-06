@@ -119,6 +119,24 @@ class AppManager:
                 "capability": "agent-c",
                 "task_description": "启动 Agent C，作为 NATS worker 处理消息并返回结果。",
             },
+            {
+                "app_id": "app_builtin_perception2intermediatefeature",
+                "name": "Perception2IntermediateFeature",
+                "capability": "perception2intermediatefeature",
+                "task_description": (
+                    "启动 Perception2IntermediateFeature，"
+                    "将自动驾驶感知输入转换为中间特征。"
+                ),
+            },
+            {
+                "app_id": "app_builtin_cooperativefeaturefusiondetectionviz",
+                "name": "CooperativeFeatureFusionDetectionViz",
+                "capability": "cooperativefeaturefusiondetectionviz",
+                "task_description": (
+                    "启动 CooperativeFeatureFusionDetectionViz，"
+                    "执行协同特征融合、目标检测与可视化。"
+                ),
+            },
         ]
 
         changed = False
