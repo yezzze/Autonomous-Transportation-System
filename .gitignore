@@ -43,6 +43,7 @@ docs/部署运维/Docker*.md
 amp
 amp/
 data/
+logs/
 
 # PDF documents
 *.pdf

@@ -45,6 +45,45 @@ class _RegistrySyncRequest(BaseModel):
     agents: list
 
 
+class _DispatchRequest(BaseModel):
+    """跨主体子任务分发请求。"""
+    subtask: Dict[str, Any]
+    session_id: str
+    source_aoe_url: str = ""
+
+
+class _SessionRegistry:
+    """跟踪远端 AOE 发来的跨主体会话，支持运行中任务取消。"""
+
+    def __init__(self):
+        self._sessions: Dict[str, Dict[str, Any]] = {}
+
+    def register(
+        self,
+        session_id: str,
+        workflow_handle: str,
+        task: Optional[asyncio.Task] = None,
+    ):
+        self._sessions[session_id] = {"handle": workflow_handle, "task": task}
+
+    def unregister(self, session_id: str) -> Optional[str]:
+        entry = self._sessions.pop(session_id, None)
+        return entry["handle"] if entry else None
+
+    def cancel_session(self, session_id: str) -> bool:
+        entry = self._sessions.get(session_id)
+        if not entry:
+            return False
+        task = entry.get("task")
+        if task and not task.done():
+            task.cancel()
+            return True
+        return False
+
+
+_session_registry = _SessionRegistry()
+
+
 @app.post("/registry/sync", summary="ARDC Gossip 接收 peer 推送")
 async def registry_sync(req: _RegistrySyncRequest):
     """接收来自 peer 节点的 agent 列表，合并到本节点注册表"""
@@ -56,6 +95,109 @@ async def registry_sync(req: _RegistrySyncRequest):
         "source_url": req.source_url,
         "received_agents": len(req.agents),
         "merged_count": merged_count,
+    }
+
+
+@app.post("/orchestration/dispatch", summary="跨 AOE 子任务分发接收端")
+async def orchestration_dispatch(req: _DispatchRequest):
+    """
+    接收其他 Kubernetes 集群 AOE 发来的子任务，在本集群 AOE 内执行。
+
+    这是跨多个 K8S 集群时的 E_AOE 入口；调用方通常来自
+    src.graph.distributed_nodes.dispatch_subtask_to_remote_aoe()。
+    """
+    import uuid
+    from src.distributed_workflow import run_distributed_workflow
+
+    task_id = req.subtask.get("task_id", uuid.uuid4().hex[:8])
+    task_desc = req.subtask.get("task_description", "")
+    timeout = int(req.subtask.get("timeout_seconds", 60))
+    workflow_handle = f"remote_wf_{task_id}_{uuid.uuid4().hex[:6]}"
+
+    logger.info(
+        "[E_AOE] 收到跨集群子任务: task_id=%s, source=%s, desc=%s",
+        task_id,
+        req.source_aoe_url,
+        task_desc[:120],
+    )
+
+    workflow_task = asyncio.create_task(
+        run_distributed_workflow(
+            user_input=task_desc,
+            adaptive_mode=True,
+            timeout_seconds=timeout,
+        )
+    )
+    _session_registry.register(req.session_id, workflow_handle, task=workflow_task)
+
+    try:
+        result = await asyncio.wait_for(
+            asyncio.shield(workflow_task),
+            timeout=float(timeout),
+        )
+        return {
+            "task_id": task_id,
+            "session_id": req.session_id,
+            "workflow_handle": workflow_handle,
+            "status": "completed",
+            "result": str(result)[:3000],
+        }
+    except asyncio.TimeoutError:
+        workflow_task.cancel()
+        logger.warning("[E_AOE] 子任务超时: task_id=%s", task_id)
+        return {
+            "task_id": task_id,
+            "session_id": req.session_id,
+            "workflow_handle": workflow_handle,
+            "status": "timeout",
+            "result": f"子任务执行超时（{timeout}s）",
+        }
+    except asyncio.CancelledError:
+        logger.info("[E_AOE] 子任务被取消: task_id=%s", task_id)
+        return {
+            "task_id": task_id,
+            "session_id": req.session_id,
+            "workflow_handle": workflow_handle,
+            "status": "cancelled",
+            "result": "子任务已被终止",
+        }
+    except Exception as e:
+        logger.error("[E_AOE] 子任务失败: task_id=%s, error=%s", task_id, e)
+        return {
+            "task_id": task_id,
+            "session_id": req.session_id,
+            "workflow_handle": workflow_handle,
+            "status": "error",
+            "result": f"子任务执行失败: {str(e)}",
+        }
+
+
+@app.delete("/orchestration/session/{session_id}", summary="关闭跨 AOE 会话")
+async def close_orchestration_session(session_id: str):
+    """取消或清理远端 AOE 创建的跨主体会话。"""
+    cancelled = _session_registry.cancel_session(session_id)
+    if cancelled:
+        logger.info("[E_AOE] 工作流 Task 已取消: session_id=%s", session_id)
+
+    workflow_handle = _session_registry.unregister(session_id)
+    if not workflow_handle:
+        return {"status": "not_found", "session_id": session_id}
+
+    try:
+        from src.runtime.lifecycle_manager import get_lifecycle_manager
+
+        alcm = get_lifecycle_manager()
+        for instance_id in list(alcm._instances.keys()):
+            instance = alcm._instances.get(instance_id)
+            if instance and workflow_handle in getattr(instance, "subscribers", []):
+                alcm.unsubscribe(instance_id, workflow_handle)
+    except Exception as e:
+        logger.warning("[E_AOE] ALCM 退订失败（非关键）: %s", e)
+
+    return {
+        "status": "closed",
+        "session_id": session_id,
+        "workflow_handle": workflow_handle,
     }
 
 
