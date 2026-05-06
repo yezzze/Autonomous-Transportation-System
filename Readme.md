@@ -244,12 +244,71 @@ kubectl get pods -o wide
 ```
 
 ### 7.2 不同集群间
-- 参考 `k8s/multicluster/nats-cluster-a.yaml` 和 `k8s/multicluster/nats-cluster-b.yaml`
-- 核心思路：两边 NATS 用 `gateway` 互联，业务仍走同一套 subject
-- 生产环境需要：
-  - 跨集群 DNS 或固定可达地址
-  - NetworkPolicy/防火墙放行 7222
-  - 建议开启 TLS 与鉴权
+跨集群不把多台机器 join 成同一个 Kubernetes 集群。每个集群独立调度自己的 Pod，跨集群只打通两条通道：
+- 数据/业务消息通道：NATS Gateway，复用同一套 subject
+- 编排/控制通道：`K8S-Autonomous` AOE HTTP peer，负责 registry sync 和远端任务分发
+
+集群内 Pod 只连接本集群 NATS：
+```text
+集群 A: NATS_SERVERS=nats://nats-a:4222
+集群 B: NATS_SERVERS=nats://nats-b:4222
+```
+
+部署 NATS Gateway：
+```bash
+# 集群 A
+kubectl apply -f k8s/nats-a.yaml
+kubectl rollout status deployment/nats-a --timeout=180s
+
+# 集群 B
+kubectl apply -f k8s/nats-b.yaml
+kubectl rollout status deployment/nats-b --timeout=180s
+```
+
+`k8s/nats-a.yaml` 已把 A 侧 Gateway 配成 `gw-a`，并连接 B 侧 `10.112.221.121:7222`。如果换机器，需要同步修改：
+```text
+gateway.advertise: <CLUSTER_A_HOST>:7222
+gateway.gateways[].urls: nats://<CLUSTER_B_HOST>:7222
+```
+
+裸机或 Minikube 场景需要把 Gateway 端口暴露到固定主机 IP。最小验证可以用 port-forward：
+```bash
+kubectl port-forward --address 0.0.0.0 svc/nats-a 7222:7222
+```
+
+生产环境建议用 NodePort、LoadBalancer 或 MetalLB 暴露 `7222/TCP`，并在防火墙/安全组中放行对端集群 IP。AOE HTTP 端口也要互通，默认示例为 `8001/TCP`。
+
+启动集群 A AOE：
+```bash
+cd /home/t/Projects/czl/Autonomous-Transportation-System
+conda activate k8s
+CLUSTER_A_HOST_IP=10.112.136.44 \
+CLUSTER_B_AOE_URL=http://10.112.221.121:8001 \
+PYTHON=/home/t/anaconda3/envs/k8s/bin/python \
+./scripts/start_cluster_a_aoe.sh
+```
+
+集群 B 对应启动脚本是 `scripts/start_cluster_b_aoe.sh`，需要把 `CLUSTER_A_AOE_URL` 指向 A 的 AOE：
+```bash
+CLUSTER_A_AOE_URL=http://10.112.136.44:8001 ./scripts/start_cluster_b_aoe.sh
+```
+
+验证：
+```bash
+kubectl logs deploy/nats-a --tail=120
+nc -vz 10.112.136.44 7222
+nc -vz 10.112.221.121 7222
+
+curl --noproxy '*' http://10.112.136.44:8001/docs
+curl --noproxy '*' http://10.112.221.121:8001/docs
+curl --noproxy '*' -X POST http://10.112.221.121:8001/registry/sync \
+  -H 'Content-Type: application/json' \
+  -d '{"source_url":"http://10.112.136.44:8001","agents":[]}'
+```
+
+日志里应看到 NATS gateway connection 建立，以及 AOE `[ARDC Gossip] 推送到 ... 成功`。如果 NATS 不通，优先查 `7222/TCP` 暴露、防火墙、`gateway.advertise` 和对端 Gateway 名称；如果 AOE 不通，优先查 `PEER_AOE_URLS`、`8001/TCP` 和代理绕过配置。
+
+注意：`node_id` 只会变成当前 kubeconfig 指向集群内的 `nodeSelector`，不能用它表达另一个 Kubernetes 集群。需要远端能力时，本地 AOE 通过 `/orchestration/dispatch` 把子任务发给远端 AOE。
 
 ### 7.3 K8s 就绪探针
 编排器仓库的 `agent_server.py` 已支持在设置 `NATS_SERVERS` 时检查 NATS 连接状态。K8s 可以用 readiness probe 感知真实通信依赖：

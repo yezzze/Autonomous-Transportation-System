@@ -52,7 +52,35 @@ python examples/external_app_send.py
 
 `send()/receive()/serve()` 默认使用 `WORKFLOW` stream，默认 subjects 为 `workflow.demo.>`。如果要使用其他 subject 前缀，需要创建 `NatsComm(stream_subjects=[...])`。
 
-## 3. 发送消息
+## 3. 函数区别与使用场景
+
+| 函数 | 通信类型 | 是否持久化 | 是否等待对方回复 | 典型使用场景 |
+| --- | --- | --- | --- | --- |
+| `send()` | JetStream 发布 | 是 | 否 | 把任务、事件、工作流消息投递给下游，要求消息可追踪、可重放、不因消费者短暂离线而丢失。 |
+| `receive()` | JetStream 拉取消费 | 是 | 否 | 脚本或定时任务一次性拉取一批消息，自己决定何时 `ack()`、`nak()`、`term()`。 |
+| `serve()` | JetStream 常驻消费 | 是 | 否 | 长期运行的 worker 持续处理任务；handler 成功后自动 `ack()`，失败时尝试 `nak()`。 |
+| `request()` | Core NATS 请求 | 否 | 是 | 在线查询、健康检查、控制命令等需要立即拿到返回值的同步调用。 |
+| `respond()` | Core NATS 响应 | 否 | 被动回复 | 和 `request()` 配套，启动一个在线 responder，收到请求后返回结果。 |
+
+选择建议：
+
+- 需要“任务一定被处理、消费者可以晚点上线、失败后可重试”时，使用 `send()` + `receive()` 或 `send()` + `serve()`。
+- 需要“调用方马上拿到结果，超时就算失败”时，使用 `request()` + `respond()`。
+- 只处理一批已有消息、处理逻辑由脚本控制时，用 `receive()`。
+- 要部署成 Kubernetes 中的常驻业务 worker 时，用 `serve()`。
+- `send()` 虽然不等待回复，但可以在 payload 中带 `reply_subject`，让下游处理完后再用 `send(reply_subject, ...)` 发回包；这是当前 `agent_gRPC -> agent_b -> agent_c -> agent_b -> agent_gRPC` 链路使用的模式。
+- `request()/respond()` 不进入 JetStream stream，responder 不在线或超时会直接失败，不适合需要离线堆积和重放的任务。
+
+常见搭配：
+
+```text
+异步任务：send("workflow.demo.agent.b.in", payload) -> serve("workflow.demo.agent.b.in", ...)
+批量消费：send(...) -> receive(..., batch=10) -> message.ack()
+同步查询：request("workflow.demo.request.status", payload) -> respond("workflow.demo.request.status", handler)
+异步回包：send("workflow.demo.agent.b.in", {"reply_subject": reply_subject, ...}) -> receive(reply_subject, ...)
+```
+
+## 4. 发送消息
 
 ```python
 import asyncio
@@ -83,7 +111,7 @@ asyncio.run(main())
 - `stream`：写入的 JetStream stream
 - `seq`：stream 内的消息序号
 
-## 4. 接收消息
+## 5. 接收消息
 
 ```python
 import asyncio
@@ -117,7 +145,7 @@ asyncio.run(main())
 - 如果只想拉取并立即确认，可传 `ack=True`。
 - 多个消费者共享同一个 `durable` 时要谨慎，durable consumer 会保存消费进度。
 
-## 5. 常驻 Worker
+## 6. 常驻 Worker
 
 常驻 worker 推荐使用 `serve()`：
 
@@ -144,7 +172,7 @@ asyncio.run(main())
 
 `serve()` 会循环拉取消息，handler 正常返回后 ack；handler 抛异常时会尝试 nak。
 
-## 6. 请求-响应
+## 7. 请求-响应
 
 `request()/respond()` 使用 Core NATS request/reply，适合在线查询，不进入 JetStream 持久队列。
 
@@ -194,7 +222,7 @@ asyncio.run(main())
 
 参考文件：`external_app_responder.py`、`external_app_request.py`
 
-## 7. Subject 语言
+## 8. Subject 语言
 
 NATS subjects 不是 POSIX/PCRE 正则表达式，而是点分 token + 通配符语言。
 
@@ -230,7 +258,7 @@ await comm.send("workflow.demo.agent.b.in", {
 
 下游处理完成后发回 `reply_subject`，请求方只监听自己的 subject，避免多个请求互相串包。
 
-## 8. agent_gRPC 调用链路
+## 9. agent_gRPC 调用链路
 
 当前 demo 的链路是：
 
@@ -268,7 +296,7 @@ kubectl port-forward service/agent-grpc 50051:50051
 AGENT_GRPC_ADDR=localhost:50051 python client.py
 ```
 
-## 9. 日志排查
+## 10. 日志排查
 
 先确认真实 Deployment 名：
 

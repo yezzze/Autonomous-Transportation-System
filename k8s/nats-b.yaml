@@ -6,11 +6,27 @@ metadata:
     app: nats-b
 data:
   nats.conf: |
+    server_name: "nats-b"
     port: 4222
     http_port: 8222
     max_payload: 8388608
     jetstream {
       store_dir: "/data"
+    }
+    cluster {
+      name: "gw-b"
+      listen: "0.0.0.0:6222"
+      routes: [
+        "nats-route://127.0.0.1:6222"
+      ]
+    }
+    gateway {
+      name: "gw-b"
+      listen: "0.0.0.0:7222"
+      advertise: "10.112.221.121:7222"
+      gateways: [
+        { name: "gw-a", urls: ["nats://10.112.136.44:7222"] }
+      ]
     }
 ---
 apiVersion: apps/v1
@@ -38,6 +54,10 @@ spec:
           ports:
             - containerPort: 4222
               name: client
+            - containerPort: 6222
+              name: cluster
+            - containerPort: 7222
+              name: gateway
             - containerPort: 8222
               name: monitor
           volumeMounts:
@@ -54,6 +74,31 @@ metadata:
   name: nats-b
   labels:
     app: nats-b
+spec:
+  selector:
+    app: nats-b
+  ports:
+    - name: client
+      port: 4222
+      targetPort: 4222
+    - name: cluster
+      port: 6222
+      targetPort: 6222
+    - name: gateway
+      port: 7222
+      targetPort: 7222
+    - name: monitor
+      port: 8222
+      targetPort: 8222
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  labels:
+    app: nats-b
+    alias-for: nats-b
 spec:
   selector:
     app: nats-b
