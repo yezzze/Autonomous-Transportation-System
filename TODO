@@ -22,6 +22,11 @@
       runtime_api/NatsComm 支持 send/receive/serve/request/respond
       examples/ 提供外部容器化应用收发和 request/reply 示例
 
+[x] 完成 cooperativefeaturefusiondetectionviz-agent / perception2intermediatefeature-agent 的 K8S 实例化
+    - K8S_demo:
+      将两个业务 Agent 收敛为可被 Kubernetes 创建的容器实例
+      为后续跨 Agent 消息通信、资源限制、监控和故障恢复提供真实 Pod 载体
+
 [ ] 多个 Kubernetes 集群之间通信与调度落地步骤
     目标：
       - 每台机器/每组机器可以是一个独立 Kubernetes 集群，不把它们 join 成同一个集群。
@@ -192,3 +197,399 @@
       - 如果跨集群 NATS 连不上，先查 7222/TCP 防火墙、Service 类型、`gateway_advertise`、`gateway_connect`。
       - 如果 AOE 互相发现不了，查 `PEER_AOE_URLS`、AOE HTTP 暴露方式、`/registry/sync` 是否可访问。
       - 跨集群建议加 TLS、Token/mTLS、NetworkPolicy 和最小 RBAC。
+
+[ ] Agent 实例沙箱与权限隔离落地步骤
+    目标：
+      - 每个 Agent 运行在独立沙箱/Pod 中，默认只拥有完成任务需要的最小文件、网络和工具权限。
+      - 类似 OpenClaw 的实例沙箱：Agent 可以被创建、暂停、销毁、恢复，但不能越权访问宿主机或其他 Agent 上下文。
+      - MCP 工具访问也要纳入权限边界，避免 filesystem/browser/search 等工具绕过容器隔离。
+      - 第一阶段先用 Kubernetes 原生隔离实现；第二阶段再评估 gVisor/Kata/Firecracker/E2B 开源沙箱框架。
+
+    一、推荐架构
+      编排器：
+        - AOE 负责根据 GuidanceFile / resource_config 生成 Agent 实例规格。
+        - ASD 负责创建 Deployment/Pod、Service、ConfigMap、Secret、PVC。
+        - COMM 负责业务消息路由，不让 Agent 互相直连内部地址。
+
+      沙箱边界：
+        - 计算隔离：Pod + container runtime。
+        - 权限隔离：ServiceAccount + RBAC + SecurityContext。
+        - 网络隔离：Namespace + NetworkPolicy。
+        - 文件隔离：只挂载当前 Agent 需要的 ConfigMap/Secret/PVC。
+        - 工具隔离：MCP server 按 Agent 维度启动或按 capability 做 allowlist。
+
+    二、定义 AgentSandboxSpec
+      在编排器侧补一个沙箱配置结构，建议字段：
+        - `agent_id`：Agent 实例 ID。
+        - `image`：容器镜像。
+        - `resources`：cpu/memory/gpu。
+        - `network_policy`：允许访问的 Service、namespace、外部域名或 CIDR。
+        - `filesystem_mounts`：只读配置、可写工作目录、持久化目录。
+        - `mcp_permissions`：允许调用的 MCP server/tool 列表。
+        - `secrets`：按需注入的 Secret 名称。
+        - `ttl_seconds`：临时 Agent 自动回收时间。
+
+      对应落点：
+        - `K8S-Autonomous/src/service/agent_scheduler.py`
+        - `K8S-Autonomous/src/service/agent_startup.py`
+        - `K8S/k8s/orchestrated-app-template.yaml`
+
+    三、Kubernetes 原生隔离配置
+      Pod 安全配置：
+        - `runAsNonRoot: true`
+        - `allowPrivilegeEscalation: false`
+        - `readOnlyRootFilesystem: true`
+        - `capabilities.drop: ["ALL"]`
+        - 按需配置 `seccompProfile: RuntimeDefault`
+
+      RBAC：
+        - 每个 Agent 默认使用无 Kubernetes API 权限的 ServiceAccount。
+        - 只有资源管理类 Agent 才给特定 namespace 的 get/list/watch/patch 权限。
+        - 禁止把宿主机 kubeconfig 或 Docker socket 挂进普通业务 Agent。
+
+      网络：
+        - 默认 deny-all egress/ingress。
+        - 只放行 NATS、AOE HTTP、必要 MCP server、必要外部 API。
+        - 跨集群时只放行对端 NATS Gateway 7222 和 AOE HTTP 端口。
+
+    四、MCP 权限控制
+      MCP server 不建议全局共享所有工具。
+      推荐：
+        - filesystem MCP 只挂载当前任务 workspace，例如 `/workspace/sessions/<session_id>`。
+        - browser/search MCP 按 Agent capability 开关启用。
+        - 给 MCP tool call 增加审计日志：agent_id、session_id、tool_name、args 摘要、耗时、结果状态。
+        - 在 `UnifiedExecutor` 调 MCP 前检查 `mcp_permissions` allowlist。
+
+      需要改造位置：
+        - `K8S-Autonomous/src/graph/unified_executor.py`
+        - `K8S-Autonomous/src/service/mcp_client.py`
+        - 新增 `src/service/sandbox_policy.py` 或合并进 Agent 配置管理。
+
+    五、评估增强沙箱
+      Kubernetes 原生隔离跑通后，再评估：
+        - gVisor：增强 syscall 隔离，适合不可信代码执行。
+        - Kata Containers：轻量 VM 隔离，隔离强但启动更慢。
+        - Firecracker：适合极强隔离和快速 microVM 场景。
+        - E2B 开源沙箱：适合代码执行/工具调用类 Agent，但需要评估网络、镜像、权限和 K8S 集成成本。
+
+    六、最小验证路线
+      1. 为一个 demo Agent 生成独立 ServiceAccount。
+      2. 在 Deployment 中启用 SecurityContext 和只读根文件系统。
+      3. 创建 deny-all NetworkPolicy，只放行 NATS。
+      4. 验证 Agent 可以正常收发 NATS 消息。
+      5. 验证 Agent 无法访问 Kubernetes API、宿主机路径和未授权外部地址。
+      6. 给 MCP filesystem 配置独立 workspace，验证越界路径访问失败。
+
+    七、常见问题
+      - `readOnlyRootFilesystem` 开启后，应用如果写 `/tmp` 需要挂载 emptyDir。
+      - NetworkPolicy 是否生效取决于 CNI；Minikube 默认环境可能需要额外启用支持 NetworkPolicy 的 CNI。
+      - MCP filesystem 的根目录必须和 Pod 挂载目录一致，否则权限策略看起来生效但实际没有覆盖工具路径。
+      - 强隔离沙箱会增加启动耗时，快速唤醒需要配合镜像预拉取和 warm pool。
+
+[ ] 资源使用可视化监控、冻结和快速唤醒落地步骤
+    目标：
+      - 能看到每个 Agent / Deployment / Pod 的 CPU、内存、GPU、请求量、失败率和延迟。
+      - 支持空闲 Agent 降到 0 副本或冻结执行，任务到来时快速恢复。
+      - 与现有 QoSMonitor、K8S HPA、AOE UI 打通，形成资源状态和业务状态的统一视图。
+
+    一、指标来源
+      Kubernetes 层：
+        - `metrics-server`：CPU / memory 当前用量。
+        - kube-state-metrics：Deployment、Pod、ReplicaSet、重启次数、期望副本数。
+        - DCGM exporter：GPU 使用率、显存、功耗。
+
+      编排器层：
+        - `K8S-Autonomous/src/runtime/qos_monitor.py`：调用次数、成功率、平均延迟、告警 Agent。
+        - `GET /api/qos/metrics`：所有 Agent QoS 指标。
+        - `GET /api/resources/`：资源注册表可用资源。
+        - `GET /api/agents/deployments`：编排器记录的部署实例。
+
+      通信层：
+        - NATS monitor 端口 8222：连接数、订阅数、消息量。
+        - 需要跨集群时分别采集每个集群的 NATS 指标。
+
+    二、监控组件部署
+      最小可用：
+        `kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml`
+
+      生产建议：
+        - Prometheus Operator / kube-prometheus-stack。
+        - Grafana dashboard。
+        - kube-state-metrics。
+        - DCGM exporter（GPU 节点需要）。
+        - NATS exporter 或抓取 NATS 8222 监控端点。
+
+    三、编排器暴露 Prometheus 指标
+      在 `K8S-Autonomous` 中新增 `/metrics`：
+        - `agent_qos_total_calls{agent_id=...}`
+        - `agent_qos_success_rate{agent_id=...}`
+        - `agent_qos_avg_latency_ms{agent_id=...}`
+        - `agent_deployment_replicas{agent_id=...,deployment_id=...}`
+        - `agent_resource_cpu_cores{agent_id=...}`
+        - `agent_resource_memory_mb{agent_id=...}`
+
+      数据来源先复用：
+        - `QoSMonitor.get_metrics_dict()`
+        - `AgentScheduler.list_deployments()`
+        - `ResourceRegistry.query_available_resources()`
+
+    四、冻结策略
+      第一阶段用 scale-to-zero：
+        - 记录 Agent 最近一次任务结束时间。
+        - 空闲超过 `AGENT_IDLE_FREEZE_SECONDS` 后调用 `scale_deployment(replicas=0)`。
+        - registry 中保留 Agent 能力和镜像信息，但状态标记为 `frozen`。
+        - 任务再次命中该 capability 时，先 scale 到 1，再等待 readiness。
+
+      第二阶段再做更快唤醒：
+        - 镜像预拉取到所有候选节点。
+        - 保留 warm pool：每类 Agent 至少一个低资源待命实例。
+        - 对初始化慢的 Agent 保存 session/workspace 到 PVC。
+
+    五、快速唤醒流程
+      1. Planner 选择 capability 时发现目标 Agent 状态为 `frozen`。
+      2. ALCM 调用 ASD `scale_deployment(replicas=1)`。
+      3. ASD 等待 Pod ready 或 `/health` 成功。
+      4. COMM/NATS 恢复 subject 订阅。
+      5. Executor 继续派发任务。
+      6. QoSMonitor 记录一次 wakeup latency，用于后续优化。
+
+    六、UI 展示
+      `K8S-Autonomous/src/api/ui.py` 已有 QoS 监控和资源状态页签。
+      建议补充：
+        - Agent 当前状态：running / frozen / waking / failed。
+        - 副本数：desired / ready / available。
+        - 最近任务时间、空闲时长、唤醒耗时。
+        - CPU / memory / GPU 当前用量和 request/limit。
+        - 一键冻结 / 唤醒 / 扩容 / 缩容。
+
+    七、最小验证路线
+      1. 部署 metrics-server，确认 `kubectl top pods` 可用。
+      2. 调用 `/api/qos/metrics`，确认业务 QoS 有数据。
+      3. 手动 patch 一个 Deployment 到 replicas=0，确认状态被 UI 或接口识别为 frozen。
+      4. 再 patch 到 replicas=1，确认 Pod ready 后业务调用恢复。
+      5. 给一个 Agent 设置很短 idle timeout，验证自动冻结和任务触发唤醒。
+
+    八、常见问题
+      - scale-to-zero 会丢失内存态；需要恢复的上下文必须提前落盘到 PVC/对象存储/数据库。
+      - HPA 默认不会从 0 自动扩到 1；需要 KEDA 或编排器自己触发唤醒。
+      - GPU 指标需要节点安装 NVIDIA 驱动、device plugin 和 DCGM exporter。
+
+[ ] 智能体崩溃重启与状态恢复落地步骤
+    目标：
+      - Agent Pod 崩溃后能自动重启，编排器能发现并恢复 registry、QoS 和任务状态。
+      - 对正在执行的任务，要能区分可重试、需要重规划、需要人工介入三类。
+      - 跨集群 Agent 故障时优先走已有 failover / remote AOE 替代机制。
+
+    一、Kubernetes 自动重启
+      Deployment 默认使用 `restartPolicy: Always`。
+      需要补齐：
+        - readinessProbe：Agent 是否可接收业务请求。
+        - livenessProbe：Agent 是否卡死，需要 kubelet 重启。
+        - startupProbe：启动慢的模型/Agent 避免被 liveness 过早杀死。
+
+      当前配置入口：
+        - `AGENT_ENABLE_HEALTH_PROBE=true`
+        - `AGENT_HEALTH_PATH=/health`
+        - `AGENT_READINESS_INITIAL_DELAY_SECONDS`
+        - `AGENT_LIVENESS_INITIAL_DELAY_SECONDS`
+        - `K8S-Autonomous/src/service/agent_startup.py`
+
+    二、编排器健康检查
+      ASD 已有：
+        - `AgentScheduler.health_check(agent_id)`
+        - `redeploy_agent(agent_id)`
+        - `list_deployments_by_agent(agent_id)`
+
+      需要补齐定时巡检：
+        - 定时检查 running deployment 是否有 ready Pod。
+        - 连续失败 N 次后调用 `redeploy_agent()`。
+        - redeploy 后调用 `QoSMonitor.reset_metrics(agent_id)`，避免旧故障指标立刻再次触发。
+        - registry 中更新 Agent 状态：healthy / degraded / failed / recovering。
+
+    三、任务级恢复
+      Executor 执行任务时记录：
+        - `session_id`
+        - `task_id`
+        - `agent_id`
+        - `attempt`
+        - `input_payload`
+        - `last_checkpoint`
+        - `result_status`
+
+      恢复策略：
+        - 幂等任务：直接重试。
+        - 非幂等任务：先查 checkpoint，再由 planner 决定是否补偿或重规划。
+        - 跨集群任务：调用 `find_alternative_remote_aoe()` 找替代远端 AOE。
+        - 超过 `max_retries`：进入 reporter，输出失败原因和未完成步骤。
+
+    四、持久化位置
+      第一阶段可用本地文件或 SQLite：
+        - `data/sessions/<session_id>.json`
+        - `data/checkpoints/<task_id>.json`
+
+      后续生产建议：
+        - PostgreSQL：任务状态、部署记录、registry snapshot。
+        - 对象存储/PVC：大文件、中间产物、模型输出。
+        - NATS JetStream：需要可靠投递的任务事件。
+
+    五、最小验证路线
+      1. 启动一个带 `/health` 的 Agent Deployment。
+      2. 手动 kill Pod：`kubectl delete pod <pod-name>`。
+      3. 确认 Deployment 自动拉起新 Pod。
+      4. 调用 `GET /api/agents/deployments`，确认编排器仍能看到运行记录。
+      5. 模拟 Agent 连续失败，确认 QoS 告警触发 `redeploy_agent()`。
+      6. 执行一个跨集群任务，手动停掉远端 AOE，确认 failover 或重规划路径生效。
+
+    六、常见问题
+      - 后台 worker 没有 HTTP `/health` 时不要强开 HTTP probe；可以改用 TCP probe 或独立 sidecar health endpoint。
+      - 只靠 Kubernetes 重启不能恢复业务任务；任务状态必须由编排器或消息系统持久化。
+      - readiness 失败只会摘流量，不一定重启容器；卡死检测要靠 liveness。
+
+[ ] 多上下文维护与沙箱绑定落地步骤
+    目标：
+      - 不同用户、应用、任务、Agent 的上下文互相隔离。
+      - 上下文可以跟随沙箱冻结/唤醒，也可以在 Agent 崩溃后恢复。
+      - LLM prompt 上下文、工具 workspace、任务中间产物和消息 subject 需要有统一的 session 边界。
+
+    一、上下文分层
+      建议按四层维护：
+        - UserContext：用户偏好、权限、API token 引用。
+        - AppContext：GuidanceFile、Skills.md、应用配置、默认资源需求。
+        - SessionContext：一次工作流的 execution_plan、task 状态、cross_host_sessions。
+        - AgentSandboxContext：Pod/workspace/PVC/MCP 权限/NATS subject 前缀。
+
+      当前相关位置：
+        - `K8S-Autonomous/PROJECT_CONTEXT.md`
+        - `K8S-Autonomous/CLAUDE.md`
+        - `K8S-Autonomous/接口/新对话初始化模板.md`
+        - `K8S-Autonomous/src/graph/distributed_types.py`
+        - `K8S-Autonomous/src/graph/progress_ledger.py`
+
+    二、session_id 贯穿链路
+      所有关键对象都带上 `session_id`：
+        - HTTP 请求体
+        - NATS subject 或消息 payload
+        - Deployment label：`aoe/session-id`
+        - PVC / workspace 路径
+        - MCP tool call 审计日志
+        - QoS metrics label
+
+      示例 subject：
+        - `workflow.<session_id>.agent.<agent_id>.in`
+        - `workflow.<session_id>.agent.<agent_id>.reply.*`
+
+    三、上下文持久化
+      每次 planner / executor / monitor 关键状态变化后写 checkpoint：
+        - `execution_plan`
+        - `current_task_index`
+        - `completed_tasks`
+        - `failed_tasks`
+        - `cross_host_sessions`
+        - `agent_registry_cache`
+        - `last_replan_reason`
+
+      冻结前：
+        - flush workspace。
+        - 保存 session metadata。
+        - 标记 sandbox 状态为 `frozen`。
+
+      唤醒后：
+        - 恢复 workspace mount。
+        - 重新注册 Agent capability。
+        - 恢复 NATS 订阅。
+        - 从 checkpoint 继续执行。
+
+    四、沙箱绑定
+      每个 SessionContext 绑定一个或多个 AgentSandbox：
+        - 短任务：session 结束后删除沙箱和 workspace。
+        - 长任务：session 暂停后 scale-to-zero，保留 PVC。
+        - 共享能力 Agent：不共享用户 workspace，只共享无状态模型服务。
+
+      Kubernetes label 建议：
+        - `aoe/app-id`
+        - `aoe/session-id`
+        - `aoe/agent-id`
+        - `aoe/context-scope`
+
+    五、最小验证路线
+      1. 同时启动两个 session，使用相同 Agent capability。
+      2. 确认两个 session 的 NATS subject、workspace 路径、Deployment label 不冲突。
+      3. 在 session A 写入 workspace 文件，确认 session B 不能读取。
+      4. 冻结 session A，再唤醒，确认 execution_plan 和 workspace 文件仍在。
+      5. 删除 session A，确认对应 Pod/PVC/ConfigMap/Secret 按策略回收。
+
+    六、常见问题
+      - 如果多个 session 共享同一个常驻 Agent，必须避免把用户上下文放进 Agent 进程全局变量。
+      - 上下文越完整，恢复越可靠，但 checkpoint 写入频率会影响性能。
+      - Secret 不要写入普通 checkpoint；只保存 Secret 名称或引用。
+
+[ ] Kubernetes 监控与告警落地步骤
+    目标：
+      - 能定位 Pod 为什么没起来、为什么重启、为什么调度不到节点、为什么跨集群通信失败。
+      - 告警覆盖控制面、工作负载、NATS、AOE、资源和 GPU。
+      - 最小集群先靠 kubectl + metrics-server；生产集群接 Prometheus/Grafana/Alertmanager。
+
+    一、基础排查命令
+      集群状态：
+        `kubectl get nodes -o wide`
+        `kubectl get pods -A -o wide`
+        `kubectl get deploy,svc,hpa -A`
+
+      Pod 详情：
+        `kubectl describe pod <pod-name>`
+        `kubectl logs <pod-name> --previous`
+        `kubectl get events --sort-by=.lastTimestamp`
+
+      资源使用：
+        `kubectl top nodes`
+        `kubectl top pods -A`
+
+      NATS：
+        `kubectl logs deploy/nats`
+        `kubectl port-forward svc/nats 8222:8222`
+        `curl http://localhost:8222/varz`
+        `curl http://localhost:8222/connz`
+        `curl http://localhost:8222/subsz`
+
+    二、常用告警
+      工作负载：
+        - Pod CrashLoopBackOff。
+        - Pod Pending 超过 5 分钟。
+        - Deployment ready 副本数小于期望副本数。
+        - 容器重启次数持续增加。
+
+      资源：
+        - Node CPU / memory 使用率过高。
+        - Pod 接近 memory limit。
+        - GPU 显存接近上限。
+        - PVC 可用空间不足。
+
+      编排器：
+        - AOE `/health` 不可用。
+        - `/api/qos/metrics` 成功率低于阈值。
+        - `redeploy_agent()` 连续失败。
+        - registry sync 失败。
+
+      通信：
+        - NATS Gateway 断连。
+        - NATS client 连接数异常下降。
+        - request/reply 超时增加。
+
+    三、Grafana 面板
+      建议四个面板：
+        - Cluster Overview：node、pod、deployment、事件。
+        - Agent Overview：Agent 状态、replicas、CPU/memory/GPU、QoS。
+        - NATS Overview：连接、订阅、消息吞吐、gateway 状态。
+        - AOE Overview：请求量、错误率、registry sync、dispatch 延迟。
+
+    四、最小验证路线
+      1. 安装 metrics-server，确认 `kubectl top` 可用。
+      2. 给一个 Agent 设置过低 memory limit，观察 OOMKilled 事件。
+      3. 手动改错镜像名，观察 ImagePullBackOff 告警。
+      4. 断开 NATS Gateway 地址，观察 NATS 日志和跨集群 request/reply 超时。
+      5. 恢复配置后确认告警消退。
+
+    五、常见问题
+      - `kubectl top` 没数据通常是 metrics-server 未安装或 kubelet 证书配置问题。
+      - CrashLoopBackOff 要先看 `--previous` 日志，当前容器日志可能已经是新一轮启动。
+      - Pending 多数是资源不足、nodeSelector 不匹配、taint/toleration 不匹配或 PVC 绑定失败。
