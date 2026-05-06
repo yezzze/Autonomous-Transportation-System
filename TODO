@@ -21,3 +21,174 @@
     - K8S_demo:
       runtime_api/NatsComm 支持 send/receive/serve/request/respond
       examples/ 提供外部容器化应用收发和 request/reply 示例
+
+[ ] 多个 Kubernetes 集群之间通信与调度落地步骤
+    目标：
+      - 每台机器/每组机器可以是一个独立 Kubernetes 集群，不把它们 join 成同一个集群。
+      - 每个 K8S 集群内部独立调度 Pod；跨集群只做消息通信、Agent 发现和任务分发。
+      - 业务消息走 NATS Gateway/Leafnode；编排控制面走 `K8S-Autonomous` 的 AOE HTTP peer。
+      - 不要用 `node_id` 表达另一个集群。当前 `node_id` 只作用于当前 kubeconfig 指向的集群内 nodeSelector。
+
+    一、推荐架构
+      集群 A：
+        - 部署本地 NATS：`nats-a`
+        - 部署本地 Agent：agent-grpc / agent-b / agent-c 或动态 Agent
+        - 部署或启动一个 `K8S-Autonomous` AOE，管理集群 A 的 kubeconfig
+
+      集群 B：
+        - 部署本地 NATS：`nats-b`
+        - 部署本地 Agent
+        - 部署或启动一个 `K8S-Autonomous` AOE，管理集群 B 的 kubeconfig
+
+      跨集群两条通道：
+        1. 数据/业务消息通道：NATS Gateway，把两个集群的 subject 打通。
+        2. 编排/控制通道：AOE HTTP peer，使用 `PEER_AOE_URLS`、`/registry/sync`、`/orchestration/dispatch` 做跨主体任务分发。
+
+    二、打通跨集群网络
+      每个集群至少暴露：
+        - NATS Gateway 端口：7222/TCP，供另一个集群的 NATS 连接。
+        - AOE HTTP 端口：例如 8000 或 9000/TCP，供另一个集群分发任务和同步 registry。
+        - 可选：NATS client 端口 4222/TCP，只在外部客户端需要直接接入 NATS 时暴露。
+
+      推荐生产做法：
+        - 云上用 LoadBalancer Service 暴露 7222 和 AOE HTTP。
+        - 裸机用 NodePort + 固定 Node IP，或 MetalLB 提供 LoadBalancer。
+        - 两个集群之间必须能用固定 DNS 或固定 IP 互访。
+        - 防火墙、安全组放行 7222 和 AOE HTTP 端口。
+
+    三、部署跨集群 NATS Gateway
+      `K8S` 已提供示例：
+        - `k8s/multicluster/nats-cluster-a.yaml`
+        - `k8s/multicluster/nats-cluster-b.yaml`
+
+      需要先把示例里的占位地址换成真实可达地址。
+      当前示例使用：
+        - `nats-b.cross-cluster.svc.cluster.local:7222`
+        - `nats-a.cross-cluster.svc.cluster.local:7222`
+
+      实际部署时应改成对端集群暴露出来的地址，例如：
+        - 集群 A 连接 B：`--gateway_connect=name:gw-b,url:nats://<CLUSTER_B_GATEWAY_HOST>:7222`
+        - 集群 B 连接 A：`--gateway_connect=name:gw-a,url:nats://<CLUSTER_A_GATEWAY_HOST>:7222`
+        - `--gateway_advertise` 也要填写本集群对外可达的 host:7222
+
+      集群 A：
+        `kubectl --context <cluster-a> apply -f k8s/multicluster/nats-cluster-a.yaml`
+
+      集群 B：
+        `kubectl --context <cluster-b> apply -f k8s/multicluster/nats-cluster-b.yaml`
+
+      验证：
+        `kubectl --context <cluster-a> logs deploy/nats-a`
+        `kubectl --context <cluster-b> logs deploy/nats-b`
+        日志里应看到 gateway 连接建立。
+
+    四、业务 Pod 如何使用跨集群 NATS
+      集群内 Pod 仍然只连本集群 NATS Service：
+        - 集群 A：`NATS_SERVERS=nats://nats-a:4222`
+        - 集群 B：`NATS_SERVERS=nats://nats-b:4222`
+
+      只要 NATS Gateway 连通，两边使用同一套 subject 即可跨集群通信，例如：
+        - `workflow.demo.agent.b.in`
+        - `workflow.demo.agent.c.in`
+        - `workflow.demo.agent.grpc.reply.*`
+
+      注意：
+        - 跨集群 request/reply 要保证 responder 所在集群已订阅相同 subject。
+        - JetStream stream/consumer 如果需要跨集群一致性，要单独设计；当前 demo 更适合用 Gateway 打通普通 subject 和轻量 request/reply。
+        - 生产建议给 NATS Gateway 开 TLS 与鉴权，避免裸连。
+
+    五、部署每个集群自己的 K8S-Autonomous AOE
+      `K8S-Autonomous` 的 Kubernetes 后端一次只操作当前 kubeconfig 指向的集群。
+      因此跨多个 K8S 时，推荐每个集群跑一个 AOE：
+
+      AOE 实现位置：
+        - `K8S-Autonomous/server.py`：启动主 FastAPI 服务，默认 Kubernetes 后端。
+        - `K8S-Autonomous/src/api/app.py`：提供 AOE HTTP 端点：
+          - `POST /registry/sync`：ARDC agent registry 跨集群同步。
+          - `POST /orchestration/dispatch`：接收其他集群 AOE 发来的子任务并本地执行。
+          - `DELETE /orchestration/session/{session_id}`：停止/清理远端会话。
+        - `K8S-Autonomous/src/graph/distributed_nodes.py`：
+          - `dispatch_subtask_to_remote_aoe()` 调用远端 `/orchestration/dispatch`。
+          - `identify_cross_host_tasks()` 根据 agent ip 生成远端 AOE URL。
+          - `find_alternative_remote_aoe()` 根据 gossip registry 做跨集群故障切换。
+
+      集群 A 对应 AOE：
+        `cd /home/t/mydisk/czl/K8S-Autonomous`
+        `conda activate k8s`
+        `export PYTHONPATH=$PWD`
+        `export USE_LLM_SIMULATOR=true`
+        `export AGENT_DEPLOY_BACKEND=kubernetes`
+        `export K8S_NAMESPACE=default`
+        `export NATS_SERVERS=nats://nats-a:4222`
+        `export LOCAL_AOE_URL=http://<CLUSTER_A_AOE_HOST>:8001`
+        `export PEER_AOE_URLS=http://<CLUSTER_B_AOE_HOST>:8001`
+        `export PORT=8001`
+        `python server.py`
+
+      集群 B 对应 AOE：
+        `cd /home/t/mydisk/czl/K8S-Autonomous`
+        `conda activate k8s`
+        `export PYTHONPATH=$PWD`
+        `export USE_LLM_SIMULATOR=true`
+        `export AGENT_DEPLOY_BACKEND=kubernetes`
+        `export K8S_NAMESPACE=default`
+        `export NATS_SERVERS=nats://nats-b:4222`
+        `export LOCAL_AOE_URL=http://<CLUSTER_B_AOE_HOST>:8001`
+        `export PEER_AOE_URLS=http://<CLUSTER_A_AOE_HOST>:8001`
+        `export PORT=8001`
+        `python server.py`
+
+      注意：`server.py` 默认端口来自 `PORT`，未设置时是 8001。`PEER_AOE_URLS` 必须填写对端实际暴露的 AOE HTTP 地址和端口。
+
+      如果 AOE 运行在集群外：
+        - 分别用不同 kubeconfig context 启动不同 AOE 进程。
+        - 每个进程只管理一个 Kubernetes 集群，避免同一进程频繁切 kube context。
+
+      如果 AOE 运行在集群内：
+        - 给 AOE Pod 配置 ServiceAccount/RBAC，使其能 create/patch/delete Deployment 和 Service。
+        - 用 Service/Ingress/NodePort 暴露 AOE HTTP 给其他集群。
+
+    六、跨集群任务分发怎么走
+      `K8S-Autonomous` 已有跨主体机制：
+        - `PEER_AOE_URLS`：配置其他集群的 AOE HTTP 地址。
+        - `/registry/sync`：同步对端 Agent registry。
+        - `/orchestration/dispatch`：把子任务分发给远端 AOE 执行。
+        - `/orchestration/session/{session_id}`：停止/清理远端会话。
+
+      调度边界：
+        - 集群 A 的 AOE 只能在集群 A 内创建 Pod。
+        - 集群 B 的 AOE 只能在集群 B 内创建 Pod。
+        - 当任务需要集群 B 的 Agent 能力时，集群 A 的 AOE 通过 HTTP dispatch 把子任务发给集群 B 的 AOE。
+        - 子任务执行过程中的 Agent 间数据消息可以继续走跨集群 NATS subject。
+
+    七、镜像准备
+      每个集群只需要能拉取自己要运行的镜像。
+      建议：
+        - 使用统一 registry，例如 `registry.local/agent-b-worker:v3`。
+        - 所有集群节点都能访问 registry。
+        - 不依赖本地同名镜像，减少 `ImagePullBackOff`。
+
+      `K8S` demo 镜像：
+        `cd /home/t/mydisk/czl/K8S`
+        `docker build -f agent_gRPC/Dockerfile -t registry.local/agent-grpc:v1 .`
+        `docker build -f agent_b/Dockerfile -t registry.local/agent-b-worker:v3 .`
+        `docker build -f agent_c/Dockerfile -t registry.local/agent-c-worker:v1 .`
+        `docker push registry.local/agent-grpc:v1`
+        `docker push registry.local/agent-b-worker:v3`
+        `docker push registry.local/agent-c-worker:v1`
+
+    八、最小验证路线
+      1. 在两个集群分别部署 NATS Gateway。
+      2. 在集群 A 启动 requester，在集群 B 启动 responder，使用同一个 subject 做 request/reply。
+      3. 确认 `kubectl logs deploy/nats-a` 和 `deploy/nats-b` 中 gateway 已连接。
+      4. 分别启动两个 `K8S-Autonomous` AOE，并互相配置 `PEER_AOE_URLS`。
+      5. 手动触发 registry sync：
+         `curl -X POST http://<CLUSTER_B_AOE_HOST>:8001/registry/sync -H 'Content-Type: application/json' -d '<registry_payload>'`
+      6. 从集群 A 提交一个需要远端能力的任务，观察是否调用 `/orchestration/dispatch` 到集群 B。
+
+    九、常见问题
+      - `node_id` 不能调度到另一个 Kubernetes 集群；它只会变成当前集群的 nodeSelector。
+      - NATS Gateway 地址必须是对端集群外部可达地址，不能直接写只在本集群内有效的 ClusterIP DNS。
+      - 如果跨集群 NATS 连不上，先查 7222/TCP 防火墙、Service 类型、`gateway_advertise`、`gateway_connect`。
+      - 如果 AOE 互相发现不了，查 `PEER_AOE_URLS`、AOE HTTP 暴露方式、`/registry/sync` 是否可访问。
+      - 跨集群建议加 TLS、Token/mTLS、NetworkPolicy 和最小 RBAC。

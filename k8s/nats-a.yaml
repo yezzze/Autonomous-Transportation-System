@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-a-config
+  labels:
+    app: nats-a
+data:
+  nats.conf: |
+    port: 4222
+    http_port: 8222
+    max_payload: 8388608
+    jetstream {
+      store_dir: "/data"
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-a
+  labels:
+    app: nats-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats-a
+  template:
+    metadata:
+      labels:
+        app: nats-a
+    spec:
+      containers:
+        - name: nats
+          image: docker.m.daocloud.io/library/nats:2.10
+          args:
+            - "-c"
+            - "/etc/nats-config/nats.conf"
+          ports:
+            - containerPort: 4222
+              name: client
+            - containerPort: 8222
+              name: monitor
+          volumeMounts:
+            - name: nats-config
+              mountPath: /etc/nats-config
+      volumes:
+        - name: nats-config
+          configMap:
+            name: nats-a-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-a
+  labels:
+    app: nats-a
+spec:
+  selector:
+    app: nats-a
+  ports:
+    - name: client
+      port: 4222
+      targetPort: 4222
+    - name: monitor
+      port: 8222
+      targetPort: 8222
+  type: ClusterIP
