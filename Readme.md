@@ -96,7 +96,7 @@ python server.py
 Kubernetes 部署模式：
 ```bash
 minikube start
-kubectl apply -f /home/t/K8S_demo/k8s/nats.yaml
+kubectl apply -f /home/czl/Project/K8S_demo/k8s/nats-a.yaml
 
 cd /home/t/Projects/czl/Autonomous-Transportation-System
 conda activate k8s
@@ -104,7 +104,10 @@ export PYTHONPATH=$PWD
 export USE_LLM_SIMULATOR=true
 export AGENT_DEPLOY_BACKEND=kubernetes
 export K8S_NAMESPACE=default
-export NATS_SERVERS=nats://nats:4222
+export NATS_DEPLOYMENT_NAME=nats-a
+export NATS_SERVICE_NAME=nats-a
+export NATS_APP_LABEL=nats-a
+export NATS_SERVERS=nats://nats-a:4222
 export AGENT_CONTAINER_PORT=8000
 export AGENT_ENABLE_HEALTH_PROBE=false
 python server.py
@@ -245,8 +248,13 @@ kubectl get pods -o wide
 
 ### 7.2 不同集群间
 跨集群不把多台机器 join 成同一个 Kubernetes 集群。每个集群独立调度自己的 Pod，跨集群只打通两条通道：
-- 数据/业务消息通道：NATS Gateway，复用同一套 subject
+- 数据/业务消息通道：各集群本地 NATS，业务代码统一通过 `NATS_SERVERS` 访问本集群消息总线
 - 编排/控制通道：`K8S-Autonomous` AOE HTTP peer，负责 registry sync 和远端任务分发
+
+这里要明确区分两种 NATS 角色：
+
+- **本地 NATS**：服务当前集群内的 Agent / AOE，重点是稳定、简单、单节点可用
+- **跨集群 Gateway NATS**：在本地 NATS 基础上额外打开 `7222/TCP`，让 A / B 两边的 NATS 做 gateway federation
 
 集群内 Pod 只连接本集群 NATS：
 ```text
@@ -254,7 +262,16 @@ kubectl get pods -o wide
 集群 B: NATS_SERVERS=nats://nats-b:4222
 ```
 
-部署 NATS Gateway：
+约定：
+
+- 集群 A 可以把本地 NATS 部署为 `nats-a`
+- 集群 B 可以把本地 NATS 部署为 `nats-b`
+- 公共代码、Agent 逻辑、API fallback 不写死 `nats-a` / `nats-b`
+- AOE 和 Agent 统一只读取启动环境里的 `NATS_SERVERS`
+
+#### 7.2.1 本地 NATS
+
+部署本地 NATS：
 ```bash
 # 集群 A
 kubectl apply -f k8s/nats-a.yaml
@@ -265,18 +282,80 @@ kubectl apply -f k8s/nats-b.yaml
 kubectl rollout status deployment/nats-b --timeout=180s
 ```
 
-`k8s/nats-a.yaml` 已把 A 侧 Gateway 配成 `gw-a`，并连接 B 侧 `10.112.221.121:7222`。如果换机器，需要同步修改：
-```text
-gateway.advertise: <CLUSTER_A_HOST>:7222
-gateway.gateways[].urls: nats://<CLUSTER_B_HOST>:7222
-```
+如果是当前仓库配套的多集群 AOE 场景，建议分别使用仓库中的启动脚本注入本地 NATS：
 
-裸机或 Minikube 场景需要把 Gateway 端口暴露到固定主机 IP。最小验证可以用 port-forward：
 ```bash
-kubectl port-forward --address 0.0.0.0 svc/nats-a 7222:7222
+# 集群 A
+./scripts/start_cluster_a_aoe.sh
+
+# 集群 B
+./scripts/start_cluster_b_aoe.sh
 ```
 
-生产环境建议用 NodePort、LoadBalancer 或 MetalLB 暴露 `7222/TCP`，并在防火墙/安全组中放行对端集群 IP。AOE HTTP 端口也要互通，默认示例为 `8001/TCP`。
+它们会分别注入：
+
+```text
+集群 A: NATS_SERVERS=nats://nats-a:4222
+集群 B: NATS_SERVERS=nats://nats-b:4222
+```
+
+本地 NATS 的目标是：
+
+- 让当前集群内 Pod 只依赖本集群的消息总线
+- 让代码保持通用，不把 A/B 服务名写死到业务逻辑里
+- 出问题时优先排查当前集群，而不是把跨集群网络问题混进来
+
+#### 7.2.2 跨集群 Gateway NATS
+
+只有在你明确需要 **NATS 层跨集群互通** 时，才部署 gateway 版本，而不是默认把所有集群都跑成 gateway 模式。
+
+跨集群 gateway 清单位于：
+
+```text
+k8s/multicluster/nats-cluster-a.yaml
+k8s/multicluster/nats-cluster-b.yaml
+```
+
+这两份文件和本地 NATS 的区别是：
+
+- 保留 `gateway { ... }` 配置
+- 额外暴露 `7222/TCP`
+- 通过 gateway 名称 `gw-a` / `gw-b` 建立跨集群 NATS federation
+
+在应用前，先把占位符替换成真实宿主机 IP：
+
+```text
+__CLUSTER_A_HOST__
+__CLUSTER_B_HOST__
+```
+
+例如：
+
+```bash
+# 集群 A 机器上
+sed 's/__CLUSTER_A_HOST__/10.112.136.44/g; s/__CLUSTER_B_HOST__/10.112.221.121/g' \
+  k8s/multicluster/nats-cluster-a.yaml | kubectl apply -f -
+
+# 集群 B 机器上
+sed 's/__CLUSTER_A_HOST__/10.112.136.44/g; s/__CLUSTER_B_HOST__/10.112.221.121/g' \
+  k8s/multicluster/nats-cluster-b.yaml | kubectl apply -f -
+```
+
+部署完成后，Gateway 侧的约定是：
+
+```text
+集群 A gateway name: gw-a
+集群 B gateway name: gw-b
+gateway 互联端口: 7222/TCP
+```
+
+注意：
+
+- 本地 NATS 和 Gateway NATS 不要在同一集群里同时部署成两个同名 Deployment
+- 如果你当前只需要 AOE 的跨集群调度，不需要 NATS 层互通，就不要启用 gateway 版本
+- AOE HTTP 调度和 NATS gateway 是两条独立链路，不要混为一谈
+
+AOE HTTP 端口需要双向互通，默认示例为 `8001/TCP`。
 
 启动集群 A AOE：
 ```bash
@@ -293,20 +372,161 @@ PYTHON=/home/t/anaconda3/envs/k8s/bin/python \
 CLUSTER_A_AOE_URL=http://10.112.136.44:8001 ./scripts/start_cluster_b_aoe.sh
 ```
 
-验证：
+#### 7.2.3 两边连通性的完整验证流程
+
+建议按下面顺序验证，不要一上来就直接看业务 Pod。这样可以把问题定位在“本地 NATS”、“Gateway NATS”还是“AOE HTTP”。
+
+**Step 1：确认两边本地 NATS 都已经起来**
+
+集群 A：
+
+```bash
+kubectl get deploy,svc,pods | grep nats-a
+```
+
+集群 B：
+
+```bash
+kubectl get deploy,svc,pods | grep nats-b
+```
+
+预期：
+
+- `deployment/nats-a` 或 `deployment/nats-b` 为 `1/1`
+- 对应 Pod 为 `Running`
+- 对应 Service 至少暴露 `4222/TCP`
+
+**Step 2：确认业务 Pod 使用的是本集群本地 NATS**
+
+集群 A：
+
+```bash
+kubectl get deploy -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.template.spec.containers[*]}{range .env[*]}{.name}={.value}{" "}{end}{end}{"\n"}{end}' | grep NATS_SERVERS
+```
+
+集群 B 同样执行一次。
+
+预期：
+
+```text
+集群 A: NATS_SERVERS=nats://nats-a:4222
+集群 B: NATS_SERVERS=nats://nats-b:4222
+```
+
+如果这里就不对，先不要继续往下查 gateway。
+
+**Step 3：如果启用了 Gateway NATS，确认 7222 端口两边都能到**
+
+集群 A 机器上：
+
+```bash
+nc -vz 10.112.221.121 7222
+```
+
+集群 B 机器上：
+
+```bash
+nc -vz 10.112.136.44 7222
+```
+
+如果机器上没有 `nc`，可以用：
+
+```bash
+curl --connect-timeout 3 telnet://10.112.221.121:7222
+```
+
+这一步不要求返回业务数据，只要端口能连通即可。
+
+**Step 4：确认 Gateway NATS 自己已经建立连接**
+
+集群 A：
+
 ```bash
 kubectl logs deploy/nats-a --tail=120
-nc -vz 10.112.136.44 7222
-nc -vz 10.112.221.121 7222
+```
 
-curl --noproxy '*' http://10.112.136.44:8001/docs
+集群 B：
+
+```bash
+kubectl logs deploy/nats-b --tail=120
+```
+
+预期日志里应看到类似：
+
+```text
+gateway connected
+outbound gateway connection established
+```
+
+如果没有看到这类日志，重点检查：
+
+- `__CLUSTER_A_HOST__` / `__CLUSTER_B_HOST__` 是否替换成了真实宿主机 IP
+- `7222/TCP` 是否被防火墙或安全组拦截
+- `gw-a` / `gw-b` 名称是否和对端配置一致
+
+**Step 5：确认两边 AOE HTTP 可以互相访问**
+
+集群 A 机器上：
+
+```bash
 curl --noproxy '*' http://10.112.221.121:8001/docs
+```
+
+集群 B 机器上：
+
+```bash
+curl --noproxy '*' http://10.112.136.44:8001/docs
+```
+
+预期返回 Swagger/OpenAPI 页面内容。
+
+如果这里不通，说明问题在 AOE HTTP 链路，不在 NATS。
+
+**Step 6：验证 AOE 注册表同步**
+
+在集群 A 机器上执行：
+
+```bash
 curl --noproxy '*' -X POST http://10.112.221.121:8001/registry/sync \
   -H 'Content-Type: application/json' \
   -d '{"source_url":"http://10.112.136.44:8001","agents":[]}'
 ```
 
-日志里应看到 NATS gateway connection 建立，以及 AOE `[ARDC Gossip] 推送到 ... 成功`。如果 NATS 不通，优先查 `7222/TCP` 暴露、防火墙、`gateway.advertise` 和对端 Gateway 名称；如果 AOE 不通，优先查 `PEER_AOE_URLS`、`8001/TCP` 和代理绕过配置。
+然后在两边看日志：
+
+```bash
+tail -f logs/cluster-a-aoe.log
+tail -f logs/cluster-b-aoe.log
+```
+
+预期看到：
+
+```text
+[ARDC Gossip] 推送到 ... 成功
+```
+
+**Step 7：最后再看业务 Pod**
+
+如果前面 1 到 6 都通过，再检查业务 Pod：
+
+```bash
+kubectl get pods -o wide
+kubectl describe pod <pod-name>
+kubectl logs <pod-name>
+```
+
+这时如果业务 Pod 仍有问题，通常就是：
+
+- 业务镜像没有加载到当前集群
+- Pod 内业务代码报错
+- 就绪探针 / 健康检查配置不匹配
+
+排障速记：
+
+- 本地 NATS 问题：先看 `NATS_SERVERS` 注入值和 `nats-a` / `nats-b` Pod 状态
+- Gateway NATS 问题：先看 `7222/TCP` 连通性和 gateway 日志
+- AOE HTTP 问题：先看 `8001/TCP`、`PEER_AOE_URLS` 和代理绕过配置
+- 业务 Pod 问题：最后看镜像、容器日志和探针
 
 注意：`node_id` 只会变成当前 kubeconfig 指向集群内的 `nodeSelector`，不能用它表达另一个 Kubernetes 集群。需要远端能力时，本地 AOE 通过 `/orchestration/dispatch` 把子任务发给远端 AOE。
 
@@ -339,7 +559,7 @@ livenessProbe:
 ```yaml
 env:
   - name: NATS_SERVERS
-    value: "nats://nats:4222"
+    value: "nats://<local-nats-service>:4222"
 ```
 
 ### 8.1 发送消息

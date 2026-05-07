@@ -1,7 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-a-config
+  labels:
+    app: nats-a
+data:
+  nats.conf: |
+    server_name: "nats-a"
+    port: 4222
+    http_port: 8222
+    max_payload: 8388608
+    jetstream {
+      store_dir: "/data"
+    }
+    gateway {
+      name: "gw-a"
+      listen: "0.0.0.0:7222"
+      advertise: "__CLUSTER_A_HOST__:7222"
+      gateways: [
+        { name: "gw-b", urls: ["nats://__CLUSTER_B_HOST__:7222"] }
+      ]
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nats-a
+  labels:
+    app: nats-a
 spec:
   replicas: 1
   selector:
@@ -14,28 +40,31 @@ spec:
     spec:
       containers:
         - name: nats
-          image: nats:2.10
+          image: docker.m.daocloud.io/library/nats:2.10
           args:
-            - "-js"
-            - "--store_dir=/data"
-            - "--cluster_name=cluster-a"
-            - "--cluster=nats://0.0.0.0:6222"
-            - "--gateway_name=gw-a"
-            - "--gateway=nats://0.0.0.0:7222"
-            - "--gateway_advertise=nats-a.default.svc.cluster.local:7222"
-            - "--gateway_connect=name:gw-b,url:nats://nats-b.cross-cluster.svc.cluster.local:7222"
+            - "-c"
+            - "/etc/nats-config/nats.conf"
           ports:
             - containerPort: 4222
               name: client
-            - containerPort: 6222
-              name: cluster
             - containerPort: 7222
               name: gateway
+            - containerPort: 8222
+              name: monitor
+          volumeMounts:
+            - name: nats-config
+              mountPath: /etc/nats-config
+      volumes:
+        - name: nats-config
+          configMap:
+            name: nats-a-config
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: nats-a
+  labels:
+    app: nats-a
 spec:
   selector:
     app: nats-a
@@ -46,3 +75,7 @@ spec:
     - name: gateway
       port: 7222
       targetPort: 7222
+    - name: monitor
+      port: 8222
+      targetPort: 8222
+  type: ClusterIP
