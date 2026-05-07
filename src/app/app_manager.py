@@ -401,6 +401,8 @@ class AppManager:
         task_description: Optional[str] = None,
         skills_content: Optional[str] = None,
         orchestration_mode: Optional[str] = None,
+        agents_required: Optional[List[str]] = None,
+        images: Optional[List[Dict]] = None,
         constraints: Optional[dict] = None,
     ) -> Optional[AppInfo]:
         """
@@ -430,8 +432,20 @@ class AppManager:
                 engine.install_app_logic(app.guidance_file)
             if orchestration_mode is not None:
                 app.guidance_file.orchestration_mode = orchestration_mode
+            if agents_required is not None:
+                app.guidance_file.agents_required = list(agents_required)
             if constraints is not None:
                 app.guidance_file.constraints.update(constraints)
+
+        if images is not None:
+            image_ids = []
+            for item in images:
+                if not isinstance(item, dict):
+                    continue
+                image_id = item.get("image_id")
+                if image_id:
+                    image_ids.append(image_id)
+            app.image_ids = image_ids
 
         app.updated_at = __import__("datetime").datetime.utcnow().isoformat()
         self._save_to_disk()

@@ -447,7 +447,7 @@ class AppLogicEngine:
                 images = warehouse.find_by_capability(capability)
                 image = images[0] if images else None
                 image_id = image.image_id if image else f"img_{capability}_default"
-                agent_id = f"{capability}_agent"
+                agent_id = image.name if image else f"{capability}_agent"
                 effective_resource_config = (
                     copy.deepcopy(resource_config)
                     if resource_config is not None

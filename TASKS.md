@@ -1,6 +1,6 @@
 # TASKS.md — Sprint 任务看板
 
-> 最后更新：2026-03-10
+> 最后更新：2026-05-07
 
 ---
 
@@ -12,7 +12,7 @@
 
 ## 进行中
 
-_（当前无进行中任务）_
+- [ ] 验证集群侧 NVIDIA device plugin 是否已加载 time-slicing 配置（ConfigMap 挂载与参数生效）
 
 
 ---
@@ -34,6 +34,12 @@ _（当前无进行中任务）_
 - [x] QoS → ASD 反馈闭环：register_alert_callback + cooldown + redeploy_agent + reset_metrics（2026-03-08）
 - [x] 创建 `/接口/接口文档.md`：补齐应用层 / 编排层 / 运行层代码接口契约与对外接口说明（2026-03-10）
 - [x] 创建 `接口/系统接口与代码映射文档.md`：统一接口文档 — 架构图+类关系图+流程序列图+代码映射表+HTTP API+DistributedState 全字段+设计模式+骨架区域说明（2026-03-10）
+- [x] 前端：添加 `应用详情` 页面与路由（`app_details.html` / `app_details.js`），并在应用列表中加入“应用详情”按钮（2026-05-02）
+- [x] 前端：应用详情页运行态编排区支持从 `Skills.md` 的 `## Pipeline` 解析工作流并渲染节点/箭头（2026-05-06）
+- [x] AgentScheduler 支持优先读取 `k8s/` 根目录 YAML，失败回退到字典构造（2026-05-06）
+- [x] 前端：应用列表自动刷新时对 `apps` 结果做签名比对，相同结果不重绘表格（2026-05-07）
+- [x] 前端：应用详情页智能体视图改为纵向堆叠 iframe，并新增 `/api/apps/{app_id}/agent-views`（2026-05-07）
+- [x] Kubernetes：`k8s/cooperativefeaturefusiondetectionviz-agent.yaml` 与 `k8s/perception2intermediatefeature-agent.yaml` 更新为共享 GPU 友好资源配置（2026-05-07）
 
 ---
 

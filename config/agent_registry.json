@@ -1,0 +1,118 @@
+{
+  "version": "1.0",
+  "description": "LangManus Agent Registry Configuration - 分布式 Agent 部署配置",
+  "registry_type": "file",
+  "agents": [
+    {
+      "id": "search_agent_001",
+      "ip": "host.docker.internal",
+      "port": 8080,
+      "capability": "search",
+      "status": "online",
+      "description": "专门用于网络搜索和信息检索的 Agent，支持多引擎搜索",
+      "enabled": true,
+      "priority": 10,
+      "tags": ["search", "web", "tavily"],
+      "node_name": "localhost"
+    },
+    {
+      "id": "compute_agent_001",
+      "ip": "192.168.1.102",
+      "port": 8080,
+      "capability": "compute",
+      "status": "online",
+      "description": "专门用于数学计算和数据分析的 Agent，支持 Python/NumPy/Pandas",
+      "enabled": true,
+      "priority": 8,
+      "tags": ["compute", "math", "data"],
+      "node_name": "node-02"
+    },
+    {
+      "id": "vision_agent_001",
+      "ip": "192.168.1.103",
+      "port": 8080,
+      "capability": "vision",
+      "status": "online",
+      "description": "专门用于图像分析和视觉任务的 Agent，支持 OCR、目标检测等",
+      "enabled": true,
+      "priority": 7,
+      "tags": ["vision", "image", "ocr"],
+      "node_name": "node-03"
+    },
+    {
+      "id": "nlp_agent_001",
+      "ip": "192.168.1.104",
+      "port": 8080,
+      "capability": "nlp",
+      "status": "online",
+      "description": "专门用于自然语言处理的 Agent，支持翻译、摘要、情感分析等",
+      "enabled": true,
+      "priority": 9,
+      "tags": ["nlp", "text", "language"],
+      "node_name": "node-04"
+    },
+    {
+      "id": "code_agent_001",
+      "ip": "192.168.1.105",
+      "port": 8080,
+      "capability": "code_execution",
+      "status": "online",
+      "description": "专门用于代码执行的 Agent，支持多种编程语言",
+      "enabled": true,
+      "priority": 6,
+      "tags": ["code", "python", "execution"],
+      "node_name": "node-05"
+    },
+    {
+      "id": "web_agent_001",
+      "ip": "192.168.1.106",
+      "port": 8080,
+      "capability": "web_interaction",
+      "status": "online",
+      "description": "专门用于网页交互的 Agent，支持浏览器自动化操作",
+      "enabled": true,
+      "priority": 5,
+      "tags": ["web", "browser", "automation"],
+      "node_name": "node-06"
+    },
+    {
+      "id": "Perception2IntermediateFeature_agent_001",
+      "ip": "127.0.0.1",
+      "port": 9001,
+      "capability": "Perception2IntermediateFeature",
+      "status": "online",
+      "description": "专门用于将自车感知数据转换为中间通信特征的 Agent，支持端端协同感知流程",
+      "enabled": true,
+      "priority": 10,
+      "tags": ["perception", "intermediate_feature", "vehicle", "cooperative"],
+      "node_name": "localhost"
+    },
+    {
+      "id": "CooperativeFeatureFusionDetectionViz_agent_001",
+      "ip": "192.168.49.2",
+      "port": 30092,
+      "capability": "CooperativeFeatureFusionDetectionViz",
+      "status": "online",
+      "description": "收集自车和协同车辆的中间特征，进行融合并可视化检测结果的 Agent，支持端端协同感知流程",
+      "enabled": true,
+      "priority": 10,
+      "tags": ["intermediate_feature", "vehicle", "cooperative", "fusion", "detection", "visualization"],
+      "node_name": "localhost"
+    }
+  ],
+  "_comments": {
+    "configuration_notes": "这是分布式 Agent 注册表配置文件",
+    "deployment_architecture": "Layer 2 Scheduler (Web UI) 部署在容器中，Layer 3 Agents 分布在不同的远程节点",
+    "current_configuration": "混合部署模式 - search_agent_001 在本地 (127.0.0.1)，其他 Agent 在远程节点",
+    "how_to_configure": [
+      "1. 本地 Agent 使用 127.0.0.1 或 localhost",
+      "2. 远程 Agent 填入真实 IP 地址 (如 192.168.1.102)",
+      "3. 确保端口没有被占用",
+      "4. 设置 'enabled' 为 true 以启用该 Agent",
+      "5. 'priority' 数字越大优先级越高"
+    ],
+    "example_local_testing": "本地测试：将所有 IP 改为 127.0.0.1，端口使用 8080-8085",
+    "example_distributed": "纯分布式：所有 Agent 填入远程 IP，例如：192.168.1.101, 10.0.0.15, node01.company.com",
+    "example_hybrid": "混合部署（当前配置）：部分 Agent 在本地 (127.0.0.1)，部分在远程节点"
+  }
+}

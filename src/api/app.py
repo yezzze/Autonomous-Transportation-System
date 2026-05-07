@@ -8,10 +8,13 @@ import os
 import re
 import uuid
 from typing import Dict, List, Any, Optional, Union
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 import asyncio
@@ -29,6 +32,11 @@ app = FastAPI(
     description="API for LangManus LangGraph-based agent workflow",
     version="0.1.0",
 )
+
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+
+# Initialize Jinja2 templates (singleton, only created once at startup)
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 # Add CORS middleware
 app.add_middleware(
@@ -884,6 +892,8 @@ class UpdateAppRequest(BaseModel):
     task_description: Optional[str] = Field(None, description="新任务描述")
     skills_md: Optional[str] = Field(None, description="新 Skills.md 内容")
     orchestration_mode: Optional[str] = Field(None, description="新编排模式")
+    agents_required: Optional[List[str]] = Field(None, description="新的所需 Agent 能力列表")
+    images: Optional[List[Dict[str, Any]]] = Field(None, description="新的 Agent 镜像清单")
     constraints: Optional[Dict[str, Any]] = Field(None, description="要合并的约束条件")
 
 
@@ -904,6 +914,8 @@ async def update_app(app_id: str, request: UpdateAppRequest):
             task_description=request.task_description,
             skills_content=request.skills_md,
             orchestration_mode=request.orchestration_mode,
+            agents_required=request.agents_required,
+            images=request.images,
             constraints=request.constraints,
         )
         if app is None:
@@ -1099,6 +1111,104 @@ async def list_agent_deployments():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/apps/{app_id}/agent-views", summary="获取应用关联 Agent 视图")
+async def list_app_agent_views(app_id: str):
+    """
+    返回当前应用关联的运行中 Agent 前端视图信息。
+
+    前端会使用这些 URL 以纵向堆叠 iframe 的方式展示每个智能体页面。
+    """
+    try:
+        from src.app.app_manager import get_app_manager
+        from src.service.agent_registry import get_registry_client
+        from src.service.agent_scheduler import get_agent_scheduler
+
+        manager = get_app_manager()
+        app = manager.get_app(app_id)
+        if not app:
+            raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+
+        scheduler = get_agent_scheduler()
+        registry = get_registry_client()
+
+        running_deployments = scheduler.get_running_agents()
+        deployments_by_agent = {}
+        for deployment in running_deployments:
+            deployments_by_agent.setdefault(deployment.agent_id, []).append(deployment)
+
+        registry_agents = {agent["id"]: agent for agent in registry.get_all_agents()}
+        image_order = {image_id: index for index, image_id in enumerate(app.image_ids or [])}
+        required_capabilities = set()
+        if app.guidance_file and app.guidance_file.agents_required:
+            required_capabilities = {str(item).strip().lower() for item in app.guidance_file.agents_required if str(item).strip()}
+
+        views = []
+        for deployment in running_deployments:
+            if app.image_ids and deployment.image_id not in set(app.image_ids):
+                continue
+
+            agent = registry_agents.get(deployment.agent_id)
+            if not agent:
+                continue
+
+            ip = agent.get("ip")
+            port = agent.get("port")
+            if not ip or not port:
+                continue
+
+            capability = str(agent.get("capability") or "").strip().lower()
+            if required_capabilities and capability not in required_capabilities and not app.image_ids:
+                continue
+
+            views.append({
+                "agent_id": deployment.agent_id,
+                "deployment_id": deployment.deployment_id,
+                "image_id": deployment.image_id,
+                "capability": capability,
+                "status": deployment.status,
+                "ip": ip,
+                "port": port,
+                "frontend_url": f"http://{ip}:{port}",
+                "backend": deployment.backend,
+                "updated_at": deployment.updated_at,
+                "sort_key": image_order.get(deployment.image_id, 10_000),
+            })
+
+        if not views:
+            for agent_id, deployment_list in deployments_by_agent.items():
+                agent = registry_agents.get(agent_id)
+                if not agent:
+                    continue
+                ip = agent.get("ip")
+                port = agent.get("port")
+                if not ip or not port:
+                    continue
+                capability = str(agent.get("capability") or "").strip().lower()
+                if required_capabilities and capability not in required_capabilities:
+                    continue
+                latest_deployment = deployment_list[-1]
+                views.append({
+                    "agent_id": latest_deployment.agent_id,
+                    "deployment_id": latest_deployment.deployment_id,
+                    "image_id": latest_deployment.image_id,
+                    "capability": capability,
+                    "status": latest_deployment.status,
+                    "ip": ip,
+                    "port": port,
+                    "frontend_url": f"http://{ip}:{port}",
+                    "backend": latest_deployment.backend,
+                    "updated_at": latest_deployment.updated_at,
+                    "sort_key": image_order.get(latest_deployment.image_id, 10_000),
+                })
+
+        views.sort(key=lambda item: (item["sort_key"], item["agent_id"], item["deployment_id"]))
+        return {"app_id": app_id, "views": views}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/warehouse/images", summary="获取 Agent 镜像仓库列表")
 async def list_warehouse_images():
     """
@@ -1146,11 +1256,16 @@ async def scale_agent_deployment(deployment_id: str, request: ScaleDeploymentReq
 # Web UI
 # ======================================================================
 
-@app.get("/ui", response_class=HTMLResponse, include_in_schema=False)
-async def web_ui():
-    """应用管理层 Web UI 控制台"""
-    from src.api.ui import get_ui_html
-    return HTMLResponse(content=get_ui_html())
+@app.get("/ui",response_class=HTMLResponse, include_in_schema=False)
+async def web_ui(request: Request):
+    """应用管理层 Web UI 控制台 - 直接使用 Jinja2Templates 渲染"""
+    return templates.TemplateResponse("ui.html", {"request": request})
+
+
+@app.get("/ui/apps/{app_id}", response_class=HTMLResponse, include_in_schema=False)
+async def app_details_page(request: Request, app_id: str):
+    """应用详情页（前端模板）。显示应用逻辑、运行状态与智能体视图占位。"""
+    return templates.TemplateResponse("app_details.html", {"request": request})
 
 
 # ======================================================================

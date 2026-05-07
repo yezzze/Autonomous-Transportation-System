@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LangManus · 编排可视化(独立演示版)</title>
+<script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+<style>
+  :root {
+    --bg:#0b0f1a; --bg-2:#131a2b; --panel:#1a2238; --border:#2a3654;
+    --text:#e6ecff; --muted:#8b95b8;
+    --accent:#5b8cff; --accent-2:#7c5bff;
+    --green:#2ecc71; --yellow:#f1c40f; --red:#ff5566; --orange:#ff9b3d;
+    --local:#3aa9ff; --remote:#b86bff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+
+  /* ============ 顶栏 ============ */
+  .topbar{height:56px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;
+    background:linear-gradient(90deg,#131a2b,#1d2547);border-bottom:1px solid var(--border)}
+  .topbar h1{font-size:17px;margin:0;font-weight:600;
+    background:linear-gradient(90deg,#5b8cff,#b86bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .topbar h1 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:var(--green);box-shadow:0 0 10px var(--green);margin-right:8px;animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .topbar .actions{display:flex;gap:8px;align-items:center}
+  .badge{padding:4px 10px;border-radius:12px;font-size:12px;background:var(--bg-2);border:1px solid var(--border)}
+  .badge.live{color:var(--green);border-color:var(--green)}
+  .badge.demo{color:var(--orange);border-color:var(--orange)}
+  button{background:var(--accent);color:white;border:none;padding:7px 14px;border-radius:6px;
+    cursor:pointer;font-size:13px;transition:.2s}
+  button:hover{background:var(--accent-2)}
+  button.ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+  button.ghost:hover{color:var(--text);border-color:var(--accent)}
+
+  /* ============ Tab ============ */
+  .tabs{display:flex;padding:0 20px;border-bottom:1px solid var(--border);background:var(--bg-2)}
+  .tab{padding:12px 18px;cursor:pointer;color:var(--muted);
+    border-bottom:2px solid transparent;transition:all .25s}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--text);border-bottom-color:var(--accent);
+    background:linear-gradient(180deg,transparent,rgba(91,140,255,.08))}
+  .tab .count{display:inline-block;margin-left:6px;padding:1px 7px;background:var(--accent);
+    border-radius:8px;font-size:11px}
+
+  /* ============ 主区 ============ */
+  .pane{display:none;padding:20px;height:calc(100vh - 56px - 45px);overflow:auto}
+  .pane.active{display:block}
+  .grid-2{display:grid;grid-template-columns:1fr 1.4fr;gap:16px;height:100%}
+  .card{background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:16px;overflow:auto}
+  .card h3{margin:0 0 12px;font-size:14px;color:var(--accent);
+    display:flex;align-items:center;gap:8px}
+  .card h3 .step{width:22px;height:22px;border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    color:white;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
+  pre.skills{background:#0d1322;padding:12px;border-radius:6px;font-size:12px;line-height:1.6;
+    max-height:100%;overflow:auto;white-space:pre-wrap;color:#b9c4e8;border:1px solid var(--border)}
+
+  .platform-block{margin-bottom:14px;padding:10px;border:1px dashed var(--border);
+    border-radius:8px;background:rgba(91,140,255,.03);animation:slideIn .4s ease}
+  @keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .platform-title{display:flex;justify-content:space-between;align-items:center;
+    font-size:13px;margin-bottom:8px}
+  .platform-title .name{color:var(--text);font-weight:600}
+  .platform-title .count{color:var(--muted);font-size:11px}
+  .agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+  .agent-chip{padding:8px 10px;border-radius:6px;font-size:12px;background:var(--bg-2);
+    border:1px solid var(--border);transition:all .3s;position:relative}
+  .agent-chip .cap{color:var(--muted);font-size:11px;margin-top:2px}
+  .agent-chip.selected{background:linear-gradient(135deg,rgba(46,204,113,.15),rgba(46,204,113,.05));
+    border-color:var(--green);box-shadow:0 0 12px rgba(46,204,113,.3);animation:selectPulse 1.2s ease}
+  .agent-chip.selected::after{content:"✓";position:absolute;top:4px;right:6px;color:var(--green);font-weight:bold}
+  .agent-chip.busy{opacity:.55}
+  @keyframes selectPulse{0%{transform:scale(.92)}50%{transform:scale(1.04);box-shadow:0 0 20px rgba(46,204,113,.6)}100%{transform:scale(1)}}
+
+  .pipeline-flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0}
+  .pipe-step{padding:6px 12px;border-radius:6px;font-size:12px;
+    background:var(--bg-2);border:1px solid var(--border)}
+  .pipe-arrow{color:var(--muted)}
+  .pipe-parallel{display:flex;flex-direction:column;gap:4px;
+    padding:6px;border:1px dashed var(--accent-2);border-radius:6px}
+
+  .meta-row{display:flex;justify-content:space-between;
+    padding:6px 0;border-bottom:1px dashed var(--border);font-size:12px}
+  .meta-row:last-child{border:none}
+  .meta-row .k{color:var(--muted)}
+  .meta-row .v{color:var(--text)}
+
+  /* ===== Pane2 ===== */
+  #cy{width:100%;height:100%;background:radial-gradient(ellipse at center,#131a2b,#0b0f1a);
+    border-radius:10px;border:1px solid var(--border)}
+  .legend{position:absolute;bottom:30px;right:40px;background:rgba(26,34,56,.92);
+    border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;backdrop-filter:blur(6px)}
+  .legend .row{display:flex;align-items:center;gap:8px;margin:4px 0}
+  .legend .swatch{width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,.1)}
+  .stats-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px}
+  .stat{padding:12px;background:var(--panel);border:1px solid var(--border);
+    border-radius:8px;text-align:center}
+  .stat .n{font-size:22px;font-weight:600;color:var(--accent)}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:4px}
+
+  /* ===== Pane3 ===== */
+  .progress-track{width:100%;height:10px;background:var(--bg-2);border-radius:5px;
+    overflow:hidden;margin:10px 0 16px;border:1px solid var(--border)}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    transition:width .8s ease;box-shadow:0 0 12px var(--accent)}
+  .current-card{padding:18px;border-radius:10px;margin-bottom:16px;
+    background:linear-gradient(135deg,rgba(91,140,255,.12),rgba(124,91,255,.05));
+    border:1px solid var(--accent);position:relative;overflow:hidden}
+  .current-card::before{content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,transparent,rgba(91,140,255,.1),transparent);animation:scan 2s linear infinite}
+  @keyframes scan{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  .current-card .title{font-size:16px;font-weight:600;margin-bottom:6px}
+  .current-card .meta{color:var(--muted);font-size:12px}
+  .current-card .agent{display:inline-block;padding:4px 10px;border-radius:12px;
+    background:var(--bg-2);border:1px solid var(--border);margin-right:6px}
+
+  .timeline{padding-left:0;list-style:none}
+  .timeline li{position:relative;padding:10px 0 10px 26px;
+    border-left:2px solid var(--border);margin-left:8px}
+  .timeline li::before{content:"";position:absolute;left:-7px;top:14px;
+    width:12px;height:12px;border-radius:50%;background:var(--bg-2);border:2px solid var(--border)}
+  .timeline li.completed::before{background:var(--green);border-color:var(--green)}
+  .timeline li.running::before{background:var(--accent);border-color:var(--accent);
+    box-shadow:0 0 12px var(--accent);animation:pulse 1s infinite}
+  .timeline li.failed::before{background:var(--red);border-color:var(--red)}
+  .timeline .ti-title{font-weight:500}
+  .timeline .ti-meta{font-size:11px;color:var(--muted);margin-top:2px}
+  .tool-tag{display:inline-block;padding:2px 6px;margin:2px 4px 2px 0;
+    background:rgba(124,91,255,.18);color:#cdb5ff;border-radius:3px;
+    font-size:11px;font-family:monospace;animation:bubblePop .4s ease}
+  @keyframes bubblePop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
+
+  .empty{text-align:center;color:var(--muted);padding:40px 0}
+
+  /* 引导提示 */
+  .toast{position:fixed;top:78px;left:50%;transform:translateX(-50%);
+    background:rgba(91,140,255,.9);color:white;padding:8px 18px;border-radius:20px;
+    font-size:13px;z-index:99;box-shadow:0 4px 20px rgba(91,140,255,.5);
+    animation:toastIn .4s ease}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%)}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1><span class="dot"></span>LangManus · 编排可视化(独立演示版)</h1>
+  <div class="actions">
+    <span class="badge demo" id="modeBadge">本地演示模式</span>
+    <button id="btnDemo">▶ 启动 Demo</button>
+    <button class="ghost" id="btnReset">↻ Reset</button>
+    <button class="ghost" id="btnSpeed">速度: 1×</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-pane="p1">① 编排过程</div>
+  <div class="tab" data-pane="p2">② 拓扑结果 <span class="count" id="cnt-tasks">0</span></div>
+  <div class="tab" data-pane="p3">③ 执行监控</div>
+</div>
+
+<!-- ============ Pane 1 ============ -->
+<div class="pane active" id="p1">
+  <div class="grid-2">
+    <div class="card">
+      <h3><span class="step">1</span> Skills.md (任务编排约束)</h3>
+      <pre class="skills" id="skillsContent"></pre>
+      <h3 style="margin-top:16px"><span class="step">3</span> 编排决策</h3>
+      <div class="meta-row"><span class="k">复杂度等级</span><span class="v" id="m-complexity">-</span></div>
+      <div class="meta-row"><span class="k">编排模式</span><span class="v" id="m-mode">-</span></div>
+      <div class="meta-row"><span class="k">候选 Agent 总数</span><span class="v" id="m-total">0</span></div>
+      <div class="meta-row"><span class="k">本机 Agent</span><span class="v" id="m-local">0</span></div>
+      <div class="meta-row"><span class="k">远端 Agent</span><span class="v" id="m-remote">0</span></div>
+      <div class="meta-row"><span class="k">已选中 Agent</span><span class="v" id="m-selected">0</span></div>
+      <h3 style="margin-top:16px"><span class="step">4</span> Pipeline 流程图</h3>
+      <div class="pipeline-flow" id="pipelineFlow"></div>
+    </div>
+    <div class="card">
+      <h3><span class="step">2</span> 平台候选 Agent (按平台分组,绿框=已选中)</h3>
+      <div id="platformsBox"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Pane 2 ============ -->
+<div class="pane" id="p2" style="position:relative">
+  <div class="stats-bar">
+    <div class="stat"><div class="n" id="s-total">0</div><div class="l">任务总数</div></div>
+    <div class="stat"><div class="n" id="s-completed" style="color:var(--green)">0</div><div class="l">已完成</div></div>
+    <div class="stat"><div class="n" id="s-running" style="color:var(--accent)">0</div><div class="l">执行中</div></div>
+    <div class="stat"><div class="n" id="s-failed" style="color:var(--red)">0</div><div class="l">失败</div></div>
+    <div class="stat"><div class="n" id="s-cross" style="color:var(--remote)">0</div><div class="l">跨主体</div></div>
+  </div>
+  <div id="cy" style="height:calc(100% - 90px)"></div>
+  <div class="legend">
+    <div style="margin-bottom:6px;color:var(--muted);font-size:11px">图例</div>
+    <div class="row"><span class="swatch" style="background:#3aa9ff"></span>本机平台</div>
+    <div class="row"><span class="swatch" style="background:#b86bff"></span>远端平台</div>
+    <div class="row"><span class="swatch" style="background:#2ecc71"></span>已完成</div>
+    <div class="row"><span class="swatch" style="background:#5b8cff;box-shadow:0 0 8px #5b8cff"></span>执行中</div>
+    <div class="row"><span class="swatch" style="background:#ff5566"></span>失败</div>
+    <div class="row"><span class="swatch" style="background:#3a4566"></span>等待</div>
+  </div>
+</div>
+
+<!-- ============ Pane 3 ============ -->
+<div class="pane" id="p3">
+  <div class="grid-2">
+    <div class="card">
+      <h3>当前执行</h3>
+      <div id="currentBox" class="empty">暂无执行任务,点 ▶ 启动 Demo</div>
+      <h3 style="margin-top:18px">总进度</h3>
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div class="meta-row"><span class="k">已完成 / 总数</span><span class="v" id="p-frac">0 / 0</span></div>
+      <div class="meta-row"><span class="k">百分比</span><span class="v" id="p-pct">0%</span></div>
+      <div class="meta-row"><span class="k">失败数</span><span class="v" id="p-failed">0</span></div>
+      <div class="meta-row"><span class="k">重规划次数</span><span class="v" id="p-replan">0</span></div>
+      <h3 style="margin-top:18px">编排引擎</h3>
+      <div class="meta-row"><span class="k">当前轮次</span><span class="v" id="m1-round">-</span></div>
+      <div class="meta-row"><span class="k">停滞计数</span><span class="v" id="m1-stall">0</span></div>
+      <div class="meta-row"><span class="k">模式</span><span class="v" id="m1-mode">Sequential + Parallel</span></div>
+    </div>
+    <div class="card">
+      <h3>执行时间线 (含 MCP/A2A 工具调用)</h3>
+      <ul class="timeline" id="timelineList"></ul>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+ *  内嵌 Demo 数据 (无需后端)
+ * ================================================================ */
+const DEMO_AGENTS = [
+  {id:"search-agent",    ip:"127.0.0.1",   port:9001, capability:"search",    status:"online", description:"Web 搜索 / Tavily"},
+  {id:"crawl-agent",     ip:"127.0.0.1",   port:9002, capability:"crawl",     status:"online", description:"网页抓取 / Jina"},
+  {id:"code-agent",      ip:"127.0.0.1",   port:9003, capability:"code",      status:"online", description:"Python REPL"},
+  {id:"shell-agent",     ip:"127.0.0.1",   port:9004, capability:"shell",     status:"online", description:"Bash 命令执行"},
+  {id:"planner-agent",   ip:"127.0.0.1",   port:9005, capability:"plan",      status:"online", description:"本机规划器"},
+  {id:"vision-agent",    ip:"10.10.10.21", port:9100, capability:"vision",    status:"online", description:"远端视觉理解 (VL Model)"},
+  {id:"rag-agent",       ip:"10.10.10.22", port:9101, capability:"rag",       status:"online", description:"远端 RAG 知识检索"},
+  {id:"report-agent",    ip:"10.10.10.23", port:9102, capability:"report",    status:"online", description:"远端报告生成"},
+  {id:"translate-agent", ip:"10.10.10.24", port:9103, capability:"translate", status:"busy",   description:"远端翻译 (繁忙)"},
+  {id:"audio-agent",     ip:"10.10.10.25", port:9104, capability:"audio",     status:"offline",description:"远端语音 (离线)"},
+];
+
+const DEMO_SKILLS_MD = `# Skills
+
+## 任务目标
+分析小红书 2024Q4 用户增长情况,生成中英双语报告。
+
+## Pipeline (固定拓扑)
+1. search       — 搜索行业数据
+2. crawl        — 抓取重点页面
+3. [parallel]
+   - vision     — 解析图表截图
+   - rag        — 内部知识库召回
+4. code         — 数据建模 / 计算关键指标
+5. translate    — 中英翻译
+6. report       — 生成最终报告
+
+## 约束
+- 总耗时 < 5 min
+- 远端节点超时阈值 30s`;
+
+const DEMO_PIPELINE = [
+  {step:"search",    capability:"search"},
+  {step:"crawl",     capability:"crawl"},
+  {step:"vision",    capability:"vision",    parallel_group:"pg-analyze"},
+  {step:"rag",       capability:"rag",       parallel_group:"pg-analyze"},
+  {step:"code",      capability:"code"},
+  {step:"translate", capability:"translate"},
+  {step:"report",    capability:"report"},
+];
+
+const TOOL_LIBRARY = {
+  search:    ["mcp.tavily.search", "mcp.serper.search"],
+  crawl:     ["mcp.jina.read"],
+  vision:    ["a2a.vl_model.describe_image"],
+  rag:       ["a2a.rag.retrieve", "a2a.rag.rerank"],
+  code:      ["mcp.python_repl.exec"],
+  translate: ["a2a.qwen.translate"],
+  report:    ["a2a.report.compose", "a2a.markdown.render"],
+};
+
+const LOCAL_HOSTS = new Set(["127.0.0.1","localhost","host.docker.internal","0.0.0.0"]);
+const isLocal = ip => LOCAL_HOSTS.has(ip);
+
+/* ================================================================
+ *  状态
+ * ================================================================ */
+function buildInitialState() {
+  const plan = DEMO_PIPELINE.map((s, i) => {
+    const agent = DEMO_AGENTS.find(a => a.capability === s.capability) || DEMO_AGENTS[0];
+    return {
+      task_id: `t${i+1}-${s.step}`,
+      task_title: `Step ${i+1}: ${s.step}`,
+      task_description: `调用 ${agent.id} 完成 ${s.step}`,
+      assigned_agent_id: agent.id,
+      target_ip: agent.ip,
+      target_port: agent.port,
+      status: "pending",
+      result: "",
+      retry_count: 0,
+      parallel_group: s.parallel_group || "",
+      metadata: {
+        protocol: ["search","crawl","code","shell"].includes(agent.capability) ? "mcp" : "a2a",
+        executor: agent.capability,
+        tools_called: [],
+      },
+    };
+  });
+  const cross_host_sessions = {};
+  plan.forEach(t => {
+    if (!isLocal(t.target_ip)) cross_host_sessions[t.task_id] = `http://${t.target_ip}:${t.target_port}`;
+  });
+  return {
+    skills_content: DEMO_SKILLS_MD,
+    pipeline_topology: DEMO_PIPELINE,
+    complexity_level: "medium",
+    execution_plan: plan,
+    current_task_index: 0,
+    all_tasks_completed: false,
+    failed_tasks: [],
+    cross_host_sessions,
+    magentic_round: 0, magentic_max_round: 0, magentic_stall_count: 0,
+    replanning_count: 0,
+  };
+}
+
+const state = { snap: null, demoTimer: null, demoRunning: false, speed: 1 };
+state.snap = buildInitialState();
+
+/* ================================================================
+ *  快照提取(对应后端 extract_full_view)
+ * ================================================================ */
+function extractFullView(s) {
+  const selected = [...new Set(s.execution_plan.map(t => t.assigned_agent_id))];
+  const available = DEMO_AGENTS.map(a => ({
+    ...a,
+    platform: isLocal(a.ip) ? "local" : "remote",
+    platform_key: `${a.ip}:${a.port}`,
+    is_selected: selected.includes(a.id),
+  }));
+  const platforms_p1 = {};
+  available.forEach(a => {
+    (platforms_p1[a.platform_key] = platforms_p1[a.platform_key] || {agents:[], platform:a.platform}).agents.push(a);
+  });
+
+  // topology
+  const cross = s.cross_host_sessions || {};
+  const failed = new Set(s.failed_tasks || []);
+  const nodes = s.execution_plan.map((t, i) => ({
+    id: t.task_id, index:i, title:t.task_title, agent_id:t.assigned_agent_id,
+    status:t.status,
+    platform: cross[t.task_id] ? "remote" : (isLocal(t.target_ip) ? "local" : "remote"),
+    ip:t.target_ip, port:t.target_port,
+    parallel_group:t.parallel_group||"",
+    is_current: i===s.current_task_index && t.status==="running",
+    is_failed: failed.has(t.task_id) || t.status==="failed",
+  }));
+  const edges = buildEdges(s.execution_plan);
+  const counts = countStatus(s.execution_plan);
+  const platforms = groupByPlatform(nodes);
+
+  // execution
+  const idx = s.current_task_index;
+  const progress = s.execution_plan.length ? counts.completed / s.execution_plan.length * 100 : 0;
+  let current = null;
+  if (idx >=0 && idx < s.execution_plan.length) {
+    const t = s.execution_plan[idx], m = t.metadata||{};
+    current = {
+      title:t.task_title, agent_id:t.assigned_agent_id, status:t.status,
+      ip:t.target_ip, port:t.target_port,
+      protocol:m.protocol, executor:m.executor, tools_called:m.tools_called||[],
+    };
+  }
+  const timeline = s.execution_plan
+    .map((t,i)=>({i,t}))
+    .filter(({i,t})=> !(t.status==="pending" && i>idx))
+    .map(({i,t}) => ({
+      title:t.task_title, agent_id:t.assigned_agent_id, status:t.status,
+      protocol:t.metadata?.protocol, executor:t.metadata?.executor,
+      tools_called:t.metadata?.tools_called||[], duration_ms:t.metadata?.duration_ms,
+    }));
+
+  return {
+    orchestration: {
+      skills_content: s.skills_content,
+      pipeline_topology: s.pipeline_topology,
+      complexity_level: s.complexity_level,
+      orchestration_mode: "Sequential + Parallel (Adaptive)",
+      available_agents: available,
+      local_agents: available.filter(a=>a.platform==="local").map(a=>a.id),
+      remote_agents: available.filter(a=>a.platform==="remote").map(a=>a.id),
+      selected_agents: selected,
+    },
+    topology: {
+      nodes, edges,
+      total: s.execution_plan.length, counts,
+      cross_host_count: Object.keys(cross).length,
+      platforms,
+      current_task_index: idx,
+    },
+    execution: {
+      current, current_task_index: idx,
+      total: s.execution_plan.length, counts,
+      progress_percent: Math.round(progress*10)/10,
+      all_completed: s.all_tasks_completed,
+      replanning_count: s.replanning_count,
+      magentic: {round:s.magentic_round, max_round:s.magentic_max_round, stall_count:s.magentic_stall_count},
+      timeline,
+    },
+  };
+}
+
+function buildEdges(plan){
+  const edges=[]; if(!plan.length) return edges;
+  const tid = i => plan[i].task_id;
+  let last=null, i=0, n=plan.length;
+  while(i<n){
+    const pg = plan[i].parallel_group||"";
+    if(pg){
+      const grp=[i]; let j=i+1;
+      while(j<n && (plan[j].parallel_group||"")===pg){grp.push(j); j++;}
+      if(last){last.forEach(s => grp.forEach(k => edges.push({from:s,to:tid(k),type:"parallel_start"})));}
+      last = grp.map(k=>tid(k)); i=j;
+    } else {
+      if(last) last.forEach(s => edges.push({from:s,to:tid(i),type:"sequence"}));
+      last=[tid(i)]; i++;
+    }
+  }
+  return edges;
+}
+function countStatus(plan){
+  const o={pending:0,running:0,completed:0,failed:0};
+  plan.forEach(t => o[t.status] = (o[t.status]||0)+1);
+  return o;
+}
+function groupByPlatform(nodes){
+  const g={};
+  nodes.forEach(n=>{
+    const k=n.ip?`${n.ip}:${n.port}`:"unknown";
+    (g[k]=g[k]||{key:k,ip:n.ip,port:n.port,platform:n.platform,task_ids:[]}).task_ids.push(n.id);
+  });
+  return Object.values(g);
+}
+
+/* ================================================================
+ *  Demo 推进引擎(纯前端 setTimeout 链)
+ * ================================================================ */
+async function startDemo(){
+  if(state.demoRunning) return;
+  state.demoRunning = true;
+  state.snap = buildInitialState();
+  renderAll();
+  showToast("演示已启动 — 切到 ② / ③ Tab 看动画");
+  await wait(800);
+
+  const plan = state.snap.execution_plan;
+  let i=0;
+  while(i<plan.length){
+    const pg = plan[i].parallel_group||"";
+    let cluster;
+    if(pg){
+      cluster=[i]; let j=i+1;
+      while(j<plan.length && plan[j].parallel_group===pg){cluster.push(j); j++;}
+      i=j;
+    } else { cluster=[i]; i++; }
+    await runCluster(cluster);
+    if(!state.demoRunning) return;
+  }
+  state.snap.all_tasks_completed = true;
+  state.snap.current_task_index = plan.length;
+  renderAll();
+  state.demoRunning = false;
+  showToast("✅ Demo 全部完成");
+}
+
+async function runCluster(indices){
+  const plan = state.snap.execution_plan;
+  // 1. 标记 running
+  indices.forEach(k => { plan[k].status = "running"; });
+  state.snap.current_task_index = indices[0];
+  renderAll();
+  await wait(1000);
+
+  // 2. 推送 MCP/A2A 工具调用
+  for(const k of indices){
+    const cap = plan[k].metadata.executor;
+    const tools = TOOL_LIBRARY[cap] || ["mcp.unknown.run"];
+    for(const tool of tools){
+      if(!state.demoRunning) return;
+      plan[k].metadata.tools_called.push({tool, ts:nowHHMMSS(), ok:true});
+      renderAll();
+      await wait(500);
+    }
+  }
+
+  // 3. 标记 completed
+  indices.forEach(k => {
+    plan[k].status = "completed";
+    plan[k].result = `[demo] ${plan[k].task_title} 执行完毕`;
+    plan[k].metadata.duration_ms = 1500 + Math.floor(Math.random()*800);
+  });
+  // 推进 current_task_index
+  for(let k=0;k<plan.length;k++){
+    if(plan[k].status==="pending" || plan[k].status==="running"){state.snap.current_task_index=k; break;}
+    state.snap.current_task_index = k+1;
+  }
+  renderAll();
+  await wait(400);
+}
+
+function wait(ms){return new Promise(r => setTimeout(r, ms / state.speed));}
+function nowHHMMSS(){const d=new Date();return [d.getHours(),d.getMinutes(),d.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');}
+
+function resetDemo(){
+  state.demoRunning = false;
+  state.snap = buildInitialState();
+  renderAll();
+  showToast("已 Reset");
+}
+
+/* ================================================================
+ *  渲染
+ * ================================================================ */
+function $(id){return document.getElementById(id);}
+function renderAll(){
+  const view = extractFullView(state.snap);
+  renderPane1(view.orchestration);
+  renderPane2(view.topology);
+  renderPane3(view.execution);
+  $("cnt-tasks").textContent = view.topology.total;
+}
+
+function renderPane1(o){
+  $("skillsContent").textContent = o.skills_content || "(空)";
+  $("m-complexity").textContent = o.complexity_level;
+  $("m-mode").textContent = o.orchestration_mode;
+  $("m-total").textContent = o.available_agents.length;
+  $("m-local").textContent = o.local_agents.length;
+  $("m-remote").textContent = o.remote_agents.length;
+  $("m-selected").textContent = o.selected_agents.length;
+
+  const box = $("platformsBox"); box.innerHTML="";
+  const groups = {};
+  o.available_agents.forEach(a => {
+    (groups[a.platform_key] = groups[a.platform_key] || {agents:[], platform:a.platform}).agents.push(a);
+  });
+  Object.entries(groups).forEach(([key,g]) => {
+    const block = document.createElement("div"); block.className="platform-block";
+    const flag = g.platform==="local"
+      ? `<span style="color:var(--local)">⬤ 本机</span>`
+      : `<span style="color:var(--remote)">⬤ 远端</span>`;
+    block.innerHTML = `
+      <div class="platform-title">
+        <div class="name">${flag} <span style="color:var(--muted);margin-left:6px">${key}</span></div>
+        <div class="count">${g.agents.length} agents</div>
+      </div>
+      <div class="agent-grid">
+        ${g.agents.map(a => `
+          <div class="agent-chip ${a.is_selected?'selected':''} ${a.status==='busy'||a.status==='offline'?'busy':''}"
+               title="${a.description}">
+            <div>${a.id}</div>
+            <div class="cap">${a.capability} · ${a.status}</div>
+          </div>`).join("")}
+      </div>`;
+    box.appendChild(block);
+  });
+
+  const pf = $("pipelineFlow"); pf.innerHTML="";
+  if(o.pipeline_topology?.length){
+    const groups2=[]; let cur=null;
+    o.pipeline_topology.forEach(s=>{
+      const pg=s.parallel_group||"";
+      if(pg && cur && cur.pg===pg) cur.steps.push(s);
+      else { cur={pg, steps:[s]}; groups2.push(cur); }
+    });
+    groups2.forEach((g,idx)=>{
+      if(g.pg){
+        const wrap=document.createElement("div"); wrap.className="pipe-parallel";
+        g.steps.forEach(s=>{
+          const el=document.createElement("div"); el.className="pipe-step"; el.textContent=s.step; wrap.appendChild(el);
+        });
+        pf.appendChild(wrap);
+      } else {
+        const el=document.createElement("div"); el.className="pipe-step"; el.textContent=g.steps[0].step; pf.appendChild(el);
+      }
+      if(idx<groups2.length-1){
+        const arr=document.createElement("span"); arr.className="pipe-arrow"; arr.textContent="→"; pf.appendChild(arr);
+      }
+    });
+  }
+}
+
+let cy=null;
+function initCy(){
+  cy = cytoscape({
+    container: $("cy"), elements:[],
+    style:[
+      {selector:"node", style:{
+        "background-color":"data(bgcolor)","border-color":"data(bordercolor)","border-width":2,
+        "label":"data(label)","color":"#fff","font-size":11,
+        "text-valign":"center","text-halign":"center","text-wrap":"wrap","text-max-width":"120px",
+        "shape":"round-rectangle","width":140,"height":50,"padding":"8px",
+      }},
+      {selector:"node.current", style:{
+        "border-width":4,"border-color":"#5b8cff",
+        "shadow-blur":22,"shadow-color":"#5b8cff","shadow-opacity":.9,
+      }},
+      {selector:"node.platform", style:{
+        "shape":"round-tag","background-color":"rgba(91,140,255,.06)",
+        "border-color":"data(bordercolor)","border-style":"dashed",
+        "color":"data(bordercolor)","font-size":12,"font-weight":"bold","padding":"12px",
+        "text-valign":"top","text-margin-y":-8,
+      }},
+      {selector:"edge", style:{
+        "width":2,"line-color":"#3a4566","target-arrow-color":"#3a4566",
+        "target-arrow-shape":"triangle","curve-style":"bezier",
+      }},
+      {selector:"edge.parallel_start", style:{"line-color":"#7c5bff","target-arrow-color":"#7c5bff","line-style":"dashed"}},
+      {selector:"edge.active", style:{"line-color":"#5b8cff","target-arrow-color":"#5b8cff","width":3}},
+    ],
+    layout:{name:"dagre",rankDir:"LR",nodeSep:50,rankSep:90},
+    wheelSensitivity:0.2,
+  });
+}
+const STATUS_COLORS={pending:{bg:"#1e2740",border:"#3a4566"},running:{bg:"#1e2a55",border:"#5b8cff"},
+  completed:{bg:"#1d3a2a",border:"#2ecc71"},failed:{bg:"#3a1d24",border:"#ff5566"}};
+
+function renderPane2(t){
+  $("s-total").textContent=t.total;
+  $("s-completed").textContent=t.counts.completed;
+  $("s-running").textContent=t.counts.running;
+  $("s-failed").textContent=t.counts.failed;
+  $("s-cross").textContent=t.cross_host_count;
+
+  if(!cy) initCy();
+  const elements=[];
+  t.platforms.forEach(p => {
+    elements.push({data:{
+      id:"platform_"+p.key,
+      label:`${p.platform==="local"?"🏠 本机":"☁️ 远端"} ${p.key}`,
+      bordercolor: p.platform==="local" ? "#3aa9ff" : "#b86bff",
+    }, classes:"platform"});
+  });
+  t.nodes.forEach(n => {
+    const c = STATUS_COLORS[n.status] || STATUS_COLORS.pending;
+    elements.push({data:{
+      id:n.id,
+      parent: t.platforms.find(p=>p.key===`${n.ip}:${n.port}`) ? `platform_${n.ip}:${n.port}` : undefined,
+      label:`${n.title}\n[${n.agent_id}]`,
+      bgcolor:c.bg, bordercolor:c.border,
+    }, classes: n.is_current?"current":""});
+  });
+  t.edges.forEach(e => {
+    elements.push({data:{id:`${e.from}->${e.to}`,source:e.from,target:e.to},
+      classes: e.type + (t.nodes.find(n=>n.id===e.to&&n.is_current)?" active":"")});
+  });
+  cy.elements().remove();
+  cy.add(elements);
+  cy.layout({name:"dagre",rankDir:"LR",nodeSep:40,rankSep:100}).run();
+}
+
+function renderPane3(e){
+  $("p-pct").textContent = e.progress_percent + "%";
+  $("progressFill").style.width = e.progress_percent + "%";
+  $("p-frac").textContent = `${e.counts.completed} / ${e.total}`;
+  $("p-failed").textContent = e.counts.failed;
+  $("p-replan").textContent = e.replanning_count;
+  $("m1-round").textContent = `${e.magentic.round} / ${e.magentic.max_round||'-'}`;
+  $("m1-stall").textContent = e.magentic.stall_count;
+
+  const cb = $("currentBox");
+  if(e.current && e.current.status!=="pending"){
+    cb.className="current-card";
+    cb.innerHTML = `
+      <div class="title">${e.current.title}</div>
+      <div class="meta">
+        <span class="agent">🤖 ${e.current.agent_id}</span>
+        <span class="agent">📡 ${(e.current.protocol||'?').toUpperCase()}</span>
+        <span class="agent">🛠 ${e.current.executor||'-'}</span>
+        <span class="agent">📍 ${e.current.ip}:${e.current.port}</span>
+      </div>
+      ${ e.current.tools_called?.length ? `<div style="margin-top:10px">${
+          e.current.tools_called.map(c => `<span class="tool-tag">${typeof c==='string'?c:c.tool}</span>`).join("")
+        }</div>` : "" }`;
+  } else {
+    cb.className="empty";
+    cb.innerHTML = e.all_completed ? "✅ 全部任务已完成" : "暂无执行任务,点 ▶ 启动 Demo";
+  }
+
+  const tl = $("timelineList"); tl.innerHTML="";
+  e.timeline.forEach(it => {
+    const li = document.createElement("li"); li.className=it.status;
+    const tools = (it.tools_called||[]).map(c => `<span class="tool-tag">${typeof c==='string'?c:c.tool}</span>`).join("");
+    li.innerHTML = `
+      <div class="ti-title">${it.title}
+        <span style="color:var(--muted);font-weight:normal;font-size:11px">[${it.status}]</span>
+      </div>
+      <div class="ti-meta">🤖 ${it.agent_id||'-'} · 📡 ${(it.protocol||'?').toUpperCase()} · ⏱ ${it.duration_ms?it.duration_ms+'ms':'-'}</div>
+      ${tools?`<div style="margin-top:4px">${tools}</div>`:""}`;
+    tl.appendChild(li);
+  });
+}
+
+/* ================================================================
+ *  Toast + 事件
+ * ================================================================ */
+function showToast(text){
+  document.querySelectorAll(".toast").forEach(t=>t.remove());
+  const t = document.createElement("div"); t.className="toast"; t.textContent=text;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2400);
+}
+
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  document.querySelectorAll(".pane").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  $(t.dataset.pane).classList.add("active");
+  if(t.dataset.pane === "p2" && cy) setTimeout(()=>cy.fit(undefined, 50), 50);
+});
+
+$("btnDemo").onclick = startDemo;
+$("btnReset").onclick = resetDemo;
+$("btnSpeed").onclick = () => {
+  state.speed = state.speed >= 4 ? 0.5 : state.speed * 2;
+  $("btnSpeed").textContent = `速度: ${state.speed}×`;
+};
+
+/* 初始化 */
+renderAll();
+showToast("点右上角 ▶ 启动 Demo 看动画");
+</script>
+</body>
+</html>

@@ -1,392 +1,3 @@
-"""
-LangManus 应用管理层 Web UI
-
-返回内嵌 HTML 单页应用，提供应用管理、Agent 实例、QoS 监控、资源状态四个功能页签。
-挂载于 GET /ui
-"""
-
-
-def get_ui_html() -> str:
-    return """<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LangManus 应用管理</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-         background: #f0f2f5; color: #222; min-height: 100vh; }
-  header { background: #1a1a2e; color: #fff; padding: 14px 28px;
-           display: flex; align-items: center; gap: 12px; }
-  header h1 { font-size: 20px; font-weight: 700; letter-spacing: .5px; }
-  header .badge { background: #e43; color: #fff; border-radius: 4px;
-                  font-size: 11px; padding: 2px 7px; font-weight: 600; }
-  .main { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
-
-  /* Tabs */
-  .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
-  .tab-btn { padding: 9px 22px; border: none; border-radius: 8px 8px 0 0;
-             background: #d9deea; color: #556; cursor: pointer;
-             font-size: 14px; font-weight: 500; transition: all .15s; }
-  .tab-btn.active { background: #fff; color: #1a1a2e; box-shadow: 0 -2px 8px rgba(0,0,0,.08); }
-  .tab-btn:hover:not(.active) { background: #c9d0e0; }
-  .tab-panel { display: none; background: #fff; border-radius: 0 8px 8px 8px;
-               padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,.07); }
-  .tab-panel.active { display: block; }
-
-  /* Cards */
-  .card { border: 1px solid #e8ecf2; border-radius: 10px; padding: 20px;
-          margin-bottom: 20px; }
-  .card-title { font-size: 15px; font-weight: 600; color: #1a1a2e;
-                margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-  .card-title .icon { font-size: 18px; }
-
-  /* Form */
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .form-grid.full { grid-template-columns: 1fr; }
-  .form-group { display: flex; flex-direction: column; gap: 5px; }
-  .form-group label { font-size: 13px; font-weight: 500; color: #445; }
-  .form-group input, .form-group select, .form-group textarea {
-    border: 1px solid #d0d6e0; border-radius: 6px; padding: 8px 11px;
-    font-size: 14px; outline: none; transition: border .15s; background: #fafbfc; }
-  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-    border-color: #4a6cf7; background: #fff; }
-  .form-group textarea { resize: vertical; min-height: 72px; }
-  .form-group small { font-size: 12px; color: #999; }
-  .choice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-  .choice-item { border: 1px solid #d0d6e0; border-radius: 8px; background: #fafbfc;
-                 padding: 10px 12px; display: flex; align-items: flex-start; gap: 10px; }
-  .choice-item input { margin-top: 3px; }
-  .choice-item strong { display: block; font-size: 13px; color: #223; }
-  .choice-item span { display: block; font-size: 12px; color: #667; line-height: 1.4; }
-
-  /* Buttons */
-  .btn { padding: 8px 18px; border: none; border-radius: 7px; cursor: pointer;
-         font-size: 14px; font-weight: 500; transition: all .15s; display: inline-flex;
-         align-items: center; gap: 6px; }
-  .btn-primary { background: #4a6cf7; color: #fff; }
-  .btn-primary:hover { background: #3a5ce7; }
-  .btn-success { background: #22c55e; color: #fff; }
-  .btn-success:hover { background: #16a34a; }
-  .btn-danger  { background: #ef4444; color: #fff; }
-  .btn-danger:hover  { background: #dc2626; }
-  .btn-warning { background: #f59e0b; color: #fff; }
-  .btn-warning:hover { background: #d97706; }
-  .btn-ghost { background: #f1f5f9; color: #445; border: 1px solid #d0d6e0; }
-  .btn-ghost:hover { background: #e2e8f0; }
-  .btn-sm { padding: 5px 12px; font-size: 13px; }
-  .btn:disabled { opacity: .55; cursor: not-allowed; }
-
-  /* Table */
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  thead th { background: #f6f8fc; padding: 11px 14px; text-align: left;
-             font-weight: 600; color: #556; border-bottom: 2px solid #e8ecf2; }
-  tbody tr { border-bottom: 1px solid #f0f2f5; transition: background .1s; }
-  tbody tr:hover { background: #fafbff; }
-  tbody td { padding: 11px 14px; vertical-align: middle; }
-  .empty-row td { text-align: center; color: #aaa; padding: 32px; }
-
-  /* Status badges */
-  .badge-status { display: inline-block; padding: 3px 10px; border-radius: 20px;
-                  font-size: 12px; font-weight: 600; }
-  .s-idle     { background: #f1f5f9; color: #64748b; }
-  .s-starting { background: #fef9c3; color: #ca8a04; }
-  .s-running  { background: #dcfce7; color: #16a34a; }
-  .s-stopping { background: #ffedd5; color: #ea580c; }
-  .s-stopped  { background: #f1f5f9; color: #94a3b8; }
-  .s-error    { background: #fee2e2; color: #dc2626; }
-
-  /* Alert */
-  .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 14px;
-           font-size: 14px; display: none; }
-  .alert.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-  .alert.error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-  .alert.info    { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
-  .alert.show { display: block; }
-
-  /* Query panel */
-  .query-panel { background: #f8faff; border: 1px solid #dde5f8; border-radius: 8px;
-                 padding: 16px; margin-top: 10px; display: none; }
-  .query-panel.open { display: block; }
-  .query-result { background: #1e1e2e; color: #cdd6f4; border-radius: 8px;
-                  padding: 16px; margin-top: 12px; max-height: 400px;
-                  overflow-y: auto; font-size: 14px; font-family: system-ui, sans-serif;
-                  white-space: pre-wrap; word-break: break-word; display: none; line-height: 1.6; }
-  .query-result.show { display: block; }
-
-  /* Progress spinner */
-  .spinner { display: inline-block; width: 14px; height: 14px;
-             border: 2px solid rgba(255,255,255,.4);
-             border-top-color: #fff; border-radius: 50%;
-             animation: spin .6s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Section toolbar */
-  .toolbar { display: flex; justify-content: space-between; align-items: center;
-             margin-bottom: 16px; }
-  .toolbar-right { display: flex; gap: 8px; align-items: center; }
-  .refresh-hint { font-size: 12px; color: #aaa; }
-
-  /* Metric cards row */
-  .metric-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 14px; }
-  .metric-card { background: #f8faff; border: 1px solid #dde5f8; border-radius: 10px;
-                 padding: 16px; }
-  .metric-card .metric-label { font-size: 12px; color: #778; margin-bottom: 4px; }
-  .metric-card .metric-value { font-size: 24px; font-weight: 700; color: #1a1a2e; }
-  .metric-card .metric-unit  { font-size: 13px; color: #778; }
-
-  /* collapse toggle */
-  .collapse-header { cursor: pointer; display: flex; align-items: center; gap: 8px;
-                     user-select: none; }
-  .collapse-header .arrow { transition: transform .2s; }
-  .collapse-header.open .arrow { transform: rotate(90deg); }
-  .collapse-body { display: none; margin-top: 14px; }
-  .collapse-body.open { display: block; }
-
-  /* threshold warning */
-  tr.warn-row td { background: #fff7ed !important; }
-  tr.error-row td { background: #fff1f2 !important; }
-
-  .divider { border: none; border-top: 1px solid #e8ecf2; margin: 18px 0; }
-</style>
-</head>
-<body>
-<header>
-  <span style="font-size:24px">🤖</span>
-  <h1>LangManus</h1>
-  <span class="badge">应用管理控制台</span>
-  <span id="server-status" style="margin-left:auto;font-size:13px;opacity:.8">● 连接中...</span>
-</header>
-
-<div class="main">
-  <!-- Global alert -->
-  <div id="global-alert" class="alert"></div>
-
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('apps')">📦 应用管理</button>
-    <button class="tab-btn" onclick="switchTab('instances')">🖥 Agent 实例</button>
-    <button class="tab-btn" onclick="switchTab('qos')">📊 QoS 监控</button>
-    <button class="tab-btn" onclick="switchTab('resources')">🗃 资源状态</button>
-    <button class="tab-btn" onclick="switchTab('aoe')">🌐 AOE 跨集群</button>
-  </div>
-
-  <!-- ====== Tab: 应用管理 ====== -->
-  <div id="tab-apps" class="tab-panel active">
-    <!-- Install form -->
-    <div class="card">
-      <div class="collapse-header open" onclick="toggleCollapse(this)">
-        <span class="arrow">▶</span>
-        <span class="card-title" style="margin:0"><span class="icon">➕</span> 安装新应用</span>
-      </div>
-      <div class="collapse-body open">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>应用名称 *</label>
-            <input id="f-name" type="text" placeholder="如：搜索助手">
-          </div>
-          <div class="form-group">
-            <label>编排模式</label>
-            <select id="f-mode">
-              <option value="adaptive">adaptive（自适应）</option>
-              <option value="sequential">sequential（顺序）</option>
-              <option value="distributed">distributed（分布式）</option>
-            </select>
-          </div>
-          <div class="form-group" style="grid-column:1/-1">
-            <label>任务描述 *</label>
-            <textarea id="f-task" placeholder="描述该应用要完成的任务，如：搜索并总结用户提供的主题"></textarea>
-          </div>
-          <div class="form-group">
-            <label>Agent 选择</label>
-            <div id="f-agent-choices" class="choice-grid">
-              <label class="choice-item">
-                <input type="checkbox" value="agent-grpc">
-                <div><strong>agent_gRPC</strong><span>gRPC 入口，接收远程请求并发布到 NATS</span></div>
-              </label>
-              <label class="choice-item">
-                <input type="checkbox" value="agent-b">
-                <div><strong>Agent B</strong><span>NATS worker，转发到 Agent C 并回传结果</span></div>
-              </label>
-              <label class="choice-item">
-                <input type="checkbox" value="agent-c">
-                <div><strong>Agent C</strong><span>NATS worker，处理消息并返回转换结果</span></div>
-              </label>
-            </div>
-            <small>从镜像仓库读取并去重展示，默认只显示 gRPC/B/C 三个选项</small>
-          </div>
-          <div class="form-group">
-            <label>超时（秒）</label>
-            <input id="f-timeout" type="number" value="120" min="10" max="600">
-          </div>
-          <div class="form-group" style="grid-column:1/-1">
-            <label>Skills.md 内容 <small style="color:#999;font-weight:400">（可选）— 应用专属技能指引，注入给编排引擎</small></label>
-            <textarea id="f-skills" style="height:100px;font-size:12px;font-family:monospace" placeholder="# 应用技能
-## 核心能力
-..."></textarea>
-          </div>
-        </div>
-        <hr class="divider">
-        <button class="btn btn-primary" onclick="installApp()">
-          <span>📦</span> 安装应用
-        </button>
-      </div>
-    </div>
-
-    <!-- App list -->
-    <div class="toolbar">
-      <span style="font-weight:600;font-size:15px">应用列表</span>
-      <div class="toolbar-right">
-        <span class="refresh-hint" id="apps-refresh-hint"></span>
-        <button class="btn btn-ghost btn-sm" onclick="loadApps()">🔄 刷新</button>
-      </div>
-    </div>
-    <div id="apps-alert" class="alert"></div>
-    <table id="apps-table">
-      <thead><tr>
-        <th>名称</th><th>应用 ID</th><th>状态</th><th>Workflow Handle</th><th>操作</th>
-      </tr></thead>
-      <tbody id="apps-tbody">
-        <tr class="empty-row"><td colspan="5">加载中...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ====== Tab: Agent 实例 ====== -->
-  <div id="tab-instances" class="tab-panel">
-    <div class="toolbar">
-      <span style="font-weight:600;font-size:15px">Agent 实例</span>
-      <div class="toolbar-right">
-        <span class="refresh-hint" id="inst-refresh-hint"></span>
-        <button class="btn btn-ghost btn-sm" onclick="loadInstances()">🔄 刷新</button>
-      </div>
-    </div>
-    <table>
-      <thead><tr>
-        <th>Instance ID</th><th>Agent ID</th><th>Image ID</th>
-        <th>状态</th><th>引用计数</th><th>订阅工作流</th>
-      </tr></thead>
-      <tbody id="inst-tbody">
-        <tr class="empty-row"><td colspan="6">暂无实例数据</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ====== Tab: QoS 监控 ====== -->
-  <div id="tab-qos" class="tab-panel">
-    <div id="qos-metrics-row" class="metric-row" style="margin-bottom:20px"></div>
-    <div class="toolbar">
-      <span style="font-weight:600;font-size:15px">Agent QoS 详情</span>
-      <div class="toolbar-right">
-        <span class="refresh-hint" id="qos-refresh-hint"></span>
-        <button class="btn btn-ghost btn-sm" onclick="loadQos()">🔄 刷新</button>
-      </div>
-    </div>
-    <table>
-      <thead><tr>
-        <th>Agent ID</th><th>总调用</th><th>成功</th><th>失败</th>
-        <th>平均延迟 (ms)</th><th>最大延迟 (ms)</th><th>成功率</th><th>告警</th>
-      </tr></thead>
-      <tbody id="qos-tbody">
-        <tr class="empty-row"><td colspan="8">暂无 QoS 数据</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ====== Tab: 资源状态 ====== -->
-  <div id="tab-resources" class="tab-panel">
-    <div id="res-summary-row" class="metric-row" style="margin-bottom:20px"></div>
-    <div class="toolbar">
-      <span style="font-weight:600;font-size:15px">节点列表</span>
-      <div class="toolbar-right">
-        <span class="refresh-hint" id="res-refresh-hint"></span>
-        <button class="btn btn-ghost btn-sm" onclick="loadResources()">🔄 刷新</button>
-      </div>
-    </div>
-    <table>
-      <thead><tr>
-        <th>Node ID</th><th>IP</th><th>类型</th>
-        <th>CPU (已用/总)</th><th>内存 (已用/总 MB)</th><th>GPU</th><th>状态</th>
-      </tr></thead>
-      <tbody id="res-tbody">
-        <tr class="empty-row"><td colspan="7">加载中...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- ====== Tab: AOE 跨集群 ====== -->
-  <div id="tab-aoe" class="tab-panel">
-    <div class="card">
-      <div class="card-title"><span class="icon">🌐</span> AOE 配置</div>
-      <div id="aoe-alert" class="alert"></div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>本集群名称</label>
-          <input id="aoe-local-name" type="text" placeholder="cluster-b">
-        </div>
-        <div class="form-group">
-          <label>本集群 AOE URL</label>
-          <input id="aoe-local-url" type="text" placeholder="http://10.112.221.121:8001">
-        </div>
-        <div class="form-group">
-          <label>默认目标 AOE URL</label>
-          <input id="aoe-peer-url" type="text" placeholder="http://10.112.136.44:8001">
-        </div>
-        <div class="form-group">
-          <label>默认超时（秒）</label>
-          <input id="aoe-timeout" type="number" value="60" min="10" max="600">
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="saveAoeConfig()">保存配置</button>
-        <button class="btn btn-ghost" onclick="loadAoeConfig()">重新加载</button>
-        <button class="btn btn-ghost" onclick="pullAoeRegistry()">从目标拉取 Agent</button>
-        <button class="btn btn-ghost" onclick="pushAoeGossip()">向目标推送本地 Agent</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title"><span class="icon">🧭</span> Registry 视图</div>
-      <div class="toolbar" style="margin-bottom:10px">
-        <span class="refresh-hint" id="aoe-refresh-hint"></span>
-        <button class="btn btn-ghost btn-sm" onclick="loadAoeRegistry()">刷新</button>
-      </div>
-      <table>
-        <thead><tr>
-          <th>来源</th><th>Agent ID</th><th>能力</th><th>IP</th><th>端口</th><th>状态</th>
-        </tr></thead>
-        <tbody id="aoe-registry-tbody">
-          <tr class="empty-row"><td colspan="6">暂无 registry 数据</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <div class="card-title"><span class="icon">🚀</span> 转发子任务到目标 AOE</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>目标 AOE URL</label>
-          <input id="aoe-dispatch-url" type="text" placeholder="默认使用上面的目标 URL">
-        </div>
-        <div class="form-group">
-          <label>任务 ID（可选）</label>
-          <input id="aoe-task-id" type="text" placeholder="自动生成">
-        </div>
-        <div class="form-group" style="grid-column:1/-1">
-          <label>任务描述</label>
-          <textarea id="aoe-task-desc" placeholder="例如：调用 A 集群中的智能体能力，完成一次简单分析任务"></textarea>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn btn-success" id="aoe-dispatch-btn" onclick="dispatchAoeTask()">转发执行</button>
-      </div>
-      <div class="query-result" id="aoe-dispatch-result"></div>
-    </div>
-  </div>
-</div>
-
-<script>
 // ====================================================================
 // Utilities
 // ====================================================================
@@ -447,6 +58,7 @@ const _openStartPanels = new Set();  // app_id → 启动面板 open
 const _openEditPanels = new Set();   // app_id → 编辑面板 open
 const _editName = {};                // app_id → 名称输入内容
 const _editSkills = {};              // app_id → skills 输入内容
+let _lastAppsSignature = null;       // 上次成功渲染的 apps 结果签名
 
 function _saveQueryState() {
   // 保存查询面板状态
@@ -536,7 +148,14 @@ async function loadApps() {
   try {
     const res = await fetch(`${API}/api/apps/`);
     const data = await res.json();
-    renderApps(data.apps || []);
+    const apps = data.apps || [];
+    const signature = JSON.stringify(apps);
+    if (signature === _lastAppsSignature) {
+      document.getElementById('apps-refresh-hint').textContent = `数据无变化，未刷新 ${fmtTime()}`;
+      return;
+    }
+    _lastAppsSignature = signature;
+    renderApps(apps);
     _restoreQueryState();
     document.getElementById('apps-refresh-hint').textContent = `上次更新 ${fmtTime()}`;
   } catch(e) {
@@ -610,6 +229,7 @@ function renderApps(apps) {
             : ''}
           <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${a.app_id}')">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="uninstallApp('${a.app_id}')">🗑</button>
+          <button class="btn btn-ghost btn-sm" onclick="openAppDetails('${a.app_id}')">📄 应用详情</button>
         </div>
         <!-- 编辑面板 -->
         <div class="query-panel" id="sp-${a.app_id}">
@@ -880,6 +500,12 @@ async function sendQuery(appId) {
     btn.disabled = false;
     btn.innerHTML = '发送';
   }
+}
+
+// 打开应用详情页（前端路由到服务器渲染的详情模板）
+function openAppDetails(appId) {
+  // 使用 ui 的模板路由，后端路由在 src/api/app.py 已添加
+  window.location.href = `/ui/apps/${encodeURIComponent(appId)}`;
 }
 
 // ====================================================================
@@ -1216,6 +842,3 @@ loadApps();
 checkServer();
 setInterval(() => TAB_LOADERS[activeTab](), 5000);
 setInterval(checkServer, 10000);
-</script>
-</body>
-</html>"""

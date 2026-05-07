@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LangManus 应用管理</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
+</head>
+<body>
+<header>
+  <span style="font-size:24px">🤖</span>
+  <h1>LangManus</h1>
+  <span class="badge">应用管理控制台</span>
+  <span id="server-status" style="margin-left:auto;font-size:13px;opacity:.8">● 连接中...</span>
+</header>
+
+<div class="main">
+  <!-- Global alert -->
+  <div id="global-alert" class="alert"></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('apps')">📦 应用管理</button>
+    <button class="tab-btn" onclick="switchTab('instances')">🖥 Agent 实例</button>
+    <button class="tab-btn" onclick="switchTab('qos')">📊 QoS 监控</button>
+    <button class="tab-btn" onclick="switchTab('resources')">🗃 资源状态</button>
+    <button class="tab-btn" onclick="switchTab('aoe')">🌐 AOE 跨集群</button>
+  </div>
+
+  <!-- ====== Tab: 应用管理 ====== -->
+  <div id="tab-apps" class="tab-panel active">
+    <!-- Install form -->
+    <div class="card">
+      <div class="collapse-header open" onclick="toggleCollapse(this)">
+        <span class="arrow">▶</span>
+        <span class="card-title" style="margin:0"><span class="icon">➕</span> 安装新应用</span>
+      </div>
+      <div class="collapse-body open">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>应用名称 *</label>
+            <input id="f-name" type="text" placeholder="如：搜索助手">
+          </div>
+          <div class="form-group">
+            <label>编排模式</label>
+            <select id="f-mode">
+              <option value="adaptive">adaptive（自适应）</option>
+              <option value="sequential">sequential（顺序）</option>
+              <option value="distributed">distributed（分布式）</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>任务描述 *</label>
+            <textarea id="f-task" placeholder="描述该应用要完成的任务，如：搜索并总结用户提供的主题"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Agent 选择</label>
+            <div id="f-agent-choices" class="choice-grid">
+              <label class="choice-item">
+                <input type="checkbox" value="agent-grpc">
+                <div><strong>agent_gRPC</strong><span>gRPC 入口，接收远程请求并发布到 NATS</span></div>
+              </label>
+              <label class="choice-item">
+                <input type="checkbox" value="agent-b">
+                <div><strong>Agent B</strong><span>NATS worker，转发到 Agent C 并回传结果</span></div>
+              </label>
+              <label class="choice-item">
+                <input type="checkbox" value="agent-c">
+                <div><strong>Agent C</strong><span>NATS worker，处理消息并返回转换结果</span></div>
+              </label>
+            </div>
+            <small>从镜像仓库读取并去重展示，默认只显示 gRPC/B/C 三个选项</small>
+          </div>
+          <div class="form-group">
+            <label>超时（秒）</label>
+            <input id="f-timeout" type="number" value="120" min="10" max="600">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Skills.md 内容 <small style="color:#999;font-weight:400">（可选）— 应用专属技能指引，注入给编排引擎</small></label>
+            <textarea id="f-skills" style="height:100px;font-size:12px;font-family:monospace" placeholder="# 应用技能
+## 核心能力
+..."></textarea>
+          </div>
+        </div>
+        <hr class="divider">
+        <button class="btn btn-primary" onclick="installApp()">
+          <span>📦</span> 安装应用
+        </button>
+      </div>
+    </div>
+
+    <!-- App list -->
+    <div class="toolbar">
+      <span style="font-weight:600;font-size:15px">应用列表</span>
+      <div class="toolbar-right">
+        <span class="refresh-hint" id="apps-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadApps()">🔄 刷新</button>
+      </div>
+    </div>
+    <div id="apps-alert" class="alert"></div>
+    <table id="apps-table">
+      <thead><tr>
+        <th>名称</th><th>应用 ID</th><th>状态</th><th>Workflow Handle</th><th>操作</th>
+      </tr></thead>
+      <tbody id="apps-tbody">
+        <tr class="empty-row"><td colspan="5">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ====== Tab: Agent 实例 ====== -->
+  <div id="tab-instances" class="tab-panel">
+    <div class="toolbar">
+      <span style="font-weight:600;font-size:15px">Agent 实例</span>
+      <div class="toolbar-right">
+        <span class="refresh-hint" id="inst-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadInstances()">🔄 刷新</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Instance ID</th><th>Agent ID</th><th>Image ID</th>
+        <th>状态</th><th>引用计数</th><th>订阅工作流</th>
+      </tr></thead>
+      <tbody id="inst-tbody">
+        <tr class="empty-row"><td colspan="6">暂无实例数据</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ====== Tab: QoS 监控 ====== -->
+  <div id="tab-qos" class="tab-panel">
+    <div id="qos-metrics-row" class="metric-row" style="margin-bottom:20px"></div>
+    <div class="toolbar">
+      <span style="font-weight:600;font-size:15px">Agent QoS 详情</span>
+      <div class="toolbar-right">
+        <span class="refresh-hint" id="qos-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadQos()">🔄 刷新</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Agent ID</th><th>总调用</th><th>成功</th><th>失败</th>
+        <th>平均延迟 (ms)</th><th>最大延迟 (ms)</th><th>成功率</th><th>告警</th>
+      </tr></thead>
+      <tbody id="qos-tbody">
+        <tr class="empty-row"><td colspan="8">暂无 QoS 数据</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ====== Tab: 资源状态 ====== -->
+  <div id="tab-resources" class="tab-panel">
+    <div id="res-summary-row" class="metric-row" style="margin-bottom:20px"></div>
+    <div class="toolbar">
+      <span style="font-weight:600;font-size:15px">节点列表</span>
+      <div class="toolbar-right">
+        <span class="refresh-hint" id="res-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadResources()">🔄 刷新</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Node ID</th><th>IP</th><th>类型</th>
+        <th>CPU (已用/总)</th><th>内存 (已用/总 MB)</th><th>GPU</th><th>状态</th>
+      </tr></thead>
+      <tbody id="res-tbody">
+        <tr class="empty-row"><td colspan="7">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  
+  <!-- ====== Tab: AOE 跨集群 ====== -->
+  <div id="tab-aoe" class="tab-panel">
+    <div class="card">
+      <div class="card-title"><span class="icon">🌐</span> AOE 配置</div>
+      <div id="aoe-alert" class="alert"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>本集群名称</label>
+          <input id="aoe-local-name" type="text" placeholder="cluster-b">
+        </div>
+        <div class="form-group">
+          <label>本集群 AOE URL</label>
+          <input id="aoe-local-url" type="text" placeholder="http://10.112.221.121:8001">
+        </div>
+        <div class="form-group">
+          <label>默认目标 AOE URL</label>
+          <input id="aoe-peer-url" type="text" placeholder="http://10.112.136.44:8001">
+        </div>
+        <div class="form-group">
+          <label>默认超时（秒）</label>
+          <input id="aoe-timeout" type="number" value="60" min="10" max="600">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="saveAoeConfig()">保存配置</button>
+        <button class="btn btn-ghost" onclick="loadAoeConfig()">重新加载</button>
+        <button class="btn btn-ghost" onclick="pullAoeRegistry()">从目标拉取 Agent</button>
+        <button class="btn btn-ghost" onclick="pushAoeGossip()">向目标推送本地 Agent</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🧭</span> Registry 视图</div>
+      <div class="toolbar" style="margin-bottom:10px">
+        <span class="refresh-hint" id="aoe-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadAoeRegistry()">刷新</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>来源</th><th>Agent ID</th><th>能力</th><th>IP</th><th>端口</th><th>状态</th>
+        </tr></thead>
+        <tbody id="aoe-registry-tbody">
+          <tr class="empty-row"><td colspan="6">暂无 registry 数据</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🚀</span> 转发子任务到目标 AOE</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>目标 AOE URL</label>
+          <input id="aoe-dispatch-url" type="text" placeholder="默认使用上面的目标 URL">
+        </div>
+        <div class="form-group">
+          <label>任务 ID（可选）</label>
+          <input id="aoe-task-id" type="text" placeholder="自动生成">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>任务描述</label>
+          <textarea id="aoe-task-desc" placeholder="例如：调用 A 集群中的智能体能力，完成一次简单分析任务"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-success" id="aoe-dispatch-btn" onclick="dispatchAoeTask()">转发执行</button>
+      </div>
+      <div class="query-result" id="aoe-dispatch-result"></div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', path='/js/ui.js') }}"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # 项目上下文快照
 
-> 最后更新：2026-03-10
+> 最后更新：2026-05-06
 
 ---
 
@@ -35,7 +35,26 @@
 
 ## 当前正在解决的问题
 
+**应用详情页智能体前端视图已实现**（2026-05-07）：`/ui/apps/{app_id}` 现在会按运行中的 Agent 生成纵向堆叠 iframe 视窗，并通过新增的 `/api/apps/{app_id}/agent-views` 接口回填 `ip:port` 前端地址。
+
+**Kubernetes 共享 GPU 联调验证完成**（2026-05-07）：已为 `nvidia-device-plugin-daemonset` 注入 `--config-file=/etc/nvidia-device-plugin/config.yaml` 并挂载 `nvidia-device-plugin-config`。节点 `nvidia.com/gpu` Capacity 已从 1 提升为 4，`perception2intermediatefeature-agent` 与 `cooperativefeaturefusiondetectionviz-agent` 已同时 Running，节点分配显示 `nvidia.com/gpu Requests/Limits = 2/2`。
+
+**Kubernetes 共享 GPU 配置落地**（2026-05-07）：为 `k8s/cooperativefeaturefusiondetectionviz-agent.yaml` 与 `k8s/perception2intermediatefeature-agent.yaml` 增加共享 GPU 友好资源配置（显式 `nvidia.com/gpu` requests/limits + CPU/内存 requests/limits），避免 BestEffort 并匹配 time-slicing 场景。
+
 **统一接口与代码映射文档已完成**（2026-03-10）
+
+**已确认 Kubernetes Manifest 加载策略**（2026-05-06）：`_deploy_kubernetes()` 现在优先读取仓库根目录 `k8s/*.yaml`，读取失败或文件缺失时回退到字典构造；YAML manifest 会被补齐运行时必需的 env 与资源字段。
+**前端应用列表自动刷新去重**（2026-05-07）：`src/api/static/js/ui.js` 的 `loadApps()` 现在会对 `apps` 结果做签名比对，相同结果直接跳过重绘，避免无意义刷新。
+
+## 当前进度更新（UI 增强）
+
+- **新增：应用列表刷新去重** — 应用列表自动刷新时会比较本次 `apps` 数据签名，若与上次一致则不重绘表格，仅更新提示信息。
+- **新增：应用详情页智能体前端视图** — 详情页的“智能体前端视图”标签页会按 Agent 纵向堆叠 iframe，并提供“打开页面”快捷入口。
+
+## 当前进度更新（Kubernetes 资源配置）
+
+- **新增：共享 GPU 友好 Deployment 模板** — 两个示例 Deployment 已补齐 CPU/内存 requests/limits，并显式声明 `nvidia.com/gpu` request/limit，便于与 NVIDIA device plugin time-slicing 配合使用。
+
 
 已新增 `接口/系统接口与代码映射文档.md`，将系统架构图、代码架构图、核心类关系图、三层接口流程序列图、每步对应的文件路径/类/函数映射表、HTTP API 一览、端到端数据流、DistributedState 全字段说明、设计模式与扩展点、骨架区域说明整合为一站式参考文档。现有 `类图.md`、`类图设计.md`、三个接口流程 v1.md 保留作为历史版本。
 

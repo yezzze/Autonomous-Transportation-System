@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 import uuid
+from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
 
@@ -97,6 +98,7 @@ class AgentScheduler:
     _PROJECT_ROOT = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     )
+    _K8S_MANIFEST_DIR = Path(_PROJECT_ROOT) / "k8s"
 
     def __init__(self):
         """初始化调度器状态，并从 server 启动环境读取 Agent/NATS 启动配置。"""
@@ -211,6 +213,258 @@ class AgentScheduler:
                 "Install it with: pip install kubernetes"
             ) from exc
 
+    @staticmethod
+    def _upsert_env_var(env_list: List[Dict], name: str, value: str) -> None:
+        """在容器 env 列表中按 name 覆盖或追加变量。"""
+        for item in env_list:
+            if item.get("name") == name:
+                item["value"] = value
+                return
+        env_list.append({"name": name, "value": value})
+
+    def _kubernetes_manifest_path(self, deployment_name: str) -> Path:
+        """返回 k8s/ 根目录下对应 Deployment 名称的 YAML 路径。"""
+        return self._K8S_MANIFEST_DIR / f"{deployment_name}.yaml"
+
+    @staticmethod
+    def _load_yaml_documents(manifest_path: Path) -> List[Dict]:
+        """读取多文档 YAML；失败时返回空列表并记录原因。"""
+        try:
+            import yaml
+        except ImportError:
+            logger.warning("[ASD] PyYAML 未安装，跳过 YAML 读取: %s", manifest_path)
+            return []
+
+        try:
+            with manifest_path.open("r", encoding="utf-8") as handle:
+                return [doc for doc in yaml.safe_load_all(handle) if doc]
+        except Exception as exc:
+            logger.warning("[ASD] 读取 Kubernetes YAML 失败: %s, error=%s", manifest_path, exc)
+            return []
+
+    def _load_kubernetes_manifest_from_yaml(self, deployment_name: str) -> Optional[Dict[str, Dict]]:
+        """优先从 k8s/ 根目录读取 Deployment/Service YAML；未找到或读取失败时返回 None。"""
+        manifest_path = self._kubernetes_manifest_path(deployment_name)
+        if not manifest_path.exists():
+            return None
+
+        docs = self._load_yaml_documents(manifest_path)
+        if not docs:
+            return None
+
+        manifests: Dict[str, Dict] = {}
+        for doc in docs:
+            kind = str(doc.get("kind", "")).lower()
+            if kind == "deployment":
+                manifests["deployment"] = doc
+            elif kind == "service":
+                manifests["service"] = doc
+
+        if "deployment" not in manifests:
+            logger.warning("[ASD] YAML 中未找到 Deployment: %s", manifest_path)
+            return None
+
+        logger.info("[ASD] 使用 YAML 作为 Kubernetes Manifest: %s", manifest_path)
+        return manifests
+
+    @staticmethod
+    def _extract_port_config(
+        deployment_body: Optional[Dict],
+        service_body: Optional[Dict],
+        default_container_port: int,
+        default_service_port: int,
+        default_service_type: str,
+        default_service_port_name: str,
+    ) -> Dict[str, object]:
+        """从 manifest 中提取端口配置；缺失时回退到默认值。"""
+        container_port = default_container_port
+        service_port = default_service_port
+        service_type = default_service_type
+        service_port_name = default_service_port_name
+
+        try:
+            if deployment_body:
+                containers = deployment_body["spec"]["template"]["spec"]["containers"]
+                if containers and containers[0].get("ports"):
+                    first_port = containers[0]["ports"][0]
+                    container_port = int(first_port.get("containerPort", container_port))
+                    service_port_name = first_port.get("name", service_port_name)
+        except Exception:
+            pass
+
+        try:
+            if service_body:
+                service_spec = service_body["spec"]
+                ports = service_spec.get("ports", [])
+                if ports:
+                    first_port = ports[0]
+                    service_port = int(first_port.get("port", service_port))
+                    service_port_name = first_port.get("name", service_port_name)
+                service_type = service_spec.get("type", service_type)
+        except Exception:
+            pass
+
+        return {
+            "container_port": container_port,
+            "service_port": service_port,
+            "service_type": service_type,
+            "service_port_name": service_port_name,
+        }
+
+    def _apply_runtime_overrides_to_deployment(
+        self,
+        deployment_body: Dict,
+        record: DeploymentRecord,
+        capability: str,
+        deployment_name: str,
+        labels: Dict[str, str],
+        container_port: int,
+        service_port_name: str,
+        node_selector: Dict[str, str],
+    ) -> Dict:
+        """把运行时字段叠加到 YAML 或字典生成的 Deployment 上。"""
+        metadata = deployment_body.setdefault("metadata", {})
+        metadata["name"] = deployment_name
+        metadata["labels"] = labels
+
+        spec = deployment_body.setdefault("spec", {})
+        spec["replicas"] = record.replicas
+        spec.setdefault("selector", {})["matchLabels"] = labels
+
+        template = spec.setdefault("template", {})
+        template.setdefault("metadata", {})["labels"] = labels
+        pod_spec = template.setdefault("spec", {})
+        if node_selector:
+            pod_spec["nodeSelector"] = node_selector
+
+        containers = pod_spec.setdefault("containers", [])
+        if not containers:
+            containers.append({})
+        container = containers[0]
+        container.setdefault("name", self.startup_config.agent_container_name)
+        container.setdefault("image", record.image_id)
+        container["imagePullPolicy"] = self.startup_config.image_pull_policy
+
+        ports = container.setdefault("ports", [])
+        if not ports:
+            ports.append({"containerPort": container_port, "name": service_port_name})
+        else:
+            ports[0].setdefault("containerPort", container_port)
+            ports[0].setdefault("name", service_port_name)
+
+        env = container.setdefault("env", [])
+        self._upsert_env_var(env, "AGENT_ID", record.agent_id)
+        self._upsert_env_var(env, "AGENT_CAPABILITY", capability)
+        self._upsert_env_var(env, "NATS_SERVERS", self.nats_servers)
+        self._upsert_env_var(env, "NATS_SERVER_URL", self.nats_servers)
+
+        container["resources"] = self._resource_requirements(
+            record.cpu_cores,
+            record.memory_mb,
+            record.gpu_count,
+        )
+        container.update(self.startup_config.health_probes(container_port))
+        return deployment_body
+
+    def _apply_runtime_overrides_to_service(
+        self,
+        service_body: Dict,
+        deployment_name: str,
+        labels: Dict[str, str],
+        service_port: int,
+        container_port: int,
+        service_type: str,
+        service_port_name: str,
+        is_grpc_entry: bool,
+    ) -> Dict:
+        """把运行时字段叠加到 YAML 或字典生成的 Service 上。"""
+        metadata = service_body.setdefault("metadata", {})
+        metadata["name"] = deployment_name
+        metadata["labels"] = labels
+
+        spec = service_body.setdefault("spec", {})
+        spec["selector"] = labels
+        spec["type"] = service_type
+
+        ports = spec.setdefault("ports", [])
+        if not ports:
+            ports.append({"name": service_port_name, "port": service_port, "targetPort": container_port})
+        else:
+            ports[0]["name"] = service_port_name
+            ports[0]["port"] = service_port
+            ports[0]["targetPort"] = container_port
+        if is_grpc_entry and self.startup_config.grpc_node_port:
+            ports[0]["nodePort"] = self.startup_config.grpc_node_port
+        return service_body
+
+    def _build_kubernetes_manifests(
+        self,
+        record: DeploymentRecord,
+        capability: str,
+        deployment_name: str,
+        labels: Dict[str, str],
+        container_port: int,
+        service_port: int,
+        service_type: str,
+        service_port_name: str,
+        is_grpc_entry: bool,
+        node_selector: Dict[str, str],
+    ) -> Dict[str, Dict]:
+        """在没有 YAML 时，回退到原有的字典构造方式。"""
+        deployment_body = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": deployment_name, "labels": labels},
+            "spec": {
+                "replicas": record.replicas,
+                "selector": {"matchLabels": labels},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": self.startup_config.agent_container_name,
+                                "image": record.image_id,
+                                "imagePullPolicy": self.startup_config.image_pull_policy,
+                                "ports": [{"containerPort": container_port}],
+                                "env": [
+                                    {"name": "AGENT_ID", "value": record.agent_id},
+                                    {"name": "AGENT_CAPABILITY", "value": capability},
+                                    {"name": "NATS_SERVERS", "value": self.nats_servers},
+                                    {"name": "NATS_SERVER_URL", "value": self.nats_servers},
+                                ],
+                                "resources": self._resource_requirements(
+                                    record.cpu_cores,
+                                    record.memory_mb,
+                                    record.gpu_count,
+                                ),
+                            }
+                        ],
+                    },
+                },
+            },
+        }
+        deployment_body["spec"]["template"]["spec"].update(
+            self.startup_config.health_probes(container_port)
+        )
+        if node_selector:
+            deployment_body["spec"]["template"]["spec"]["nodeSelector"] = node_selector
+
+        service_body = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": deployment_name, "labels": labels},
+            "spec": {
+                "selector": labels,
+                "ports": [{"name": service_port_name, "port": service_port, "targetPort": container_port}],
+                "type": service_type,
+            },
+        }
+        if is_grpc_entry and self.startup_config.grpc_node_port:
+            service_body["spec"]["ports"][0]["nodePort"] = self.startup_config.grpc_node_port
+
+        return {"deployment": deployment_body, "service": service_body}
+
     def _node_selector(self, node_id: str) -> Dict[str, str]:
         """根据 node_id 生成 Kubernetes nodeSelector；本机目标不限制调度节点。"""
         if self.startup_config.is_local_node(node_id):
@@ -258,53 +512,55 @@ class AgentScheduler:
             record.image_id,
             capability,
         )
-        container_port, service_port, service_type, service_port_name = self.startup_config.k8s_ports(is_grpc_entry)
-        container = {
-            "name": self.startup_config.agent_container_name,
-            "image": record.image_id,
-            "imagePullPolicy": self.startup_config.image_pull_policy,
-            "ports": [{"containerPort": container_port}],
-            "env": [
-                {"name": "AGENT_ID", "value": record.agent_id},
-                {"name": "AGENT_CAPABILITY", "value": capability},
-                {"name": "NATS_SERVERS", "value": self.nats_servers},
-            ],
-            "resources": self._resource_requirements(record.cpu_cores, record.memory_mb, record.gpu_count),
-        }
-        container.update(self.startup_config.health_probes(container_port))
-
-        pod_spec = {
-            "containers": [container],
-        }
         node_selector = self._node_selector(record.node_id)
-        if node_selector:
-            pod_spec["nodeSelector"] = node_selector
-
-        deployment_body = {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {"name": deployment_name, "labels": labels},
-            "spec": {
-                "replicas": record.replicas,
-                "selector": {"matchLabels": labels},
-                "template": {
-                    "metadata": {"labels": labels},
-                    "spec": pod_spec,
-                },
-            },
-        }
-        service_body = {
-            "apiVersion": "v1",
-            "kind": "Service",
-            "metadata": {"name": deployment_name, "labels": labels},
-            "spec": {
-                "selector": labels,
-                "ports": [{"name": service_port_name, "port": service_port, "targetPort": container_port}],
-                "type": service_type,
-            },
-        }
-        if is_grpc_entry and self.startup_config.grpc_node_port:
-            service_body["spec"]["ports"][0]["nodePort"] = self.startup_config.grpc_node_port
+        manifest_bodies = self._load_kubernetes_manifest_from_yaml(deployment_name)
+        if manifest_bodies:
+            port_config = self._extract_port_config(
+                manifest_bodies.get("deployment"),
+                manifest_bodies.get("service"),
+                *self.startup_config.k8s_ports(is_grpc_entry),
+            )
+            container_port = port_config["container_port"]
+            service_port = port_config["service_port"]
+            service_type = port_config["service_type"]
+            service_port_name = port_config["service_port_name"]
+            deployment_body = self._apply_runtime_overrides_to_deployment(
+                manifest_bodies["deployment"],
+                record,
+                capability,
+                deployment_name,
+                labels,
+                container_port,
+                service_port_name,
+                node_selector,
+            )
+            service_body = manifest_bodies.get("service") or {}
+            service_body = self._apply_runtime_overrides_to_service(
+                service_body,
+                deployment_name,
+                labels,
+                service_port,
+                container_port,
+                service_type,
+                service_port_name,
+                is_grpc_entry,
+            )
+        else:
+            container_port, service_port, service_type, service_port_name = self.startup_config.k8s_ports(is_grpc_entry)
+            built = self._build_kubernetes_manifests(
+                record=record,
+                capability=capability,
+                deployment_name=deployment_name,
+                labels=labels,
+                container_port=container_port,
+                service_port=service_port,
+                service_type=service_type,
+                service_port_name=service_port_name,
+                is_grpc_entry=is_grpc_entry,
+                node_selector=node_selector,
+            )
+            deployment_body = built["deployment"]
+            service_body = built["service"]
 
         try:
             apps.create_namespaced_deployment(namespace=namespace, body=deployment_body)

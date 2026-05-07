@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>应用详情</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
+</head>
+<body>
+  <header>
+    <span style="font-size:24px">🤖</span>
+    <h1>LangManus</h1>
+    <span class="badge">应用详情</span>
+    <div style="margin-left:auto"><a href="/ui" style="color:#fff;text-decoration:none;font-size:13px;opacity:.9">← 返回应用列表</a></div>
+  </header>
+  <div class="main">
+    <div class="toolbar">
+      <div class="toolbar-title" id="app-title">应用：<span id="app-id">-</span></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="logic">逻辑文件</button>
+      <button class="tab-btn" data-tab="runtime">运行状态</button>
+      <button class="tab-btn" data-tab="agents">智能体前端视图</button>
+    </div>
+
+    <div id="panel-logic" class="panel active">
+      <div class="card">
+        <div class="collapse-header open" onclick="toggleCollapse(this)">
+          <span class="arrow">▶</span>
+          <span class="card-title" style="margin:0"><span class="icon">✏️</span> 修改逻辑文件</span>
+        </div>
+        <div class="collapse-body open">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>应用名称 *</label>
+              <input id="e-name" type="text" placeholder="如：搜索助手">
+            </div>
+            <div class="form-group">
+              <label>编排模式</label>
+              <select id="e-mode">
+                <option value="adaptive">adaptive（自适应）</option>
+                <option value="sequential">sequential（顺序）</option>
+                <option value="distributed">distributed（分布式）</option>
+                <option value="magentic">magentic（Magentic-One）</option>
+              </select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label>任务描述 *</label>
+              <textarea id="e-task" placeholder="描述该应用要完成的任务，如：搜索并总结用户提供的主题"></textarea>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label>Skills.md 内容 <small style="color:#999;font-weight:400">（可选）— 应用专属技能指引，注入给编排引擎</small></label>
+              <textarea id="e-skills" style="height:100px;font-size:12px;font-family:monospace" placeholder="# 应用技能
+## 核心能力
+..."></textarea>
+            </div>
+          </div>
+          <hr class="divider">
+          <button class="btn btn-primary" id="save-logic">
+            <span>💾</span> 保存修改
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-runtime" class="panel">
+      <div class="row">
+        <div>
+          <div class="card">
+            <div class="card-title">运行信息</div>
+            <div id="runtime-info">加载中...</div>
+          </div>
+          <div class="card">
+            <div class="card-title">编排工作流</div>
+            <div id="workflow-summary" class="workflow-summary"></div>
+            <div id="orchestrator" class="workflow-canvas">未加载工作流</div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="card-title">快速操作</div>
+            <div class="actions">
+              <button class="btn btn-ghost" id="btn-start">启动应用</button>
+              <button class="btn btn-ghost" id="btn-stop">停止应用</button>
+              <button class="btn btn-ghost" id="btn-reload">刷新状态</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-agents" class="panel">
+      <div class="card" style="margin-bottom:0">
+        <div class="card-title">智能体前端视图</div>
+        <div id="agents-host" class="agent-view-list">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', path='/js/app_details.js') }}"></script>
+</body>
+</html>
