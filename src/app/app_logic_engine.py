@@ -14,7 +14,7 @@
 import asyncio
 import logging
 import uuid
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.app.models import GuidanceFile
 
@@ -284,6 +284,35 @@ class AppLogicEngine:
                 "status": "error",
                 "error": str(e),
             }
+
+    # ------------------------------------------------------------------
+    # 供外部调度器调用的单次执行入口
+    # ------------------------------------------------------------------
+
+    async def run_single_workflow(self, app_id: str, workflow_handle: str) -> Any:
+        """
+        执行单次工作流（供 WorkflowScheduler 调用）。
+
+        与 start_app() 不同：
+        - 不检查是否已在运行
+        - 不管理 _running_tasks 字典
+        - 不部署/退订 ALCM 实例
+        调用方自行通过 asyncio.Task 管理生命周期。
+
+        Args:
+            app_id:          应用 ID
+            workflow_handle: 工作流句柄（调用方生成）
+
+        Returns:
+            工作流执行结果
+
+        Raises:
+            ValueError: 应用未安装（无指导文件）
+        """
+        guidance = self._guidance_files.get(app_id)
+        if not guidance:
+            raise ValueError(f"应用 {app_id} 未安装")
+        return await self._run_workflow(app_id, guidance, workflow_handle)
 
     # ------------------------------------------------------------------
     # 内部工作流执行

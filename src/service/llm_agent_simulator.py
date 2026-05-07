@@ -256,15 +256,15 @@ class LLMAgentSimulator:
                 HumanMessage(content=user_message)
             ]
             
-            # 流式调用（适用于 qwq-plus 等模型）
+            # 异步流式调用（适用于 qwq-plus 等模型）
             full_response = ""
             try:
-                for chunk in llm.stream(messages):
+                async for chunk in llm.astream(messages):
                     if hasattr(chunk, 'content'):
                         full_response += chunk.content
             except Exception as stream_err:
                 logger.warning(f"流式调用失败，尝试非流式调用: {stream_err}")
-                response = llm.invoke(messages)
+                response = await llm.ainvoke(messages)
                 full_response = response.content
             
             logger.info(f"✅ LLM 模拟完成，生成了 {len(full_response)} 字符的结果")

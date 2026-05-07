@@ -168,6 +168,7 @@ class RegistrySyncRequest(BaseModel):
     """来自 peer 节点的 agent 列表推送请求"""
     source_url: str
     agents: list  # List[AgentInfo]（runtime dict）
+    sub_workflows: list = []  # List[SubWorkflowInfo]（可选，向后兼容）
 
 
 @app.post("/registry/sync")
@@ -176,22 +177,28 @@ async def registry_sync(req: RegistrySyncRequest):
     接收来自 T_AOE / peer 节点的 gossip 推送，合并到本节点注册表。
 
     对应架构 §1 智能体发现（ARDC Gossip）：
-    - 来源节点 POST {source_url, agents} 到本端点
+    - 来源节点 POST {source_url, agents, sub_workflows} 到本端点
     - 本节点调用 registry.sync_from_peer() 更新 peer 缓存
     - 返回合并后 peer agents 总数
     """
     from src.service.agent_registry import get_registry_client
 
     registry = get_registry_client()
-    merged_count = registry.sync_from_peer(req.source_url, req.agents)
+    merged_count = registry.sync_from_peer(
+        req.source_url,
+        req.agents,
+        sub_workflows=req.sub_workflows or None,
+    )
     logger.info(
         f"[ARDC] /registry/sync 处理完成: source={req.source_url}, "
-        f"agents={len(req.agents)}, merged_total={merged_count}"
+        f"agents={len(req.agents)}, sub_workflows={len(req.sub_workflows)}, "
+        f"merged_total={merged_count}"
     )
     return {
         "status": "ok",
         "source_url": req.source_url,
         "received_agents": len(req.agents),
+        "received_sub_workflows": len(req.sub_workflows),
         "merged_count": merged_count,
     }
 
@@ -218,22 +225,43 @@ async def dispatch_subtask(req: DispatchRequest):
     task_id = req.subtask.get("task_id", _uuid.uuid4().hex[:8])
     task_desc = req.subtask.get("task_description", "")
     timeout = int(req.subtask.get("timeout_seconds", 60))
+    sub_workflow_id = req.subtask.get("sub_workflow_id", "")
 
     logger.info(
         f"[E_AOE] 收到跨主体子任务: task_id={task_id}, "
-        f"source={req.source_aoe_url}, desc={task_desc[:80]}"
+        f"source={req.source_aoe_url}, "
+        f"{'swf=' + sub_workflow_id if sub_workflow_id else ''}"
+        f"desc={task_desc[:80]}"
     )
 
     workflow_handle = f"remote_wf_{task_id}_{_uuid.uuid4().hex[:6]}"
 
     from src.distributed_workflow import run_distributed_workflow
 
+    # 子工作流路径：查找本地预定义的 pipeline 拓扑
+    pipeline_topology = []
+    if sub_workflow_id:
+        from src.service.agent_registry import get_registry_client
+        swf_def = get_registry_client().get_sub_workflow_by_id(sub_workflow_id)
+        if swf_def:
+            pipeline_topology = swf_def["pipeline"]
+            logger.info(
+                f"[E_AOE] 子工作流模式: swf_id={sub_workflow_id}, "
+                f"pipeline={len(pipeline_topology)} 步"
+            )
+        else:
+            logger.warning(
+                f"[E_AOE] 子工作流 {sub_workflow_id} 未在本地注册，"
+                f"降级为自适应编排"
+            )
+
     # 用 create_task 包装，使 DELETE /session/{id} 能通过 task.cancel() 中断执行
     workflow_task = asyncio.create_task(
         run_distributed_workflow(
             user_input=task_desc,
-            adaptive_mode=True,
+            adaptive_mode=(not pipeline_topology),
             timeout_seconds=timeout,
+            pipeline_topology=pipeline_topology,
         )
     )
     _session_registry.register(req.session_id, workflow_handle, task=workflow_task)

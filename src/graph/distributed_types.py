@@ -16,6 +16,17 @@ class AgentInfo(TypedDict):
     description: str  # Agent 详细描述
 
 
+class SubWorkflowInfo(TypedDict):
+    """子工作流定义（可被远端发现和调用的命名 Pipeline）"""
+    id: str           # 子工作流唯一标识，如 "swf_perception_fusion"
+    capability: str   # 能力标签（用于 Planner 匹配）
+    description: str  # 详细描述
+    owner_ip: str     # 所属节点 IP
+    owner_port: int   # 所属节点端口
+    pipeline: list    # PipelineTopology（复用现有格式）
+    status: str       # "online" | "offline"
+
+
 class TaskAssignment(TypedDict):
     """单个任务分配"""
     task_id: str  # 任务唯一标识符
@@ -28,6 +39,7 @@ class TaskAssignment(TypedDict):
     result: str  # 任务执行结果
     retry_count: int  # 重试次数
     parallel_group: str  # 并行组标识（同值=并行，空字符串=串行）
+    sub_workflow_id: str  # 非空时表示此任务路由到子工作流（而非单个 agent）
 
 
 class DistributedState(MessagesState):

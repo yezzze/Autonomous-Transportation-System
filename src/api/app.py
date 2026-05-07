@@ -17,6 +17,7 @@ from typing import AsyncGenerator, Dict, List, Any
 from src.graph import build_graph
 from src.config import TEAM_MEMBERS
 from src.service.workflow_service import run_agent_workflow
+from src.api.visualization_routes import router as viz_router
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -40,6 +41,9 @@ app.add_middleware(
 # Create the graph
 graph = build_graph()
 
+# 挂载可视化路由 (端口 8000 → /viz, /api/viz/*, /ws/viz/*)
+app.include_router(viz_router)
+
 
 # ======================================================================
 # ARDC Gossip 端点（主 API 服务也支持 peer 同步）
@@ -48,18 +52,24 @@ graph = build_graph()
 class _RegistrySyncRequest(BaseModel):
     source_url: str
     agents: list
+    sub_workflows: list = []  # 子工作流列表（可选，向后兼容）
 
 
 @app.post("/registry/sync", summary="ARDC Gossip 接收 peer 推送")
 async def registry_sync(req: _RegistrySyncRequest):
-    """接收来自 peer 节点的 agent 列表，合并到本节点注册表"""
+    """接收来自 peer 节点的 agent 列表和子工作流列表，合并到本节点注册表"""
     from src.service.agent_registry import get_registry_client
     registry = get_registry_client()
-    merged_count = registry.sync_from_peer(req.source_url, req.agents)
+    merged_count = registry.sync_from_peer(
+        req.source_url,
+        req.agents,
+        sub_workflows=req.sub_workflows or None,
+    )
     return {
         "status": "ok",
         "source_url": req.source_url,
         "received_agents": len(req.agents),
+        "received_sub_workflows": len(req.sub_workflows),
         "merged_count": merged_count,
     }
 
@@ -86,6 +96,19 @@ async def _start_gossip():
         local_url=local_url,
         interval=interval,
     )
+
+
+@app.on_event("startup")
+async def _restore_scheduled_apps():
+    """
+    服务启动时，自动恢复配置了 schedule_auto_restart: true 的周期调度应用。
+    """
+    try:
+        from src.app.app_manager import get_app_manager
+        manager = get_app_manager()
+        await manager.restore_schedules()
+    except Exception as e:
+        logger.warning(f"[Startup] 恢复周期调度失败（非关键）: {e}")
 
 
 class ContentItem(BaseModel):
@@ -334,6 +357,142 @@ async def stop_app(app_id: str):
                 raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
 
         return {"app_id": app_id, "status": "stopped", "message": "停止成功"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ======================================================================
+# 周期调度 API
+# ======================================================================
+
+@app.post("/api/apps/{app_id}/schedule/start", summary="启动周期调度")
+async def start_schedule(app_id: str):
+    """
+    启动应用的周期调度。
+    需在 GuidanceFile.constraints 中配置 schedule_interval_seconds。
+    可选配置 schedule_max_parallel（默认 5）、schedule_max_history（默认 100）。
+    """
+    try:
+        from src.app.app_manager import get_app_manager
+
+        manager = get_app_manager()
+        app = manager.get_app(app_id)
+        if not app:
+            raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+
+        success = await manager.start_schedule(app_id)
+        if not success:
+            raise HTTPException(
+                status_code=400,
+                detail="启动调度失败：应用可能已在调度中或未配置 schedule_interval_seconds",
+            )
+
+        return {
+            "app_id": app_id,
+            "status": "scheduled",
+            "message": "周期调度已启动",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"start_schedule error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/apps/{app_id}/schedule/stop", summary="停止周期调度")
+async def stop_schedule(app_id: str):
+    """
+    停止应用的周期调度。
+    活跃的工作流实例继续运行直到完成。
+    """
+    try:
+        from src.app.app_manager import get_app_manager
+
+        manager = get_app_manager()
+        app = manager.get_app(app_id)
+        if not app:
+            raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+
+        success = await manager.stop_schedule(app_id)
+        if not success:
+            raise HTTPException(
+                status_code=400,
+                detail="停止调度失败：应用当前未处于周期调度状态",
+            )
+
+        return {
+            "app_id": app_id,
+            "status": "stopped",
+            "message": "周期调度已停止",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"stop_schedule error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/apps/{app_id}/schedule/status", summary="获取调度状态")
+async def get_schedule_status(app_id: str):
+    """
+    获取应用的周期调度状态。
+    返回间隔、活跃实例数、累计执行次数等信息。
+    """
+    try:
+        from src.app.app_manager import get_app_manager
+
+        manager = get_app_manager()
+        app = manager.get_app(app_id)
+        if not app:
+            raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+
+        from src.service.workflow_scheduler import get_workflow_scheduler
+        scheduler = get_workflow_scheduler()
+        status = scheduler.get_schedule_status(app_id)
+
+        if not status:
+            return {
+                "app_id": app_id,
+                "scheduled": False,
+                "message": "应用未处于周期调度状态",
+            }
+
+        return {
+            "app_id": app_id,
+            "scheduled": True,
+            **status,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/apps/{app_id}/schedule/history", summary="获取调度执行历史")
+async def get_schedule_history(app_id: str, limit: int = 50):
+    """
+    获取应用的周期调度执行历史。
+    返回最近 N 次执行记录，包含 run_id、开始时间、完成时间、状态等。
+    """
+    try:
+        from src.app.app_manager import get_app_manager
+
+        manager = get_app_manager()
+        app = manager.get_app(app_id)
+        if not app:
+            raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+
+        from src.service.workflow_scheduler import get_workflow_scheduler
+        scheduler = get_workflow_scheduler()
+        history = scheduler.get_history(app_id, limit=limit)
+
+        return {
+            "app_id": app_id,
+            "total": len(history),
+            "records": history,
+        }
     except HTTPException:
         raise
     except Exception as e:

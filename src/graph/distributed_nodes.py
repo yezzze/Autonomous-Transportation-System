@@ -240,8 +240,11 @@ def identify_cross_host_tasks(
     """
     识别需要跨主体路由的任务
 
-    遍历执行计划，将目标 Agent 不在本地节点的任务提取出来，
+    遍历执行计划，将目标 Agent（或子工作流所属节点）不在本地的任务提取出来，
     生成 cross_host_sessions 映射。
+
+    对于 sub_workflow_id 非空的任务，使用子工作流的 owner_ip 判断；
+    否则使用 agent 的 ip 判断。
 
     Args:
         execution_plan:  TaskAssignment 列表
@@ -255,21 +258,56 @@ def identify_cross_host_tasks(
 
     cross_host = {}
     for task in execution_plan:
-        agent_id = task.get("assigned_agent_id", "")
-        ip = agent_ip_map.get(agent_id, "localhost")
-        # 判断是否为本地节点
+        swf_id = task.get("sub_workflow_id", "")
+        if swf_id:
+            # 子工作流任务：使用 target_ip（已由 Planner 填入 owner_ip）
+            ip = task.get("target_ip", "localhost")
+            port = task.get("target_port", 0)
+        else:
+            # 普通 agent 任务
+            agent_id = task.get("assigned_agent_id", "")
+            ip = agent_ip_map.get(agent_id, "localhost")
+            port = 0
+
         if ip not in LOCAL_NODE_IDS:
-            # 使用端口 9000 作为远端 AOE 默认端口（可配置）
-            remote_port = int(os.getenv("REMOTE_AOE_PORT", "9000"))
-            cross_host[task["task_id"]] = f"http://{ip}:{remote_port}"
+            if port:
+                cross_host[task["task_id"]] = f"http://{ip}:{port}"
+            else:
+                remote_port = int(os.getenv("REMOTE_AOE_PORT", "9000"))
+                cross_host[task["task_id"]] = f"http://{ip}:{remote_port}"
     return cross_host
+
+
+def _build_sub_workflow_prompt_section(sub_workflows: list) -> str:
+    """构建子工作流 prompt 段落（供 Planner LLM 使用）"""
+    if not sub_workflows:
+        return ""
+    lines = ["## 可用的子工作流（优先使用，作为整体调用）\n"]
+    for swf in sub_workflows:
+        pipeline = swf.get("pipeline", [])
+        # 构建 pipeline 可读描述
+        steps = []
+        for step in pipeline:
+            if isinstance(step, list):
+                inner = ", ".join(s.get("description") or s.get("capability", "") for s in step)
+                steps.append(f"[{inner}]")
+            else:
+                steps.append(step.get("description") or step.get("capability", ""))
+        pipeline_desc = " -> ".join(steps)
+        lines.append(
+            f"- **{swf['id']}** (能力: {swf['capability']}, "
+            f"位于: {swf['owner_ip']}:{swf['owner_port']}): "
+            f"{swf['description']}\n"
+            f"  流水线: {pipeline_desc}"
+        )
+    return "\n".join(lines) + "\n"
 
 
 # ============================================================
 # 分布式 Planner 节点 - 任务分解与 Agent 匹配
 # ============================================================
 
-def distributed_planner_node(state: DistributedState) -> Command[Literal["executor", "__end__"]]:
+async def distributed_planner_node(state: DistributedState) -> Command[Literal["executor", "__end__"]]:
     """
     分布式规划器节点
     
@@ -318,6 +356,7 @@ def distributed_planner_node(state: DistributedState) -> Command[Literal["execut
                         "result": "",
                         "retry_count": 0,
                         "parallel_group": group_id,
+                        "sub_workflow_id": "",
                     })
             else:
                 # 串行步骤
@@ -336,9 +375,16 @@ def distributed_planner_node(state: DistributedState) -> Command[Literal["execut
                     "result": "",
                     "retry_count": 0,
                     "parallel_group": "",
+                    "sub_workflow_id": "",
                 })
 
         plan_summary = f"⚡ Pipeline 模式：{len(execution_plan)} 步固定拓扑（无 LLM Planner）"
+
+        # ── §2.2 跨主体识别：根据 Agent IP 预填 cross_host_sessions ────────
+        all_agents = registry_client.get_all_agents()
+        cross_host = identify_cross_host_tasks(execution_plan, all_agents)
+        if cross_host:
+            logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
 
         # ── DEMO 事件：任务图生成完成 ──────────────────────────────────────
         if os.getenv("DEMO_MODE") == "1":
@@ -362,6 +408,8 @@ def distributed_planner_node(state: DistributedState) -> Command[Literal["execut
                 "current_task_index": 0,
                 "plan_generated": True,
                 "all_tasks_completed": False,
+                "cross_host_sessions": cross_host,
+                "agent_registry_cache": all_agents,
             },
             goto="executor"
         )
@@ -385,7 +433,12 @@ def distributed_planner_node(state: DistributedState) -> Command[Literal["execut
         )
     
     logger.info(f"从注册表查询到 {len(available_agents)} 个可用 Agent")
-    
+
+    # 1.1 查询可用子工作流
+    available_sub_workflows = registry_client.get_all_sub_workflows()
+    if available_sub_workflows:
+        logger.info(f"从注册表查询到 {len(available_sub_workflows)} 个可用子工作流")
+
     # 2. 构建 Agent 能力描述（用于 LLM 决策）
     agent_capabilities_desc = "\n".join([
         f"- **{agent['id']}** (IP: {agent['ip']}:{agent['port']}): {agent['description']}"
@@ -415,17 +468,21 @@ def distributed_planner_node(state: DistributedState) -> Command[Literal["execut
 当前时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 ---
 
-你是一个**分布式任务调度规划器**。你的任务是将用户请求分解为多个子任务，并将每个子任务分配给远程的 L3 Agent。
+你是一个**分布式任务调度规划器**。你的任务是将用户请求分解为多个子任务，并将每个子任务分配给远程的 L3 Agent 或**子工作流**。
 {skills_section}
 ## 可用的 L3 Agent 列表
 
 {agent_capabilities_desc}
 
+{_build_sub_workflow_prompt_section(available_sub_workflows)}
+
 ## 你的职责
 
 1. **理解用户需求**：分析用户请求，识别需要哪些能力
 2. **任务分解**：将复杂任务分解为多个独立的子任务
-3. **Agent 匹配**：为每个子任务选择最合适的 Agent（基于能力匹配）
+3. **匹配执行者**：为每个子任务选择最合适的 **Agent 或子工作流**
+   - 如果某个子工作流的能力完全覆盖任务需求，**优先使用子工作流**（减少跨节点调用次数）
+   - 否则分配给单个 Agent
 4. **生成执行计划**：输出结构化的 JSON 计划
 
 ⚠️ **重要规则**：
@@ -442,8 +499,9 @@ interface Task {{
   task_id: string;           // 唯一标识符，格式如 "task_001"
   task_title: string;        // 任务标题
   task_description: string;  // 详细的任务描述（告诉远程 Agent 做什么）
-  assigned_agent_id: string; // 分配的 Agent ID
+  assigned_agent_id: string; // 分配的 Agent ID（若使用子工作流，填子工作流 ID）
   capability_required: string; // 需要的能力
+  sub_workflow_id?: string;  // 可选：若分配给子工作流，填子工作流 ID（如 "swf_xxx"）
 }}
 
 interface ExecutionPlan {{
@@ -457,6 +515,7 @@ interface ExecutionPlan {{
 
 - 确保每个任务的 `task_description` 足够详细，让远程 Agent 能够独立执行
 - 根据 Agent 的能力进行合理匹配
+- 如果任务匹配某个子工作流，设置 `sub_workflow_id` 字段，系统会自动路由到对应节点
 - 任务之间如果有依赖关系，应该在 `task_description` 中说明
 - 使用与用户相同的语言生成计划
 """
@@ -473,14 +532,14 @@ interface ExecutionPlan {{
         # qwq-plus 仅支持流式调用，需要手动收集响应
         full_response = ""
         try:
-            # 尝试流式调用（适用于 qwq-plus）
-            for chunk in llm.stream(messages):
+            # 尝试异步流式调用（适用于 qwq-plus）
+            async for chunk in llm.astream(messages):
                 if hasattr(chunk, 'content'):
                     full_response += chunk.content
         except Exception as stream_err:
             logger.warning(f"流式调用失败，尝试非流式调用: {stream_err}")
-            # 回退到非流式调用
-            response = llm.invoke(messages)
+            # 回退到异步非流式调用
+            response = await llm.ainvoke(messages)
             full_response = response.content
         
         plan_json_str = full_response
@@ -505,23 +564,41 @@ interface ExecutionPlan {{
         
         for task in plan_data.get("tasks", []):
             agent_id = task.get("assigned_agent_id")
-            agent_info = registry_client.get_agent_by_id(agent_id)
-            
-            if not agent_info:
-                logger.warning(f"Agent {agent_id} 不存在，跳过任务 {task.get('task_id')}")
-                continue
-            
+            swf_id = task.get("sub_workflow_id", "")
+
+            # 子工作流路径：从子工作流列表查找 owner_ip/port
+            if swf_id:
+                swf_info = next(
+                    (s for s in available_sub_workflows if s["id"] == swf_id),
+                    None,
+                )
+                if not swf_info:
+                    logger.warning(f"子工作流 {swf_id} 不存在，跳过任务 {task.get('task_id')}")
+                    continue
+                target_ip = swf_info["owner_ip"]
+                target_port = swf_info["owner_port"]
+                agent_id = swf_id  # 统一用子工作流 ID
+            else:
+                # 普通 Agent 路径
+                agent_info = registry_client.get_agent_by_id(agent_id)
+                if not agent_info:
+                    logger.warning(f"Agent {agent_id} 不存在，跳过任务 {task.get('task_id')}")
+                    continue
+                target_ip = agent_info["ip"]
+                target_port = agent_info["port"]
+
             task_assignment: TaskAssignment = {
                 "task_id": task.get("task_id", f"task_{uuid.uuid4().hex[:8]}"),
                 "task_title": task.get("task_title", "未命名任务"),
                 "task_description": task.get("task_description", ""),
                 "assigned_agent_id": agent_id,
-                "target_ip": agent_info["ip"],
-                "target_port": agent_info["port"],
+                "target_ip": target_ip,
+                "target_port": target_port,
                 "status": "pending",
                 "result": "",
                 "retry_count": 0,
                 "parallel_group": "",
+                "sub_workflow_id": swf_id,
             }
             execution_plan.append(task_assignment)
         
@@ -576,11 +653,11 @@ interface ExecutionPlan {{
             basic_llm = get_llm_by_type("basic")
             try:
                 direct_response = ""
-                for chunk in basic_llm.stream([HumanMessage(content=direct_answer_prompt)]):
+                async for chunk in basic_llm.astream([HumanMessage(content=direct_answer_prompt)]):
                     if hasattr(chunk, 'content'):
                         direct_response += chunk.content
             except:
-                direct_response = basic_llm.invoke([HumanMessage(content=direct_answer_prompt)]).content
+                direct_response = (await basic_llm.ainvoke([HumanMessage(content=direct_answer_prompt)])).content
             
             return Command(
                 update={
@@ -593,7 +670,12 @@ interface ExecutionPlan {{
                 goto="__end__"
             )
         
-        # 8. 正常情况：更新状态并跳转到执行器
+        # 8. §2.2 跨主体识别：根据 Agent IP 预填 cross_host_sessions
+        cross_host = identify_cross_host_tasks(execution_plan, available_agents)
+        if cross_host:
+            logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
+
+        # 9. 正常情况：更新状态并跳转到执行器
         plan_summary = f"""
 ## 📋 任务规划完成
 
@@ -605,7 +687,7 @@ interface ExecutionPlan {{
 """
         for i, task in enumerate(execution_plan, 1):
             plan_summary += f"\n{i}. **{task['task_title']}** → Agent: `{task['assigned_agent_id']}` (IP: {task['target_ip']}:{task['target_port']})"
-        
+
         return Command(
             update={
                 "messages": [HumanMessage(content=plan_summary, name="planner")],
@@ -614,7 +696,8 @@ interface ExecutionPlan {{
                 "plan_generated": True,
                 "all_tasks_completed": False,
                 "agent_registry_cache": available_agents,
-                "registry_last_update": datetime.now().isoformat()
+                "registry_last_update": datetime.now().isoformat(),
+                "cross_host_sessions": cross_host,
             },
             goto="executor"
         )
@@ -827,8 +910,50 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
         except Exception:
             pass
 
-    if not remote_aoe_url:
-        # ─── 本地执行路径 ────────────────────────────────
+    # 初始化 Demo 故障注入标志（跨所有执行路径共用）
+    _demo_vehicleB_inject_fail = False
+
+    # ─── 本地子工作流执行路径 ──────────────────────────────────────────
+    _local_swf_id = current_task.get("sub_workflow_id", "")
+    if not remote_aoe_url and _local_swf_id:
+        logger.info(f"[子工作流] 本地执行子工作流: {_local_swf_id}")
+        _task_start = time.monotonic()
+        try:
+            from src.service.agent_registry import get_registry_client as _get_reg
+            _swf_def = _get_reg().get_sub_workflow_by_id(_local_swf_id)
+            if not _swf_def:
+                raise ValueError(f"子工作流 {_local_swf_id} 未在本地注册")
+            from src.distributed_workflow import run_distributed_workflow
+            _swf_result = await run_distributed_workflow(
+                user_input=current_task["task_description"],
+                pipeline_topology=_swf_def["pipeline"],
+                adaptive_mode=False,
+                timeout_seconds=state.get("timeout_seconds", 30),
+            )
+            _task_latency = (time.monotonic() - _task_start) * 1000
+            # 从子工作流结果中提取最终报告
+            _swf_messages = _swf_result.get("messages", [])
+            result_message = _swf_messages[-1].content if _swf_messages else str(_swf_result)
+            task_status = "completed"
+            result_data = {"status": "success", "protocol": "sub_workflow", "agent_used": _local_swf_id}
+            logger.info(f"[子工作流] ✅ 本地子工作流执行完成: {_local_swf_id}")
+        except Exception as e:
+            _task_latency = (time.monotonic() - _task_start) * 1000
+            task_status = "failed"
+            result_message = f"子工作流执行失败: {str(e)}"
+            result_data = {"status": "error", "protocol": "sub_workflow", "error_message": str(e)}
+            logger.error(f"[子工作流] ❌ {result_message}")
+        try:
+            from src.runtime.qos_monitor import get_qos_monitor
+            get_qos_monitor().record_call(
+                agent_id=_local_swf_id, latency_ms=_task_latency,
+                success=(task_status == "completed"),
+            )
+        except Exception:
+            pass
+
+    if not remote_aoe_url and not _local_swf_id:
+        # ─── 本地 Agent 执行路径 ──────────────────────────
 
         # ── DEMO 事件：开始分发任务 ──────────────────────────────────────
         _demo_vehicleB_inject_fail = False
@@ -911,8 +1036,8 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 "previous_results": previous_results
             }
             
-            # 调用 LLM 生成智能体响应
-            mock_result = simulator.simulate_agent_call_sync(
+            # 调用 LLM 生成智能体响应（使用异步版本，避免阻塞事件循环）
+            mock_result = await simulator.simulate_agent_call(
                 agent_id=current_task.get('assigned_agent_id', ''),
                 task_title=current_task.get('task_title', ''),
                 task_description=current_task.get('task_description', ''),
@@ -1000,7 +1125,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
 # Monitor 节点 - 监控和路由
 # ============================================================
 
-def distributed_monitor_node(state: DistributedState) -> Command[Literal["executor", "reporter", "__end__"]]:
+async def distributed_monitor_node(state: DistributedState) -> Command[Literal["executor", "reporter", "__end__"]]:
     """
     增强监控节点（混合编排模式）
     
@@ -1061,7 +1186,7 @@ def distributed_monitor_node(state: DistributedState) -> Command[Literal["execut
             for t in failed_tasks_list
             if t["task_id"] in failed_cross_host
         })
-        return trigger_llm_replanning(state, failed_tasks_list, excluded_agents=excluded or None)
+        return await trigger_llm_replanning(state, failed_tasks_list, excluded_agents=excluded or None)
     
     # 3.3 超过重规划次数，失败
     if replanning_count >= max_replanning:
@@ -1249,7 +1374,7 @@ def apply_failure_rules(state: DistributedState, failed_tasks_list: list) -> dic
     return {"handled": False, "action": "无适用规则", "state_update": {}}
 
 
-def trigger_llm_replanning(
+async def trigger_llm_replanning(
     state: DistributedState,
     failed_tasks_list: list,
     excluded_agents: list | None = None,
@@ -1341,11 +1466,11 @@ def trigger_llm_replanning(
         logger.info("🤖 调用 LLM 进行重新规划...")
         full_response = ""
         try:
-            for chunk in llm.stream([HumanMessage(content=replanning_prompt)]):
+            async for chunk in llm.astream([HumanMessage(content=replanning_prompt)]):
                 if hasattr(chunk, 'content'):
                     full_response += chunk.content
         except:
-            full_response = llm.invoke([HumanMessage(content=replanning_prompt)]).content
+            full_response = (await llm.ainvoke([HumanMessage(content=replanning_prompt)])).content
         
         # 清理 JSON
         plan_json_str = full_response.strip()
@@ -1427,7 +1552,7 @@ def trigger_llm_replanning(
 # Reporter 节点 - 生成最终报告
 # ============================================================
 
-def distributed_reporter_node(state: DistributedState) -> Command[Literal["__end__"]]:
+async def distributed_reporter_node(state: DistributedState) -> Command[Literal["__end__"]]:
     """
     报告生成节点
     
