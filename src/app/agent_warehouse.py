@@ -11,8 +11,9 @@
 import json
 import logging
 import os
+import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.app.models import AgentImage
 
@@ -24,6 +25,50 @@ _DEFAULT_WAREHOUSE_FILE = os.path.join(
     "config",
     "agent_warehouse.json",
 )
+
+_DEFAULT_APPS_STORE_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "data",
+    "apps_store.json",
+)
+
+_KNOWN_IMAGE_DEFAULTS: Dict[str, Dict[str, Any]] = {
+    "agent-grpc:v1": {
+        "name": "agent_gRPC",
+        "version": "v1",
+        "capability": "agent-grpc",
+        "description": "gRPC 入口，接收远程请求并发布到 NATS",
+        "metadata": {"k8s": {"cpu_cores": 0.5, "memory_mb": 512, "gpu_count": 0}},
+    },
+    "agent-b-worker:v3": {
+        "name": "Agent B",
+        "version": "v3",
+        "capability": "agent-b",
+        "description": "NATS worker，转发到 Agent C 并回传结果",
+        "metadata": {"k8s": {"cpu_cores": 0.5, "memory_mb": 512, "gpu_count": 0}},
+    },
+    "agent-c-worker:v1": {
+        "name": "Agent C",
+        "version": "v1",
+        "capability": "agent-c",
+        "description": "NATS worker，处理消息并返回转换结果",
+        "metadata": {"k8s": {"cpu_cores": 0.5, "memory_mb": 512, "gpu_count": 0}},
+    },
+    "perception2intermediatefeature-agent:0.1.1": {
+        "name": "Perception2IntermediateFeature",
+        "version": "0.1.1",
+        "capability": "perception2intermediatefeature",
+        "description": "自动驾驶感知输入转换为中间特征",
+        "metadata": {"k8s": {"cpu_cores": 2.0, "memory_mb": 4096, "gpu_count": 1}},
+    },
+    "cooperativefeaturefusiondetectionviz-agent:0.1.1": {
+        "name": "CooperativeFeatureFusionDetectionViz",
+        "version": "0.1.1",
+        "capability": "cooperativefeaturefusiondetectionviz",
+        "description": "协同特征融合、目标检测与可视化",
+        "metadata": {"k8s": {"cpu_cores": 2.0, "memory_mb": 8192, "gpu_count": 1}},
+    },
+}
 
 
 class AgentWarehouse:
@@ -46,6 +91,9 @@ class AgentWarehouse:
         # image_id → AgentImage
         self._images: Dict[str, AgentImage] = {}
         self._load_from_json()
+        if not self._images:
+            self._load_from_apps_store()
+        self.refresh_from_kubernetes()
         logger.info(
             f"AgentWarehouse (AW) 初始化完成，已加载 {len(self._images)} 个镜像"
         )
@@ -123,13 +171,82 @@ class AgentWarehouse:
         """按 image_id 查询镜像"""
         return self._images.get(image_id)
 
-    def list_images(self) -> List[AgentImage]:
+    def list_images(self, refresh: bool = True) -> List[AgentImage]:
         """列出所有镜像"""
+        if refresh:
+            self.refresh_from_kubernetes()
         return list(self._images.values())
 
     def find_by_capability(self, capability: str) -> List[AgentImage]:
         """按能力类型查找镜像"""
+        self.refresh_from_kubernetes()
         return [img for img in self._images.values() if img.capability == capability]
+
+    def refresh_from_kubernetes(self) -> int:
+        """
+        从当前 Kubernetes 集群的 Deployment/Pod 实时同步 Agent 镜像。
+
+        如果本机没有可用 kubeconfig 或服务端不可达，保持现有仓库内容不变。
+        """
+        if os.getenv("AGENT_WAREHOUSE_SYNC_K8S", "1").strip().lower() in {"0", "false", "no", "off"}:
+            return 0
+
+        try:
+            from kubernetes import client, config
+        except Exception:
+            return 0
+
+        try:
+            try:
+                config.load_incluster_config()
+            except Exception:
+                config.load_kube_config()
+
+            apps = client.AppsV1Api()
+            core = client.CoreV1Api()
+            namespace = os.getenv("K8S_NAMESPACE", "").strip()
+            if namespace:
+                deployments = apps.list_namespaced_deployment(namespace=namespace).items
+            else:
+                deployments = apps.list_deployment_for_all_namespaces().items
+        except Exception as exc:
+            logger.debug("[AW] Kubernetes 镜像同步跳过: %s", exc)
+            return 0
+
+        changed = 0
+        for dep in deployments:
+            containers = getattr(dep.spec.template.spec, "containers", []) or []
+            for container in containers:
+                image_id = getattr(container, "image", "") or ""
+                if not image_id or self._is_infra_image(image_id):
+                    continue
+                metadata = self._metadata_from_k8s(container, dep)
+                if self._upsert_image(image_id, metadata=metadata, registered=True):
+                    changed += 1
+
+        try:
+            pods = (
+                core.list_namespaced_pod(namespace=namespace).items
+                if namespace
+                else core.list_pod_for_all_namespaces().items
+            )
+        except Exception:
+            pods = []
+
+        for pod in pods:
+            containers = getattr(pod.spec, "containers", []) or []
+            for container in containers:
+                image_id = getattr(container, "image", "") or ""
+                if not image_id or self._is_infra_image(image_id):
+                    continue
+                metadata = self._metadata_from_k8s(container, pod)
+                if self._upsert_image(image_id, metadata=metadata, registered=True):
+                    changed += 1
+
+        if changed:
+            self._save_to_json()
+            logger.info("[AW] 从 Kubernetes 同步 %s 个 Agent 镜像", changed)
+        return changed
 
     # ------------------------------------------------------------------
     # ARDC 集成
@@ -194,9 +311,38 @@ class AgentWarehouse:
             for item in data.get("images", []):
                 img = AgentImage(**item)
                 self._images[img.image_id] = img
+            for image_id in list(self._images.keys()):
+                if image_id in _KNOWN_IMAGE_DEFAULTS:
+                    self._upsert_image(image_id)
             logger.debug(f"[AW] 从文件加载 {len(self._images)} 个镜像: {path}")
         except Exception as e:
             logger.warning(f"[AW] 加载镜像仓库文件失败: {e}")
+
+    def _load_from_apps_store(self):
+        """仓库文件缺失时，从已安装应用记录恢复镜像清单。"""
+        path = Path(os.getenv("APPS_STORE_PATH", _DEFAULT_APPS_STORE_FILE))
+        if not path.exists():
+            return
+
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.debug("[AW] 应用存储恢复跳过: %s", exc)
+            return
+
+        restored = 0
+        for app in data.values():
+            guidance = app.get("guidance_file") or {}
+            capabilities = guidance.get("agents_required") or []
+            for image_id in app.get("image_ids") or []:
+                metadata = {"source": "apps_store", "app_id": app.get("app_id")}
+                capability = capabilities[0] if len(capabilities) == 1 else None
+                if self._upsert_image(image_id, capability=capability, metadata=metadata):
+                    restored += 1
+
+        if restored:
+            self._save_to_json()
+            logger.info("[AW] 从 apps_store 恢复 %s 个 Agent 镜像", restored)
 
     def _save_to_json(self):
         """持久化镜像数据到 JSON 文件"""
@@ -208,6 +354,116 @@ class AgentWarehouse:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning(f"[AW] 持久化镜像仓库失败: {e}")
+
+    def _upsert_image(
+        self,
+        image_id: str,
+        capability: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        registered: bool = False,
+    ) -> bool:
+        defaults = _KNOWN_IMAGE_DEFAULTS.get(image_id, {})
+        inferred = self._infer_image_fields(image_id)
+        merged_metadata = dict(defaults.get("metadata") or {})
+        if metadata:
+            merged_metadata.update(metadata)
+            if defaults.get("metadata", {}).get("k8s"):
+                merged_metadata["k8s"] = {
+                    **defaults["metadata"]["k8s"],
+                    **(metadata.get("k8s") or {}),
+                }
+
+        image = self._images.get(image_id)
+        if image is None:
+            self._images[image_id] = AgentImage(
+                image_id=image_id,
+                name=defaults.get("name") or inferred["name"],
+                version=defaults.get("version") or inferred["version"],
+                capability=capability or defaults.get("capability") or inferred["capability"],
+                description=defaults.get("description") or inferred["description"],
+                metadata=merged_metadata,
+                registered=registered,
+            )
+            return True
+
+        before = image.to_dict()
+        image.name = defaults.get("name") or image.name or inferred["name"]
+        image.version = defaults.get("version") or image.version or inferred["version"]
+        image.capability = capability or defaults.get("capability") or image.capability or inferred["capability"]
+        image.description = defaults.get("description") or image.description or inferred["description"]
+        image.metadata = {**(image.metadata or {}), **merged_metadata}
+        image.registered = image.registered or registered
+        return before != image.to_dict()
+
+    @staticmethod
+    def _infer_image_fields(image_id: str) -> Dict[str, str]:
+        image_name = image_id.rsplit("/", 1)[-1]
+        base, _, version = image_name.partition(":")
+        capability = re.sub(r"[-_](agent|worker)$", "", base).lower()
+        return {
+            "name": base.replace("-", " ").replace("_", " ").title().replace("Grpc", "gRPC"),
+            "version": version or "latest",
+            "capability": capability,
+            "description": f"Kubernetes Agent 镜像 {image_id}",
+        }
+
+    @staticmethod
+    def _is_infra_image(image_id: str) -> bool:
+        image_name = image_id.rsplit("/", 1)[-1].lower()
+        return image_name.startswith(("nats:", "coredns:", "pause:", "metrics-server:"))
+
+    @staticmethod
+    def _quantity_to_cpu_cores(value: Optional[str]) -> Optional[float]:
+        if not value:
+            return None
+        raw = str(value)
+        if raw.endswith("m"):
+            return float(raw[:-1]) / 1000
+        return float(raw)
+
+    @staticmethod
+    def _quantity_to_memory_mb(value: Optional[str]) -> Optional[int]:
+        if not value:
+            return None
+        raw = str(value)
+        match = re.match(r"^([0-9.]+)([A-Za-z]*)$", raw)
+        if not match:
+            return None
+        amount = float(match.group(1))
+        unit = match.group(2)
+        factors = {
+            "Ki": 1 / 1024,
+            "Mi": 1,
+            "Gi": 1024,
+            "Ti": 1024 * 1024,
+            "K": 1 / 1000,
+            "M": 1,
+            "G": 1000,
+            "T": 1000 * 1000,
+        }
+        return int(amount * factors.get(unit, 1 / (1024 * 1024)))
+
+    def _metadata_from_k8s(self, container, owner) -> Dict[str, Any]:
+        resources = getattr(container, "resources", None)
+        requests = getattr(resources, "requests", None) or {}
+        limits = getattr(resources, "limits", None) or {}
+        cpu = self._quantity_to_cpu_cores(requests.get("cpu") or limits.get("cpu"))
+        memory = self._quantity_to_memory_mb(requests.get("memory") or limits.get("memory"))
+        gpu = int(limits.get("nvidia.com/gpu", 0) or 0)
+        namespace = getattr(getattr(owner, "metadata", None), "namespace", None)
+        resource_name = getattr(getattr(owner, "metadata", None), "name", None)
+        metadata: Dict[str, Any] = {
+            "source": "kubernetes",
+            "namespace": namespace,
+            "resource_name": resource_name,
+            "container_name": getattr(container, "name", None),
+            "k8s": {
+                "cpu_cores": cpu if cpu is not None else 1.0,
+                "memory_mb": memory if memory is not None else 512,
+                "gpu_count": gpu,
+            },
+        }
+        return metadata
 
 
 # ======================================================================

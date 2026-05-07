@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-device-plugin-daemonset
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-device-plugin-ds
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: nvidia-device-plugin-ds
+    spec:
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      priorityClassName: system-node-critical
+      containers:
+      - image: nvcr.io/nvidia/k8s-device-plugin:v0.13.0
+        name: nvidia-device-plugin-ctr
+        args: ["--config-file=/etc/kubernetes/device-plugin-configs/config.yaml"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: device-metrics
+          mountPath: /var/lib/kubelet/device-plugins
+        - name: config
+          mountPath: /etc/kubernetes/device-plugin-configs
+      volumes:
+      - name: device-metrics
+        hostPath:
+          path: /var/lib/kubelet/device-plugins
+      - name: config
+        configMap:
+          name: nvidia-device-plugin-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nvidia-device-plugin-config
+  namespace: kube-system
+data:
+  config.yaml: |-
+    version: v1
+    sharing:
+      timeSlicing:
+        resources:
+          - name: nvidia.com/gpu
+            replicas: 4

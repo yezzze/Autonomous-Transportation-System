@@ -238,6 +238,36 @@
       </div>
       <div class="query-result" id="aoe-dispatch-result"></div>
     </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🧪</span> AgentB → AgentC 最小验证</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>目标 AOE URL</label>
+          <input id="aoe-chain-url" type="text" placeholder="默认使用上面的目标 URL">
+        </div>
+        <div class="form-group">
+          <label>Workflow ID（可选）</label>
+          <input id="aoe-chain-workflow-id" type="text" placeholder="自动生成">
+        </div>
+        <div class="form-group">
+          <label>Agent B Subject</label>
+          <input id="aoe-chain-subject" type="text" value="workflow.demo.agent.b.in">
+        </div>
+        <div class="form-group">
+          <label>Reply Subject（可选）</label>
+          <input id="aoe-chain-reply-subject" type="text" placeholder="自动生成">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>测试文本</label>
+          <textarea id="aoe-chain-text" placeholder="例如：hello agent c">hello aoe from ui</textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-success" id="aoe-chain-btn" onclick="testAoeAgentChain()">验证 AgentB → AgentC</button>
+      </div>
+      <div class="query-result" id="aoe-chain-result"></div>
+    </div>
   </div>
 </div>
 

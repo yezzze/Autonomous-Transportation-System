@@ -109,6 +109,16 @@ class _AoeDispatchUiRequest(BaseModel):
     timeout_seconds: Optional[int] = None
 
 
+class _AoeAgentChainTestRequest(BaseModel):
+    """从 UI 触发一次 Agent B -> Agent C 的最小链路验证。"""
+    target_url: Optional[str] = None
+    workflow_id: Optional[str] = None
+    text: str = "hello aoe"
+    in_subject: str = "workflow.demo.agent.b.in"
+    reply_subject: Optional[str] = None
+    timeout_seconds: Optional[int] = None
+
+
 def _safe_nats_token(value: str) -> str:
     token = re.sub(r"[^a-zA-Z0-9_-]+", "-", value)
     return token.strip("-") or uuid.uuid4().hex[:8]
@@ -363,6 +373,54 @@ async def dispatch_aoe_from_ui(req: _AoeDispatchUiRequest):
     }
 
 
+@app.post("/api/aoe/agent-chain-test", summary="验证目标 AOE 的 AgentB 到 AgentC 链路")
+async def test_aoe_agent_chain(req: _AoeAgentChainTestRequest):
+    """
+    通过目标 AOE 的 /api/comm/nats/publish 投递到 Agent B，并等待 Agent B 从 Agent C
+    收到结果后回传。用于 /ui 手动验证最小 AOE 链路。
+    """
+    import httpx
+
+    target_url = _resolve_target_aoe_url(req.target_url)
+    config = _load_aoe_config()
+    timeout = int(req.timeout_seconds or config.get("default_timeout_seconds") or 30)
+    workflow_id = req.workflow_id or f"ui_aoe_{uuid.uuid4().hex[:8]}"
+    reply_subject = req.reply_subject or f"workflow.demo.ui.agentbc.reply.{_safe_nats_token(workflow_id)}"
+    body = {
+        "subject": req.in_subject,
+        "payload": {
+            "workflow_id": workflow_id,
+            "text": req.text,
+            "reply_subject": reply_subject,
+        },
+        "reply_subject": reply_subject,
+        "timeout_sec": float(timeout),
+        "stream_subjects": ["workflow.demo.>"],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=float(timeout) + 10.0) as client:
+            resp = await client.post(f"{target_url}/api/comm/nats/publish", json=body)
+            text = resp.text
+            resp.raise_for_status()
+            try:
+                result = resp.json()
+            except Exception:
+                result = {"raw": text}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AgentB/AgentC 链路验证失败: {e}")
+
+    return {
+        "status": "ok",
+        "target_url": target_url,
+        "workflow_id": workflow_id,
+        "subject": req.in_subject,
+        "reply_subject": reply_subject,
+        "request": body,
+        "response": result,
+        "chain_ok": result.get("reply_status") == "received" and bool(result.get("reply")),
+    }
+
+
 @app.post("/api/comm/nats/publish", summary="通过当前 AOE 向本集群 NATS 投递消息")
 async def publish_nats_message(req: _NatsPublishRequest):
     """
@@ -383,7 +441,10 @@ async def publish_nats_message(req: _NatsPublishRequest):
 
     servers = req.servers or [
         item.strip()
-        for item in os.getenv("NATS_SERVERS", "nats://nats:4222").split(",")
+        for item in os.getenv(
+            "NATS_SERVERS",
+            f"nats://{os.getenv('NATS_SERVICE_NAME', 'nats')}:4222",
+        ).split(",")
         if item.strip()
     ]
     nc = NATS()

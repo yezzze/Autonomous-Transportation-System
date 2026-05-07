@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: perception2intermediatefeature-agent
-          image: perception2intermediatefeature-agent:0.1.1
+          image: perception2intermediatefeature-agent:0.1.2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9001

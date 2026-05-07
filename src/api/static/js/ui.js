@@ -665,6 +665,10 @@ function _aoeTargetUrl() {
       || document.getElementById('aoe-peer-url').value.trim();
 }
 
+function _aoeChainTargetUrl() {
+  return document.getElementById('aoe-chain-url').value.trim() || _aoeTargetUrl();
+}
+
 async function loadAoeTab() {
   if (!aoeConfigLoaded) {
     await loadAoeConfig();
@@ -683,6 +687,7 @@ async function loadAoeConfig() {
     document.getElementById('aoe-local-url').value = c.local_aoe_url || '';
     document.getElementById('aoe-peer-url').value = c.default_peer_url || (c.peers && c.peers[0] && c.peers[0].url) || '';
     document.getElementById('aoe-dispatch-url').value = document.getElementById('aoe-peer-url').value;
+    document.getElementById('aoe-chain-url').value = document.getElementById('aoe-peer-url').value;
     document.getElementById('aoe-timeout').value = c.default_timeout_seconds || 60;
     showAlert('aoe-alert', 'info', `配置文件：${data.path}`, 2500);
   } catch(e) {
@@ -708,6 +713,7 @@ async function saveAoeConfig() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
     document.getElementById('aoe-dispatch-url').value = peerUrl;
+    document.getElementById('aoe-chain-url').value = peerUrl;
     showAlert('aoe-alert', 'success', 'AOE 配置已保存');
   } catch(e) {
     showAlert('aoe-alert', 'error', `保存失败：${e.message}`, 0);
@@ -819,6 +825,52 @@ async function dispatchAoeTask() {
   } finally {
     btn.disabled = false;
     btn.innerHTML = '转发执行';
+  }
+}
+
+async function testAoeAgentChain() {
+  const text = document.getElementById('aoe-chain-text').value.trim();
+  if (!text) {
+    showAlert('aoe-alert', 'error', '请填写测试文本');
+    return;
+  }
+  const btn = document.getElementById('aoe-chain-btn');
+  const resultEl = document.getElementById('aoe-chain-result');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  resultEl.className = 'query-result show';
+  resultEl.textContent = '验证中...';
+  try {
+    const body = {
+      target_url: _aoeChainTargetUrl(),
+      workflow_id: document.getElementById('aoe-chain-workflow-id').value.trim() || null,
+      text,
+      in_subject: document.getElementById('aoe-chain-subject').value.trim() || 'workflow.demo.agent.b.in',
+      reply_subject: document.getElementById('aoe-chain-reply-subject').value.trim() || null,
+      timeout_seconds: parseInt(document.getElementById('aoe-timeout').value, 10) || 60,
+    };
+    const res = await fetch(`${API}/api/aoe/agent-chain-test`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    const reply = data.response && data.response.reply ? data.response.reply : null;
+    resultEl.textContent = JSON.stringify(data, null, 2);
+    showAlert(
+      'aoe-alert',
+      data.chain_ok ? 'success' : 'error',
+      data.chain_ok
+        ? `链路成功：${reply && reply.result ? reply.result : '已收到回复'}`
+        : '已发送，但未收到 AgentC 经 AgentB 返回的回复'
+    );
+  } catch(e) {
+    resultEl.textContent = `错误：${e.message}`;
+    showAlert('aoe-alert', 'error', `验证失败：${e.message}`, 0);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '验证 AgentB → AgentC';
   }
 }
 
