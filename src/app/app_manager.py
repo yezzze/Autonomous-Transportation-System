@@ -145,6 +145,9 @@ class AppManager:
 
         for spec in builtin_specs:
             image = next(iter(warehouse.find_by_capability(spec["capability"])), None)
+            if image is None:
+                continue
+
             app = self._apps.get(spec["app_id"])
             guidance = GuidanceFile(
                 app_id=spec["app_id"],

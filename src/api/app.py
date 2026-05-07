@@ -72,9 +72,122 @@ class _NatsPublishRequest(BaseModel):
     timeout_sec: float = Field(30.0, description="等待 reply 的超时时间")
 
 
+class _AoePeer(BaseModel):
+    name: str = "peer"
+    url: str
+
+
+class _AoeClusterConfig(BaseModel):
+    local_name: str = "cluster"
+    local_aoe_url: str = ""
+    default_peer_url: str = ""
+    peers: List[_AoePeer] = Field(default_factory=list)
+    default_timeout_seconds: int = 60
+
+
+class _AoeRegistryPullRequest(BaseModel):
+    target_url: Optional[str] = None
+
+
+class _AoeGossipPushRequest(BaseModel):
+    target_url: Optional[str] = None
+
+
+class _AoeDispatchUiRequest(BaseModel):
+    target_url: Optional[str] = None
+    session_id: Optional[str] = None
+    task_id: Optional[str] = None
+    task_description: str
+    timeout_seconds: Optional[int] = None
+
+
 def _safe_nats_token(value: str) -> str:
     token = re.sub(r"[^a-zA-Z0-9_-]+", "-", value)
     return token.strip("-") or uuid.uuid4().hex[:8]
+
+
+AOE_CLUSTER_CONFIG_PATH = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "config",
+        "aoe_cluster_config.json",
+    )
+)
+
+
+def _clean_aoe_url(url: str) -> str:
+    cleaned = (url or "").strip().rstrip("/")
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="AOE URL 不能为空")
+    if not cleaned.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail=f"AOE URL 必须以 http:// 或 https:// 开头: {cleaned}")
+    return cleaned
+
+
+def _default_aoe_config() -> Dict[str, Any]:
+    local_url = os.getenv("LOCAL_AOE_URL", "http://localhost:8001").strip()
+    peer_urls_raw = os.getenv("PEER_AOE_URLS", "").strip()
+    peer_urls = [u.strip().rstrip("/") for u in re.split(r"[\s,]+", peer_urls_raw) if u.strip()]
+    default_peer = peer_urls[0] if peer_urls else ""
+    return {
+        "local_name": os.getenv("AOE_CLUSTER_NAME", "cluster").strip() or "cluster",
+        "local_aoe_url": local_url,
+        "default_peer_url": default_peer,
+        "peers": [
+            {"name": f"peer-{idx + 1}", "url": url}
+            for idx, url in enumerate(peer_urls)
+        ],
+        "default_timeout_seconds": int(os.getenv("AOE_DEFAULT_TIMEOUT_SECONDS", "60")),
+    }
+
+
+def _load_aoe_config() -> Dict[str, Any]:
+    if not os.path.exists(AOE_CLUSTER_CONFIG_PATH):
+        return _default_aoe_config()
+    try:
+        with open(AOE_CLUSTER_CONFIG_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取 AOE 配置失败: {e}")
+
+    base = _default_aoe_config()
+    base.update(data or {})
+    base["local_aoe_url"] = (base.get("local_aoe_url") or "").strip()
+    base["default_peer_url"] = (base.get("default_peer_url") or "").strip().rstrip("/")
+    base["peers"] = [
+        {"name": (peer.get("name") or "peer").strip(), "url": _clean_aoe_url(peer.get("url", ""))}
+        for peer in base.get("peers", [])
+        if peer.get("url")
+    ]
+    return base
+
+
+def _save_aoe_config(config: _AoeClusterConfig) -> Dict[str, Any]:
+    data = config.model_dump()
+    data["local_aoe_url"] = _clean_aoe_url(data["local_aoe_url"])
+    data["default_peer_url"] = _clean_aoe_url(data["default_peer_url"]) if data.get("default_peer_url") else ""
+    data["peers"] = [
+        {"name": (peer.get("name") or "peer").strip(), "url": _clean_aoe_url(peer.get("url", ""))}
+        for peer in data.get("peers", [])
+    ]
+    os.makedirs(os.path.dirname(AOE_CLUSTER_CONFIG_PATH), exist_ok=True)
+    with open(AOE_CLUSTER_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return data
+
+
+def _resolve_target_aoe_url(target_url: Optional[str]) -> str:
+    if target_url:
+        return _clean_aoe_url(target_url)
+    config = _load_aoe_config()
+    if config.get("default_peer_url"):
+        return _clean_aoe_url(config["default_peer_url"])
+    peers = config.get("peers") or []
+    if peers:
+        return _clean_aoe_url(peers[0]["url"])
+    raise HTTPException(status_code=400, detail="未配置目标 AOE URL")
 
 
 class _SessionRegistry:
@@ -133,6 +246,113 @@ async def list_registry_agents():
         return registry.get_agents_by_source()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/aoe/config", summary="读取 AOE 跨集群配置")
+async def get_aoe_config():
+    """读取当前集群本地 AOE 配置文件。"""
+    return {
+        "config": _load_aoe_config(),
+        "path": AOE_CLUSTER_CONFIG_PATH,
+    }
+
+
+@app.put("/api/aoe/config", summary="保存 AOE 跨集群配置")
+async def update_aoe_config(req: _AoeClusterConfig):
+    """保存当前集群本地 AOE 配置文件。该文件不进入 Git。"""
+    return {
+        "status": "saved",
+        "config": _save_aoe_config(req),
+        "path": AOE_CLUSTER_CONFIG_PATH,
+    }
+
+
+@app.post("/api/aoe/gossip/push", summary="手动向目标 AOE 推送本地 Agent 注册表")
+async def push_aoe_gossip(req: _AoeGossipPushRequest):
+    """立即执行一次 ARDC gossip push，便于 UI 手动打通发现链路。"""
+    from src.service.agent_registry import get_registry_client
+
+    config = _load_aoe_config()
+    target_url = _resolve_target_aoe_url(req.target_url)
+    local_url = _clean_aoe_url(config.get("local_aoe_url") or os.getenv("LOCAL_AOE_URL", "http://localhost:8001"))
+    registry = get_registry_client()
+    ok = await registry.push_to_peer(target_url, local_url)
+    return {
+        "status": "ok" if ok else "failed",
+        "target_url": target_url,
+        "local_url": local_url,
+        "local_agents": len(registry.get_local_agents()),
+    }
+
+
+@app.post("/api/aoe/registry/pull", summary="从目标 AOE 拉取其本地 Agent 注册表")
+async def pull_aoe_registry(req: _AoeRegistryPullRequest):
+    """
+    从目标 AOE 的 /api/registry/agents 读取 local agents，并合并成本 AOE peer agents。
+    这让 B 可以主动从 A 拉取能力，不依赖 A 侧 gossip 是否已经推送成功。
+    """
+    import httpx
+    from src.service.agent_registry import get_registry_client
+
+    target_url = _resolve_target_aoe_url(req.target_url)
+    registry = get_registry_client()
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(f"{target_url}/api/registry/agents")
+            resp.raise_for_status()
+            payload = resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"拉取远端 registry 失败: {e}")
+
+    remote_agents = payload.get("local", [])
+    merged_count = registry.sync_from_peer(target_url, remote_agents)
+    return {
+        "status": "ok",
+        "target_url": target_url,
+        "received_agents": len(remote_agents),
+        "merged_count": merged_count,
+        "agents": remote_agents,
+    }
+
+
+@app.post("/api/aoe/dispatch", summary="从 UI 转发子任务到目标 AOE")
+async def dispatch_aoe_from_ui(req: _AoeDispatchUiRequest):
+    """从当前 AOE 通过 HTTP 调用目标 AOE 的 /orchestration/dispatch。"""
+    import httpx
+
+    target_url = _resolve_target_aoe_url(req.target_url)
+    config = _load_aoe_config()
+    timeout = int(req.timeout_seconds or config.get("default_timeout_seconds") or 60)
+    task_id = req.task_id or f"ui_task_{uuid.uuid4().hex[:8]}"
+    session_id = req.session_id or f"ui_session_{uuid.uuid4().hex[:8]}"
+    local_url = _clean_aoe_url(config.get("local_aoe_url") or os.getenv("LOCAL_AOE_URL", "http://localhost:8001"))
+    body = {
+        "session_id": session_id,
+        "source_aoe_url": local_url,
+        "subtask": {
+            "task_id": task_id,
+            "task_description": req.task_description,
+            "timeout_seconds": timeout,
+        },
+    }
+    try:
+        async with httpx.AsyncClient(timeout=float(timeout) + 10.0) as client:
+            resp = await client.post(f"{target_url}/orchestration/dispatch", json=body)
+            text = resp.text
+            resp.raise_for_status()
+            try:
+                result = resp.json()
+            except Exception:
+                result = {"raw": text}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"转发到远端 AOE 失败: {e}")
+
+    return {
+        "status": "ok",
+        "target_url": target_url,
+        "request": body,
+        "response": result,
+    }
 
 
 @app.post("/api/comm/nats/publish", summary="通过当前 AOE 向本集群 NATS 投递消息")
@@ -322,11 +542,19 @@ async def _start_gossip():
     LOCAL_AOE_URL 指定本节点地址（默认 http://localhost:8000）。
     """
     import os
+    import re
     from src.service.agent_registry import get_registry_client
 
+    config = _load_aoe_config()
     peer_urls_raw = os.getenv("PEER_AOE_URLS", "")
-    peer_urls = [u.strip() for u in peer_urls_raw.split(",") if u.strip()]
-    local_url = os.getenv("LOCAL_AOE_URL", "http://localhost:8000")
+    peer_urls = [
+        u.strip()
+        for u in re.split(r"[\s,]+", peer_urls_raw)
+        if u.strip()
+    ]
+    if not peer_urls:
+        peer_urls = [peer["url"] for peer in config.get("peers", [])]
+    local_url = os.getenv("LOCAL_AOE_URL", config.get("local_aoe_url") or "http://localhost:8000").strip()
     interval = int(os.getenv("GOSSIP_INTERVAL", "30"))
 
     registry = get_registry_client()

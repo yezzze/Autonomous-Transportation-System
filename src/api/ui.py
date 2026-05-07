@@ -169,6 +169,7 @@ def get_ui_html() -> str:
     <button class="tab-btn" onclick="switchTab('instances')">🖥 Agent 实例</button>
     <button class="tab-btn" onclick="switchTab('qos')">📊 QoS 监控</button>
     <button class="tab-btn" onclick="switchTab('resources')">🗃 资源状态</button>
+    <button class="tab-btn" onclick="switchTab('aoe')">🌐 AOE 跨集群</button>
   </div>
 
   <!-- ====== Tab: 应用管理 ====== -->
@@ -313,6 +314,76 @@ def get_ui_html() -> str:
       </tbody>
     </table>
   </div>
+
+  <!-- ====== Tab: AOE 跨集群 ====== -->
+  <div id="tab-aoe" class="tab-panel">
+    <div class="card">
+      <div class="card-title"><span class="icon">🌐</span> AOE 配置</div>
+      <div id="aoe-alert" class="alert"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>本集群名称</label>
+          <input id="aoe-local-name" type="text" placeholder="cluster-b">
+        </div>
+        <div class="form-group">
+          <label>本集群 AOE URL</label>
+          <input id="aoe-local-url" type="text" placeholder="http://10.112.221.121:8001">
+        </div>
+        <div class="form-group">
+          <label>默认目标 AOE URL</label>
+          <input id="aoe-peer-url" type="text" placeholder="http://10.112.136.44:8001">
+        </div>
+        <div class="form-group">
+          <label>默认超时（秒）</label>
+          <input id="aoe-timeout" type="number" value="60" min="10" max="600">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="saveAoeConfig()">保存配置</button>
+        <button class="btn btn-ghost" onclick="loadAoeConfig()">重新加载</button>
+        <button class="btn btn-ghost" onclick="pullAoeRegistry()">从目标拉取 Agent</button>
+        <button class="btn btn-ghost" onclick="pushAoeGossip()">向目标推送本地 Agent</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🧭</span> Registry 视图</div>
+      <div class="toolbar" style="margin-bottom:10px">
+        <span class="refresh-hint" id="aoe-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadAoeRegistry()">刷新</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>来源</th><th>Agent ID</th><th>能力</th><th>IP</th><th>端口</th><th>状态</th>
+        </tr></thead>
+        <tbody id="aoe-registry-tbody">
+          <tr class="empty-row"><td colspan="6">暂无 registry 数据</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🚀</span> 转发子任务到目标 AOE</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>目标 AOE URL</label>
+          <input id="aoe-dispatch-url" type="text" placeholder="默认使用上面的目标 URL">
+        </div>
+        <div class="form-group">
+          <label>任务 ID（可选）</label>
+          <input id="aoe-task-id" type="text" placeholder="自动生成">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>任务描述</label>
+          <textarea id="aoe-task-desc" placeholder="例如：调用 A 集群中的智能体能力，完成一次简单分析任务"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-success" id="aoe-dispatch-btn" onclick="dispatchAoeTask()">转发执行</button>
+      </div>
+      <div class="query-result" id="aoe-dispatch-result"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -339,12 +410,13 @@ function fmtTime() {
 // ====================================================================
 // Tab switching
 // ====================================================================
-const TAB_LOADERS = { apps: loadApps, instances: loadInstances, qos: loadQos, resources: loadResources };
+const TAB_NAMES = ['apps','instances','qos','resources','aoe'];
+const TAB_LOADERS = { apps: loadApps, instances: loadInstances, qos: loadQos, resources: loadResources, aoe: loadAoeTab };
 let activeTab = 'apps';
 
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => {
-    b.classList.toggle('active', ['apps','instances','qos','resources'][i] === name);
+    b.classList.toggle('active', TAB_NAMES[i] === name);
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
@@ -954,6 +1026,173 @@ async function loadResources() {
   } catch(e) {
     document.getElementById('res-tbody').innerHTML =
       `<tr class="empty-row"><td colspan="7">❌ ${e.message}</td></tr>`;
+  }
+}
+
+// ====================================================================
+// Tab: AOE Cross Cluster
+// ====================================================================
+let aoeConfigLoaded = false;
+
+function _aoeTargetUrl() {
+  return document.getElementById('aoe-dispatch-url').value.trim()
+      || document.getElementById('aoe-peer-url').value.trim();
+}
+
+async function loadAoeTab() {
+  if (!aoeConfigLoaded) {
+    await loadAoeConfig();
+    aoeConfigLoaded = true;
+  }
+  await loadAoeRegistry();
+}
+
+async function loadAoeConfig() {
+  try {
+    const res = await fetch(`${API}/api/aoe/config`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    const c = data.config || {};
+    document.getElementById('aoe-local-name').value = c.local_name || '';
+    document.getElementById('aoe-local-url').value = c.local_aoe_url || '';
+    document.getElementById('aoe-peer-url').value = c.default_peer_url || (c.peers && c.peers[0] && c.peers[0].url) || '';
+    document.getElementById('aoe-dispatch-url').value = document.getElementById('aoe-peer-url').value;
+    document.getElementById('aoe-timeout').value = c.default_timeout_seconds || 60;
+    showAlert('aoe-alert', 'info', `配置文件：${data.path}`, 2500);
+  } catch(e) {
+    showAlert('aoe-alert', 'error', `加载配置失败：${e.message}`, 0);
+  }
+}
+
+async function saveAoeConfig() {
+  const peerUrl = document.getElementById('aoe-peer-url').value.trim();
+  const body = {
+    local_name: document.getElementById('aoe-local-name').value.trim() || 'cluster',
+    local_aoe_url: document.getElementById('aoe-local-url').value.trim(),
+    default_peer_url: peerUrl,
+    peers: peerUrl ? [{ name: 'default-peer', url: peerUrl }] : [],
+    default_timeout_seconds: parseInt(document.getElementById('aoe-timeout').value, 10) || 60,
+  };
+  try {
+    const res = await fetch(`${API}/api/aoe/config`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    document.getElementById('aoe-dispatch-url').value = peerUrl;
+    showAlert('aoe-alert', 'success', 'AOE 配置已保存');
+  } catch(e) {
+    showAlert('aoe-alert', 'error', `保存失败：${e.message}`, 0);
+  }
+}
+
+function _flattenRegistry(data) {
+  const rows = [];
+  for (const a of data.local || []) rows.push({source: 'local', agent: a});
+  const peers = data.peers || {};
+  for (const [url, info] of Object.entries(peers)) {
+    for (const a of info.agents || []) rows.push({source: url, agent: a});
+  }
+  return rows;
+}
+
+async function loadAoeRegistry() {
+  try {
+    const res = await fetch(`${API}/api/registry/agents`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    const rows = _flattenRegistry(data);
+    const tbody = document.getElementById('aoe-registry-tbody');
+    document.getElementById('aoe-refresh-hint').textContent =
+      `local=${(data.local||[]).length} peers=${Object.keys(data.peers||{}).length} merged=${(data.merged||[]).length} · ${fmtTime()}`;
+    if (!rows.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无 Agent；可先点击“从目标拉取 Agent”</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(({source, agent}) => `
+      <tr>
+        <td style="font-family:monospace;font-size:12px;color:#667">${escHtml(source)}</td>
+        <td style="font-family:monospace;font-size:12px">${escHtml(agent.id || '—')}</td>
+        <td>${escHtml(agent.capability || '—')}</td>
+        <td style="font-family:monospace;font-size:12px">${escHtml(agent.ip || '—')}</td>
+        <td>${agent.port || '—'}</td>
+        <td>${statusBadge(agent.status || 'unknown')}</td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    document.getElementById('aoe-registry-tbody').innerHTML =
+      `<tr class="empty-row"><td colspan="6">加载失败：${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function pullAoeRegistry() {
+  try {
+    const res = await fetch(`${API}/api/aoe/registry/pull`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ target_url: _aoeTargetUrl() }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    showAlert('aoe-alert', 'success', `已从 ${data.target_url} 拉取 ${data.received_agents} 个 Agent`);
+    await loadAoeRegistry();
+  } catch(e) {
+    showAlert('aoe-alert', 'error', `拉取失败：${e.message}`, 0);
+  }
+}
+
+async function pushAoeGossip() {
+  try {
+    const res = await fetch(`${API}/api/aoe/gossip/push`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ target_url: _aoeTargetUrl() }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    showAlert('aoe-alert', data.status === 'ok' ? 'success' : 'error',
+      `推送到 ${data.target_url}：${data.status}，本地 Agent ${data.local_agents} 个`);
+  } catch(e) {
+    showAlert('aoe-alert', 'error', `推送失败：${e.message}`, 0);
+  }
+}
+
+async function dispatchAoeTask() {
+  const desc = document.getElementById('aoe-task-desc').value.trim();
+  if (!desc) {
+    showAlert('aoe-alert', 'error', '请填写任务描述');
+    return;
+  }
+  const btn = document.getElementById('aoe-dispatch-btn');
+  const resultEl = document.getElementById('aoe-dispatch-result');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  resultEl.className = 'query-result show';
+  resultEl.textContent = '执行中...';
+  try {
+    const body = {
+      target_url: _aoeTargetUrl(),
+      task_id: document.getElementById('aoe-task-id').value.trim() || null,
+      task_description: desc,
+      timeout_seconds: parseInt(document.getElementById('aoe-timeout').value, 10) || 60,
+    };
+    const res = await fetch(`${API}/api/aoe/dispatch`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    resultEl.textContent = JSON.stringify(data, null, 2);
+    showAlert('aoe-alert', 'success', `已转发到 ${data.target_url}`);
+  } catch(e) {
+    resultEl.textContent = `错误：${e.message}`;
+    showAlert('aoe-alert', 'error', `转发失败：${e.message}`, 0);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '转发执行';
   }
 }
 

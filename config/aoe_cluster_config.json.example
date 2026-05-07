@@ -1,0 +1,12 @@
+{
+  "local_name": "cluster-b",
+  "local_aoe_url": "http://10.112.221.121:8001",
+  "default_peer_url": "http://10.112.136.44:8001",
+  "peers": [
+    {
+      "name": "cluster-a",
+      "url": "http://10.112.136.44:8001"
+    }
+  ],
+  "default_timeout_seconds": 60
+}

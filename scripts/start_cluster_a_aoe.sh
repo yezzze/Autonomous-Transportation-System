@@ -19,6 +19,7 @@ export USE_LLM_SIMULATOR="${USE_LLM_SIMULATOR:-true}"
 export AGENT_DEPLOY_BACKEND="${AGENT_DEPLOY_BACKEND:-kubernetes}"
 export K8S_NAMESPACE="${K8S_NAMESPACE:-default}"
 export PORT
+export REMOTE_AOE_PORT="${REMOTE_AOE_PORT:-$PORT}"
 
 # Cluster A local NATS. Agent pods use this in-cluster Service name.
 export NATS_DEPLOYMENT_NAME="${NATS_DEPLOYMENT_NAME:-nats-a}"
@@ -37,6 +38,7 @@ export PEER_AOE_URLS="${PEER_AOE_URLS:-$CLUSTER_B_AOE_URL}"
 echo "[cluster-a-aoe] root=$ROOT_DIR"
 echo "[cluster-a-aoe] local=$LOCAL_AOE_URL"
 echo "[cluster-a-aoe] peers=${PEER_AOE_URLS:-<none>}"
+echo "[cluster-a-aoe] remote_aoe_port=$REMOTE_AOE_PORT"
 echo "[cluster-a-aoe] nats=$NATS_SERVERS deployment=$NATS_DEPLOYMENT_NAME service=$NATS_SERVICE_NAME"
 echo "[cluster-a-aoe] no_proxy=$no_proxy"
 

@@ -45,6 +45,11 @@ amp/
 data/
 logs/
 
+# Cluster-local state. Each cluster owns these files independently.
+config/agent_registry.json
+config/agent_warehouse.json
+config/aoe_cluster_config.json
+
 # PDF documents
 *.pdf
 
