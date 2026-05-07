@@ -1,4 +1,5 @@
 import logging
+import os
 from langchain_openai import ChatOpenAI
 from langchain_deepseek import ChatDeepSeek
 from typing import Optional, Dict, Union
@@ -37,6 +38,11 @@ def create_openai_llm(
 
     if api_key:  # This will handle None or empty string
         llm_kwargs["api_key"] = api_key
+    elif os.getenv("USE_LLM_SIMULATOR", "true").lower() == "true":
+        # ChatOpenAI validates api_key at construction time. In simulator-only
+        # deployments we still need imports to succeed even though no real LLM
+        # call should be made.
+        llm_kwargs["api_key"] = "sk-simulator-placeholder"
 
     return ChatOpenAI(**llm_kwargs)
 
