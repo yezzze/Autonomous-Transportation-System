@@ -15,21 +15,17 @@
 </header>
 
 <div class="main">
-  <!-- Global alert -->
   <div id="global-alert" class="alert"></div>
 
-  <!-- Tabs -->
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('apps')">📦 应用管理</button>
     <button class="tab-btn" onclick="switchTab('instances')">🖥 Agent 实例</button>
     <button class="tab-btn" onclick="switchTab('qos')">📊 QoS 监控</button>
     <button class="tab-btn" onclick="switchTab('resources')">🗃 资源状态</button>
-    <button class="tab-btn" onclick="switchTab('aoe')">🌐 NATS 云边</button>
+    <button class="tab-btn" onclick="switchTab('nats')">🌐 NATS 云边</button>
   </div>
 
-  <!-- ====== Tab: 应用管理 ====== -->
   <div id="tab-apps" class="tab-panel active">
-    <!-- Install form -->
     <div class="card">
       <div class="collapse-header open" onclick="toggleCollapse(this)">
         <span class="arrow">▶</span>
@@ -89,7 +85,6 @@
       </div>
     </div>
 
-    <!-- App list -->
     <div class="toolbar">
       <span style="font-weight:600;font-size:15px">应用列表</span>
       <div class="toolbar-right">
@@ -108,7 +103,6 @@
     </table>
   </div>
 
-  <!-- ====== Tab: Agent 实例 ====== -->
   <div id="tab-instances" class="tab-panel">
     <div class="toolbar">
       <span style="font-weight:600;font-size:15px">Agent 实例</span>
@@ -128,7 +122,6 @@
     </table>
   </div>
 
-  <!-- ====== Tab: QoS 监控 ====== -->
   <div id="tab-qos" class="tab-panel">
     <div id="qos-metrics-row" class="metric-row" style="margin-bottom:20px"></div>
     <div class="toolbar">
@@ -149,7 +142,6 @@
     </table>
   </div>
 
-  <!-- ====== Tab: 资源状态 ====== -->
   <div id="tab-resources" class="tab-panel">
     <div id="res-summary-row" class="metric-row" style="margin-bottom:20px"></div>
     <div class="toolbar">
@@ -169,24 +161,44 @@
       </tbody>
     </table>
   </div>
-  
-  <!-- ====== Tab: NATS 云边 Subject ====== -->
-  <div id="tab-aoe" class="tab-panel">
+
+  <div id="tab-nats" class="tab-panel">
+    <div id="nats-alert" class="alert"></div>
+
     <div class="card">
-      <div class="card-title"><span class="icon">🌐</span> NATS Cloud / Edge 配置</div>
-      <div id="aoe-alert" class="alert"></div>
+      <div class="card-title"><span class="icon">☁️</span> 云边拓扑</div>
+      <div id="nats-topology" class="nats-topology">
+        <div class="nats-topo-hub">
+          <strong>Cloud NATS Hub</strong>
+          <span>JetStream domain: <code id="nats-topo-domain">hub</code></span>
+        </div>
+        <div class="nats-topo-edges" id="nats-topo-edges"></div>
+      </div>
+      <div class="nats-status-row">
+        <span id="nats-conn-badge" class="badge-status s-unknown">检测中</span>
+        <span id="nats-status-detail" class="refresh-hint"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">⚙️</span> 本机控制台连接</div>
+      <p class="nats-hint">宿主机 UI 连接当前 kubectl 上下文的边缘 NATS（可自动 port-forward）。集群内 Agent 使用 <code>nats://nats:4222</code>，跨集群仅通过 subject，无需对端 IP。</p>
       <div class="form-grid">
         <div class="form-group">
-          <label>本 Edge Cluster ID</label>
-          <input id="nats-local-cluster" type="text" value="edge-b" placeholder="edge-b">
+          <label>本集群 ID（发起来源）</label>
+          <input id="nats-local-cluster" type="text" value="edge-a" placeholder="edge-a">
         </div>
         <div class="form-group">
-          <label>目标 Edge Cluster ID</label>
+          <label>目标集群 ID</label>
           <input id="nats-target-cluster" type="text" value="edge-a" placeholder="edge-a">
         </div>
         <div class="form-group">
-          <label>NATS Servers</label>
-          <input id="nats-servers" type="text" value="nats://nats:4222" placeholder="nats://nats:4222">
+          <label>本机 NATS（UI 用）</label>
+          <input id="nats-servers" type="text" value="nats://127.0.0.1:4222" placeholder="nats://127.0.0.1:4222">
+        </div>
+        <div class="form-group">
+          <label>已知边缘集群（展示，逗号分隔）</label>
+          <input id="nats-peer-clusters" type="text" value="edge-a,edge-b" placeholder="edge-a,edge-b">
         </div>
         <div class="form-group">
           <label>JetStream Domain</label>
@@ -198,86 +210,91 @@
         </div>
         <div class="form-group">
           <label>默认超时（秒）</label>
-          <input id="aoe-timeout" type="number" value="60" min="10" max="600">
+          <input id="nats-timeout" type="number" value="60" min="10" max="600">
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="saveAoeConfig()">保存本页配置</button>
-        <button class="btn btn-ghost" onclick="loadAoeConfig()">恢复配置</button>
-        <button class="btn btn-ghost" onclick="loadAoeRegistry()">刷新 Agent Subject</button>
+        <button class="btn btn-primary" onclick="saveNatsConfig()">保存配置</button>
+        <button class="btn btn-ghost" onclick="loadNatsConfig()">恢复配置</button>
+        <button class="btn btn-ghost" onclick="loadNatsTab(true)">刷新状态</button>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title"><span class="icon">🧭</span> Agent Subject 视图</div>
+      <div class="card-title"><span class="icon">🧭</span> Agent Subject（K8s）</div>
       <div class="toolbar" style="margin-bottom:10px">
-        <span class="refresh-hint" id="aoe-refresh-hint"></span>
-        <button class="btn btn-ghost btn-sm" onclick="loadAoeRegistry()">刷新</button>
+        <span class="refresh-hint" id="nats-agents-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadNatsAgents()">刷新</button>
       </div>
       <table>
         <thead><tr>
-          <th>来源</th><th>集群</th><th>Agent ID</th><th>能力</th><th>Input Subject</th><th>状态</th>
+          <th>Deployment</th><th>集群</th><th>Agent</th><th>Input Subject</th><th>Pod</th>
         </tr></thead>
-        <tbody id="aoe-registry-tbody">
-          <tr class="empty-row"><td colspan="6">暂无 registry 数据</td></tr>
+        <tbody id="nats-agents-tbody">
+          <tr class="empty-row"><td colspan="5">加载中...</td></tr>
         </tbody>
       </table>
     </div>
 
     <div class="card">
-      <div class="card-title"><span class="icon">🚀</span> JetStream 发布任务到 NATS Subject</div>
+      <div class="card-title"><span class="icon">🚀</span> 发布到 Subject</div>
       <div class="form-grid">
         <div class="form-group">
           <label>目标 Subject</label>
-          <input id="aoe-dispatch-subject" type="text" value="workflow.edge-a.agent.b.in">
-        </div>
-        <div class="form-group">
-          <label>任务 ID（可选）</label>
-          <input id="aoe-task-id" type="text" placeholder="自动生成">
-        </div>
-        <div class="form-group">
-          <label>Reply Subject（可选）</label>
-          <input id="aoe-dispatch-reply-subject" type="text" placeholder="workflow.edge-b.reply.<workflow_id>">
-        </div>
-        <div class="form-group" style="grid-column:1/-1">
-          <label>任务描述</label>
-          <textarea id="aoe-task-desc" placeholder="例如：通过 workflow.edge-a.agent.b.in 调用 edge-a 中的 Agent B"></textarea>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn btn-success" id="aoe-dispatch-btn" onclick="dispatchAoeTask()">JetStream 发布</button>
-      </div>
-      <div class="query-result" id="aoe-dispatch-result"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title"><span class="icon">🧪</span> AgentB → AgentC JetStream 验证</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>目标 Edge Cluster ID</label>
-          <input id="aoe-chain-cluster" type="text" value="edge-a">
+          <input id="nats-dispatch-subject" type="text" value="workflow.edge-a.agent.b.in">
         </div>
         <div class="form-group">
           <label>Workflow ID（可选）</label>
-          <input id="aoe-chain-workflow-id" type="text" placeholder="自动生成">
-        </div>
-        <div class="form-group">
-          <label>Agent B Subject</label>
-          <input id="aoe-chain-subject" type="text" value="workflow.edge-a.agent.b.in">
+          <input id="nats-task-id" type="text" placeholder="自动生成">
         </div>
         <div class="form-group">
           <label>Reply Subject（可选）</label>
-          <input id="aoe-chain-reply-subject" type="text" placeholder="workflow.edge-b.reply.<workflow_id>">
+          <input id="nats-dispatch-reply" type="text" placeholder="workflow.edge-a.reply.&lt;id&gt;">
         </div>
         <div class="form-group" style="grid-column:1/-1">
-          <label>测试文本</label>
-          <textarea id="aoe-chain-text" placeholder="例如：hello agent c">hello nats subject from ui</textarea>
+          <label>Payload 文本</label>
+          <textarea id="nats-task-text">hello from cloud-edge ui</textarea>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn btn-success" id="aoe-chain-btn" onclick="testAoeAgentChain()">验证 AgentB → AgentC</button>
+        <button class="btn btn-success" id="nats-dispatch-btn" onclick="dispatchNatsMessage()">JetStream 发布</button>
       </div>
-      <div class="query-result" id="aoe-chain-result"></div>
+      <div class="query-result" id="nats-dispatch-result"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🧪</span> Agent B → C 链路验证</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>目标集群</label>
+          <input id="nats-chain-cluster" type="text" value="edge-a">
+        </div>
+        <div class="form-group">
+          <label>Workflow ID（可选）</label>
+          <input id="nats-chain-workflow-id" type="text" placeholder="自动生成">
+        </div>
+        <div class="form-group">
+          <label>Agent B Subject</label>
+          <input id="nats-chain-subject" type="text" value="workflow.edge-a.agent.b.in">
+        </div>
+        <div class="form-group">
+          <label>Reply Subject（可选）</label>
+          <input id="nats-chain-reply" type="text" placeholder="workflow.edge-a.reply.&lt;id&gt;">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>测试文本</label>
+          <textarea id="nats-chain-text">hello agent c</textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-success" id="nats-chain-btn" onclick="testNatsAgentChain()">验证 B → C</button>
+      </div>
+      <div class="query-result" id="nats-chain-result"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span> 最近操作</div>
+      <pre id="nats-activity-log" class="nats-activity-log">暂无记录</pre>
     </div>
   </div>
 </div>

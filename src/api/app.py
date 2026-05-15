@@ -20,6 +20,14 @@ from sse_starlette.sse import EventSourceResponse
 import asyncio
 from typing import AsyncGenerator, Dict, List, Any
 
+from src.api.nats_cloud_edge import (
+    list_edge_agents,
+    maybe_start_nats_port_forward,
+    nats_status,
+    resolve_nats_servers,
+    stop_nats_port_forward,
+    ui_config_defaults,
+)
 from src.config import TEAM_MEMBERS
 from src.service.workflow_service import run_agent_workflow
 
@@ -513,13 +521,28 @@ async def test_aoe_agent_chain(req: _AoeAgentChainTestRequest):
     }
 
 
-@app.post("/api/comm/nats/publish", summary="通过当前 AOE 向本集群 NATS 投递消息")
+@app.get("/api/comm/nats/config", summary="云边 NATS UI 默认配置")
+async def get_nats_ui_config():
+    return {"config": ui_config_defaults()}
+
+
+@app.get("/api/comm/nats/status", summary="NATS / JetStream 连接状态")
+async def get_nats_status(servers: Optional[str] = None):
+    parsed = [s.strip() for s in servers.split(",") if s.strip()] if servers else None
+    return await nats_status(parsed)
+
+
+@app.get("/api/comm/nats/agents", summary="从 K8s 发现 Agent 与 subject")
+async def get_nats_edge_agents(cluster_id: Optional[str] = None):
+    return list_edge_agents(cluster_id)
+
+
+@app.post("/api/comm/nats/publish", summary="向本集群 NATS 投递 JetStream 消息（UI 调试）")
 async def publish_nats_message(req: _NatsPublishRequest):
     """
-    由 AOE 代调用本集群 NATS。
+    供 Web UI 从宿主机连接 NATS（默认 127.0.0.1 + port-forward）。
 
-    用法示例：从集群 B 调集群 A 时，直接请求集群 A 的这个 HTTP 端点；
-    端点会使用集群 A AOE 的 NATS_SERVERS，把消息投给集群 A 内的 Agent B/C。
+    业务 Agent 在集群内仍使用 nats://nats:4222；跨集群仅通过 subject 路由。
     """
     try:
         from nats.aio.client import Client as NATS
@@ -530,14 +553,7 @@ async def publish_nats_message(req: _NatsPublishRequest):
             detail=f"缺少 nats-py 依赖，请安装 nats-py 后重启 AOE: {e}",
         )
 
-    servers = req.servers or [
-        item.strip()
-        for item in os.getenv(
-            "NATS_SERVERS",
-            f"nats://{os.getenv('NATS_SERVICE_NAME', 'nats')}:4222",
-        ).split(",")
-        if item.strip()
-    ]
+    servers = resolve_nats_servers(req.servers)
     nc = NATS()
     try:
         await nc.connect(
@@ -696,35 +712,36 @@ async def close_orchestration_session(session_id: str):
 
 
 @app.on_event("startup")
-async def _start_gossip():
-    """
-    应用启动时，若配置了 PEER_AOE_URLS 环境变量则启动 gossip 后台任务。
-    PEER_AOE_URLS 格式：逗号分隔的 HTTP URL，如
-        PEER_AOE_URLS=http://192.168.1.20:8000,http://192.168.1.21:8000
-    LOCAL_AOE_URL 指定本节点地址（默认 http://localhost:8000）。
-    """
-    import os
-    import re
-    from src.service.agent_registry import get_registry_client
+async def _on_startup():
+    """启动 NATS port-forward（可选）与 ARDC gossip（可选）。"""
+    maybe_start_nats_port_forward()
 
-    config = _load_aoe_config()
-    peer_urls_raw = os.getenv("PEER_AOE_URLS", "")
-    peer_urls = [
-        u.strip()
-        for u in re.split(r"[\s,]+", peer_urls_raw)
-        if u.strip()
-    ]
-    if not peer_urls:
-        peer_urls = [peer["url"] for peer in config.get("peers", [])]
-    local_url = os.getenv("LOCAL_AOE_URL", config.get("local_aoe_url") or "http://localhost:8000").strip()
-    interval = int(os.getenv("GOSSIP_INTERVAL", "30"))
+    if os.getenv("ENABLE_AOE_GOSSIP", "0").strip().lower() in {"1", "true", "yes", "on"}:
+        import re
+        from src.service.agent_registry import get_registry_client
 
-    registry = get_registry_client()
-    await registry.start_gossip_background(
-        peer_urls=peer_urls,
-        local_url=local_url,
-        interval=interval,
-    )
+        config = _load_aoe_config()
+        peer_urls_raw = os.getenv("PEER_AOE_URLS", "")
+        peer_urls = [u.strip() for u in re.split(r"[\s,]+", peer_urls_raw) if u.strip()]
+        if not peer_urls:
+            peer_urls = [peer["url"] for peer in config.get("peers", [])]
+        if not peer_urls:
+            return
+        local_url = os.getenv(
+            "LOCAL_AOE_URL", config.get("local_aoe_url") or "http://localhost:8000"
+        ).strip()
+        interval = int(os.getenv("GOSSIP_INTERVAL", "30"))
+        registry = get_registry_client()
+        await registry.start_gossip_background(
+            peer_urls=peer_urls,
+            local_url=local_url,
+            interval=interval,
+        )
+
+
+@app.on_event("shutdown")
+async def _on_shutdown():
+    stop_nats_port_forward()
 
 
 class ContentItem(BaseModel):

@@ -30,8 +30,8 @@ spec:
               value: /app/checkpoints/point_pillar_where2comm/
             - name: FRONTEND_CALLBACK_URL
               value: http://host.minikube.internal:9002/temp/post_data
-            - name: NATS_SERVER_URL
-              value: nats://nats:4222
+            # - name: NATS_SERVER_URL
+            #   value: nats://nats:4222
             - name: NATS_SUBJECT
               value: workflow.demo.perception2feature.result.0515
           resources:
