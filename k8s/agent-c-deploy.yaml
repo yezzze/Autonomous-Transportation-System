@@ -25,7 +25,7 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: agent-c
-          image: agent-c-worker:v1
+          image: agent-c-worker:v3
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_SERVERS
@@ -35,9 +35,9 @@ spec:
             - name: NATS_STREAM_SUBJECTS
               value: "workflow.>"
             - name: CLUSTER_ID
-              value: "cluster-a"
+              value: "edge-a"
             - name: IN_SUBJECT
-              value: "workflow.cluster-a.agent.c.in"
+              value: "workflow.edge-a.agent.c.in"
           resources:
             requests:
               cpu: "200m"

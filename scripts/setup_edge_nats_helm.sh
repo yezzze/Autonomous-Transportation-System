@@ -46,5 +46,9 @@ kubectl create configmap edge-cluster-config \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl rollout status -n "${NAMESPACE}" statefulset/"${RELEASE}" --timeout=300s
+kubectl patch service "${RELEASE}" \
+  -n "${NAMESPACE}" \
+  --type=json \
+  -p='[{"op":"remove","path":"/spec/selector/app"}]' || true
 kubectl get pods,svc -n "${NAMESPACE}" -l app.kubernetes.io/instance="${RELEASE}"
 kubectl get configmap edge-cluster-config -n "${NAMESPACE}" -o yaml

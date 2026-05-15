@@ -25,7 +25,7 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: agent-b
-          image: agent-b-worker:v3
+          image: agent-b-worker:v5
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_SERVERS
@@ -35,15 +35,15 @@ spec:
             - name: NATS_STREAM_SUBJECTS
               value: "workflow.>"
             - name: CLUSTER_ID
-              value: "cluster-a"
+              value: "edge-a"
             - name: IN_SUBJECT
-              value: "workflow.cluster-a.agent.b.in"
+              value: "workflow.edge-a.agent.b.in"
             - name: C_IN_SUBJECT
-              value: "workflow.cluster-a.agent.c.in"
+              value: "workflow.edge-a.agent.c.in"
             - name: OUT_SUBJECT
-              value: "workflow.cluster-a.agent.grpc.reply.default"
+              value: "workflow.edge-a.agent.grpc.reply.default"
             - name: B_REPLY_PREFIX
-              value: "workflow.cluster-a.agent.b.c.reply"
+              value: "workflow.edge-a.agent.b.c.reply"
           resources:
             requests:
               cpu: "200m"

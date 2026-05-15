@@ -35,11 +35,11 @@ spec:
             - name: NATS_STREAM_SUBJECTS
               value: "workflow.>"
             - name: CLUSTER_ID
-              value: "cluster-a"
+              value: "edge-a"
             - name: REQ_SUBJECT
-              value: "workflow.cluster-a.agent.b.in"
+              value: "workflow.edge-a.agent.b.in"
             - name: REPLY_SUBJECT_PREFIX
-              value: "workflow.cluster-a.agent.grpc.reply"
+              value: "workflow.edge-a.agent.grpc.reply"
           resources:
             requests:
               cpu: "250m"
