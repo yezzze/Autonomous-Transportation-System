@@ -1,0 +1,32 @@
+config:
+  leafnodes:
+    enabled: true
+    merge:
+      remotes:
+        - urls:
+            - nats://leaf:change-me-leaf-password@CHANGE_ME_CLOUD_HOST:7422
+
+  monitor:
+    enabled: true
+
+service:
+  merge:
+    spec:
+      type: ClusterIP
+
+container:
+  image:
+    registry: docker.m.daocloud.io
+
+reloader:
+  image:
+    registry: docker.m.daocloud.io
+
+natsBox:
+  enabled: true
+  container:
+    image:
+      registry: docker.m.daocloud.io
+
+promExporter:
+  enabled: false

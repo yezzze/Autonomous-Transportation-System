@@ -1,0 +1,69 @@
+config:
+  cluster:
+    enabled: true
+    replicas: 3
+
+  jetstream:
+    enabled: true
+    fileStore:
+      pvc:
+        enabled: true
+        size: 10Gi
+    merge:
+      domain: hub
+
+  leafnodes:
+    enabled: true
+    port: 7422
+    merge:
+      authorization:
+        user: leaf
+        password: change-me-leaf-password
+
+  monitor:
+    enabled: true
+
+container:
+  image:
+    registry: docker.m.daocloud.io
+  merge:
+    resources:
+      requests:
+        cpu: "500m"
+        memory: 1Gi
+      limits:
+        cpu: "500m"
+        memory: 1Gi
+
+reloader:
+  image:
+    registry: docker.m.daocloud.io
+
+natsBox:
+  enabled: true
+  container:
+    image:
+      registry: docker.m.daocloud.io
+
+service:
+  merge:
+    spec:
+      type: NodePort
+      ports:
+        - name: nats
+          port: 4222
+          targetPort: nats
+          nodePort: 30422
+        - name: leafnodes
+          port: 7422
+          targetPort: leafnodes
+          nodePort: 30472
+        - name: monitor
+          port: 8222
+          targetPort: monitor
+          nodePort: 30482
+
+promExporter:
+  enabled: true
+  image:
+    registry: docker.m.daocloud.io

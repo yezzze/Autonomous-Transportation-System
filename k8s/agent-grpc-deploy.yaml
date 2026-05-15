@@ -30,6 +30,16 @@ spec:
           env:
             - name: NATS_SERVERS
               value: "nats://nats:4222"
+            - name: NATS_JETSTREAM_DOMAIN
+              value: "hub"
+            - name: NATS_STREAM_SUBJECTS
+              value: "workflow.>"
+            - name: CLUSTER_ID
+              value: "cluster-a"
+            - name: REQ_SUBJECT
+              value: "workflow.cluster-a.agent.b.in"
+            - name: REPLY_SUBJECT_PREFIX
+              value: "workflow.cluster-a.agent.grpc.reply"
           resources:
             requests:
               cpu: "250m"

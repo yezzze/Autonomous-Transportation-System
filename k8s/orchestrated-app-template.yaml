@@ -23,6 +23,12 @@ spec:
           env:
             - name: NATS_SERVERS
               value: "nats://nats:4222"
+            - name: NATS_JETSTREAM_DOMAIN
+              value: "hub"
+            - name: NATS_STREAM_SUBJECTS
+              value: "workflow.>"
+            - name: CLUSTER_ID
+              value: "<filled-by-orchestrator>"
           resources:
             requests:
               cpu: "500m"
