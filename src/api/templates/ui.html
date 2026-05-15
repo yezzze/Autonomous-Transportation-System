@@ -24,7 +24,7 @@
     <button class="tab-btn" onclick="switchTab('instances')">🖥 Agent 实例</button>
     <button class="tab-btn" onclick="switchTab('qos')">📊 QoS 监控</button>
     <button class="tab-btn" onclick="switchTab('resources')">🗃 资源状态</button>
-    <button class="tab-btn" onclick="switchTab('aoe')">🌐 AOE 跨集群</button>
+    <button class="tab-btn" onclick="switchTab('aoe')">🌐 NATS 云边</button>
   </div>
 
   <!-- ====== Tab: 应用管理 ====== -->
@@ -170,23 +170,31 @@
     </table>
   </div>
   
-  <!-- ====== Tab: AOE 跨集群 ====== -->
+  <!-- ====== Tab: NATS 云边 Subject ====== -->
   <div id="tab-aoe" class="tab-panel">
     <div class="card">
-      <div class="card-title"><span class="icon">🌐</span> AOE 配置</div>
+      <div class="card-title"><span class="icon">🌐</span> NATS Cloud / Edge 配置</div>
       <div id="aoe-alert" class="alert"></div>
       <div class="form-grid">
         <div class="form-group">
-          <label>本集群名称</label>
-          <input id="aoe-local-name" type="text" placeholder="cluster-b">
+          <label>本 Edge Cluster ID</label>
+          <input id="nats-local-cluster" type="text" value="edge-b" placeholder="edge-b">
         </div>
         <div class="form-group">
-          <label>本集群 AOE URL</label>
-          <input id="aoe-local-url" type="text" placeholder="http://10.112.221.121:8001">
+          <label>目标 Edge Cluster ID</label>
+          <input id="nats-target-cluster" type="text" value="edge-a" placeholder="edge-a">
         </div>
         <div class="form-group">
-          <label>默认目标 AOE URL</label>
-          <input id="aoe-peer-url" type="text" placeholder="http://10.112.136.44:8001">
+          <label>NATS Servers</label>
+          <input id="nats-servers" type="text" value="nats://nats:4222" placeholder="nats://nats:4222">
+        </div>
+        <div class="form-group">
+          <label>JetStream Domain</label>
+          <input id="nats-js-domain" type="text" value="hub" placeholder="hub">
+        </div>
+        <div class="form-group">
+          <label>Stream Subjects</label>
+          <input id="nats-stream-subjects" type="text" value="workflow.>" placeholder="workflow.>">
         </div>
         <div class="form-group">
           <label>默认超时（秒）</label>
@@ -194,22 +202,21 @@
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="saveAoeConfig()">保存配置</button>
-        <button class="btn btn-ghost" onclick="loadAoeConfig()">重新加载</button>
-        <button class="btn btn-ghost" onclick="pullAoeRegistry()">从目标拉取 Agent</button>
-        <button class="btn btn-ghost" onclick="pushAoeGossip()">向目标推送本地 Agent</button>
+        <button class="btn btn-primary" onclick="saveAoeConfig()">保存本页配置</button>
+        <button class="btn btn-ghost" onclick="loadAoeConfig()">恢复配置</button>
+        <button class="btn btn-ghost" onclick="loadAoeRegistry()">刷新 Agent Subject</button>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title"><span class="icon">🧭</span> Registry 视图</div>
+      <div class="card-title"><span class="icon">🧭</span> Agent Subject 视图</div>
       <div class="toolbar" style="margin-bottom:10px">
         <span class="refresh-hint" id="aoe-refresh-hint"></span>
         <button class="btn btn-ghost btn-sm" onclick="loadAoeRegistry()">刷新</button>
       </div>
       <table>
         <thead><tr>
-          <th>来源</th><th>Agent ID</th><th>能力</th><th>IP</th><th>端口</th><th>状态</th>
+          <th>来源</th><th>集群</th><th>Agent ID</th><th>能力</th><th>Input Subject</th><th>状态</th>
         </tr></thead>
         <tbody id="aoe-registry-tbody">
           <tr class="empty-row"><td colspan="6">暂无 registry 数据</td></tr>
@@ -218,33 +225,37 @@
     </div>
 
     <div class="card">
-      <div class="card-title"><span class="icon">🚀</span> 转发子任务到目标 AOE</div>
+      <div class="card-title"><span class="icon">🚀</span> JetStream 发布任务到 NATS Subject</div>
       <div class="form-grid">
         <div class="form-group">
-          <label>目标 AOE URL</label>
-          <input id="aoe-dispatch-url" type="text" placeholder="默认使用上面的目标 URL">
+          <label>目标 Subject</label>
+          <input id="aoe-dispatch-subject" type="text" value="workflow.edge-a.agent.b.in">
         </div>
         <div class="form-group">
           <label>任务 ID（可选）</label>
           <input id="aoe-task-id" type="text" placeholder="自动生成">
         </div>
+        <div class="form-group">
+          <label>Reply Subject（可选）</label>
+          <input id="aoe-dispatch-reply-subject" type="text" placeholder="workflow.edge-b.reply.<workflow_id>">
+        </div>
         <div class="form-group" style="grid-column:1/-1">
           <label>任务描述</label>
-          <textarea id="aoe-task-desc" placeholder="例如：调用 A 集群中的智能体能力，完成一次简单分析任务"></textarea>
+          <textarea id="aoe-task-desc" placeholder="例如：通过 workflow.edge-a.agent.b.in 调用 edge-a 中的 Agent B"></textarea>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn btn-success" id="aoe-dispatch-btn" onclick="dispatchAoeTask()">转发执行</button>
+        <button class="btn btn-success" id="aoe-dispatch-btn" onclick="dispatchAoeTask()">JetStream 发布</button>
       </div>
       <div class="query-result" id="aoe-dispatch-result"></div>
     </div>
 
     <div class="card">
-      <div class="card-title"><span class="icon">🧪</span> AgentB → AgentC 最小验证</div>
+      <div class="card-title"><span class="icon">🧪</span> AgentB → AgentC JetStream 验证</div>
       <div class="form-grid">
         <div class="form-group">
-          <label>目标 AOE URL</label>
-          <input id="aoe-chain-url" type="text" placeholder="默认使用上面的目标 URL">
+          <label>目标 Edge Cluster ID</label>
+          <input id="aoe-chain-cluster" type="text" value="edge-a">
         </div>
         <div class="form-group">
           <label>Workflow ID（可选）</label>
@@ -252,15 +263,15 @@
         </div>
         <div class="form-group">
           <label>Agent B Subject</label>
-          <input id="aoe-chain-subject" type="text" value="workflow.demo.agent.b.in">
+          <input id="aoe-chain-subject" type="text" value="workflow.edge-a.agent.b.in">
         </div>
         <div class="form-group">
           <label>Reply Subject（可选）</label>
-          <input id="aoe-chain-reply-subject" type="text" placeholder="自动生成">
+          <input id="aoe-chain-reply-subject" type="text" placeholder="workflow.edge-b.reply.<workflow_id>">
         </div>
         <div class="form-group" style="grid-column:1/-1">
           <label>测试文本</label>
-          <textarea id="aoe-chain-text" placeholder="例如：hello agent c">hello aoe from ui</textarea>
+          <textarea id="aoe-chain-text" placeholder="例如：hello agent c">hello nats subject from ui</textarea>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px">

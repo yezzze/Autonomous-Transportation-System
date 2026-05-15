@@ -1,0 +1,227 @@
+{
+  "images": [
+    {
+      "image_id": "registry.k8s.io/etcd:3.6.6-0",
+      "name": "Etcd",
+      "version": "3.6.6-0",
+      "capability": "etcd",
+      "description": "Kubernetes Agent 镜像 registry.k8s.io/etcd:3.6.6-0",
+      "exposed_external": false,
+      "metadata": {
+        "source": "kubernetes",
+        "namespace": "kube-system",
+        "resource_name": "etcd-minikube",
+        "container_name": "etcd",
+        "k8s": {
+          "cpu_cores": 0.1,
+          "memory_mb": 100,
+          "gpu_count": 0
+        }
+      },
+      "created_at": "2026-05-08T01:28:51.700826",
+      "registered": true
+    },
+    {
+      "image_id": "registry.k8s.io/kube-apiserver:v1.35.1",
+      "name": "Kube Apiserver",
+      "version": "v1.35.1",
+      "capability": "kube-apiserver",
+      "description": "Kubernetes Agent 镜像 registry.k8s.io/kube-apiserver:v1.35.1",
+      "exposed_external": false,
+      "metadata": {
+        "source": "kubernetes",
+        "namespace": "kube-system",
+        "resource_name": "kube-apiserver-minikube",
+        "container_name": "kube-apiserver",
+        "k8s": {
+          "cpu_cores": 0.25,
+          "memory_mb": 512,
+          "gpu_count": 0
+        }
+      },
+      "created_at": "2026-05-08T01:28:51.700857",
+      "registered": true
+    },
+    {
+      "image_id": "registry.k8s.io/kube-controller-manager:v1.35.1",
+      "name": "Kube Controller Manager",
+      "version": "v1.35.1",
+      "capability": "kube-controller-manager",
+      "description": "Kubernetes Agent 镜像 registry.k8s.io/kube-controller-manager:v1.35.1",
+      "exposed_external": false,
+      "metadata": {
+        "source": "kubernetes",
+        "namespace": "kube-system",
+        "resource_name": "kube-controller-manager-minikube",
+        "container_name": "kube-controller-manager",
+        "k8s": {
+          "cpu_cores": 0.2,
+          "memory_mb": 512,
+          "gpu_count": 0
+        }
+      },
+      "created_at": "2026-05-08T01:28:51.700874",
+      "registered": true
+    },
+    {
+      "image_id": "registry.k8s.io/kube-proxy:v1.35.1",
+      "name": "Kube Proxy",
+      "version": "v1.35.1",
+      "capability": "kube-proxy",
+      "description": "Kubernetes Agent 镜像 registry.k8s.io/kube-proxy:v1.35.1",
+      "exposed_external": false,
+      "metadata": {
+        "source": "kubernetes",
+        "namespace": "kube-system",
+        "resource_name": "kube-proxy-qlh5m",
+        "container_name": "kube-proxy",
+        "k8s": {
+          "cpu_cores": 1.0,
+          "memory_mb": 512,
+          "gpu_count": 0
+        }
+      },
+      "created_at": "2026-05-08T01:28:51.700888",
+      "registered": true
+    },
+    {
+      "image_id": "registry.k8s.io/kube-scheduler:v1.35.1",
+      "name": "Kube Scheduler",
+      "version": "v1.35.1",
+      "capability": "kube-scheduler",
+      "description": "Kubernetes Agent 镜像 registry.k8s.io/kube-scheduler:v1.35.1",
+      "exposed_external": false,
+      "metadata": {
+        "source": "kubernetes",
+        "namespace": "kube-system",
+        "resource_name": "kube-scheduler-minikube",
+        "container_name": "kube-scheduler",
+        "k8s": {
+          "cpu_cores": 0.1,
+          "memory_mb": 512,
+          "gpu_count": 0
+        }
+      },
+      "created_at": "2026-05-08T01:28:51.700902",
+      "registered": true
+    },
+    {
+      "image_id": "gcr.io/k8s-minikube/storage-provisioner:v5",
+      "name": "Storage Provisioner",
+      "version": "v5",
+      "capability": "storage-provisioner",
+      "description": "Kubernetes Agent 镜像 gcr.io/k8s-minikube/storage-provisioner:v5",
+      "exposed_external": false,
+      "metadata": {
+        "source": "kubernetes",
+        "namespace": "kube-system",
+        "resource_name": "storage-provisioner",
+        "container_name": "storage-provisioner",
+        "k8s": {
+          "cpu_cores": 1.0,
+          "memory_mb": 512,
+          "gpu_count": 0
+        }
+      },
+      "created_at": "2026-05-08T01:28:51.700931",
+      "registered": true
+    },
+    {
+      "image_id": "perception2intermediatefeature-agent:0.1.2",
+      "name": "Perception2IntermediateFeature",
+      "version": "0.1.2",
+      "capability": "perception2intermediatefeature",
+      "description": "自动驾驶感知输入转换为中间特征",
+      "exposed_external": false,
+      "metadata": {
+        "k8s": {
+          "cpu_cores": 2.0,
+          "memory_mb": 4096,
+          "gpu_count": 1
+        }
+      },
+      "created_at": "2026-04-25T18:45:58.601887",
+      "registered": true
+    },
+    {
+      "image_id": "cooperativefeaturefusiondetectionviz-agent:0.1.2",
+      "name": "CooperativeFeatureFusionDetectionViz",
+      "version": "0.1.2",
+      "capability": "cooperativefeaturefusiondetectionviz",
+      "description": "协同特征融合、目标检测与可视化",
+      "exposed_external": false,
+      "metadata": {
+        "k8s": {
+          "cpu_cores": 2.0,
+          "memory_mb": 8192,
+          "gpu_count": 1
+        }
+      },
+      "created_at": "2026-04-25T18:45:58.601887",
+      "registered": true
+    },
+    {
+      "image_id": "img_cognition_default",
+      "name": "Img Cognition Default",
+      "version": "latest",
+      "capability": "img_cognition_default",
+      "description": "Kubernetes Agent 镜像 img_cognition_default",
+      "exposed_external": false,
+      "metadata": {
+        "source": "kubernetes",
+        "namespace": "default",
+        "resource_name": "cognition-agent-68b78b6ddc-pntmf",
+        "container_name": "agent",
+        "k8s": {
+          "cpu_cores": 0.5,
+          "memory_mb": 512,
+          "gpu_count": 0
+        }
+      },
+      "created_at": "2026-05-08T02:31:16.724029",
+      "registered": true
+    },
+    {
+      "image_id": "img_perception_default",
+      "name": "Img Perception Default",
+      "version": "latest",
+      "capability": "img_perception_default",
+      "description": "Kubernetes Agent 镜像 img_perception_default",
+      "exposed_external": false,
+      "metadata": {
+        "source": "kubernetes",
+        "namespace": "default",
+        "resource_name": "perception-agent-655f569b9d-797bj",
+        "container_name": "agent",
+        "k8s": {
+          "cpu_cores": 0.5,
+          "memory_mb": 512,
+          "gpu_count": 0
+        }
+      },
+      "created_at": "2026-05-08T02:31:16.724068",
+      "registered": true
+    },
+    {
+      "image_id": "nvcr.io/nvidia/k8s-device-plugin:v0.18.2@sha256:b5788e29e7ae5272de8de863ebe386d6611e608421a6ecc5b4e7d5952aba637f",
+      "name": "K8S Device Plugin",
+      "version": "v0.18.2@sha256:b5788e29e7ae5272de8de863ebe386d6611e608421a6ecc5b4e7d5952aba637f",
+      "capability": "k8s-device-plugin",
+      "description": "Kubernetes Agent 镜像 nvcr.io/nvidia/k8s-device-plugin:v0.18.2@sha256:b5788e29e7ae5272de8de863ebe386d6611e608421a6ecc5b4e7d5952aba637f",
+      "exposed_external": false,
+      "metadata": {
+        "source": "kubernetes",
+        "namespace": "kube-system",
+        "resource_name": "nvidia-device-plugin-daemonset-k6czt",
+        "container_name": "nvidia-device-plugin-ctr",
+        "k8s": {
+          "cpu_cores": 1.0,
+          "memory_mb": 512,
+          "gpu_count": 0
+        }
+      },
+      "created_at": "2026-05-08T02:31:16.763035",
+      "registered": true
+    }
+  ]
+}

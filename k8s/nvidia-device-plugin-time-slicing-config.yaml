@@ -11,3 +11,53 @@ data:
         resources:
           - name: nvidia.com/gpu
             replicas: 4
+---
+# DaemonSet for NVIDIA Device Plugin (with config-file mount)
+# Applying this file will create/update the ConfigMap above and ensure the
+# daemonset mounts the config and starts the plugin with the correct arg.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-device-plugin-daemonset
+  namespace: kube-system
+  labels:
+    app: nvidia-device-plugin
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-device-plugin-ds
+  template:
+    metadata:
+      labels:
+        name: nvidia-device-plugin-ds
+    spec:
+      priorityClassName: system-node-critical
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: nvidia-device-plugin-ctr
+        image: nvcr.io/nvidia/k8s-device-plugin:v0.18.2@sha256:b5788e29e7ae5272de8de863ebe386d6611e608421a6ecc5b4e7d5952aba637f
+        imagePullPolicy: IfNotPresent
+        args:
+        - "--config-file=/etc/nvidia-container-runtime/config.yaml"
+        env:
+        - name: FAIL_ON_INIT_ERROR
+          value: "false"
+        volumeMounts:
+        - name: device-plugin
+          mountPath: /var/lib/kubelet/device-plugins
+        - name: device-plugin-config
+          mountPath: /etc/nvidia-container-runtime
+      volumes:
+      - name: device-plugin
+        hostPath:
+          path: /var/lib/kubelet/device-plugins
+      - name: device-plugin-config
+        configMap:
+          name: nvidia-device-plugin-config
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1

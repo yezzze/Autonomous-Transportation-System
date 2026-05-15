@@ -73,11 +73,36 @@ class _NatsPublishRequest(BaseModel):
         description="可选 NATS servers；默认使用当前 AOE 的 NATS_SERVERS",
     )
     stream: str = Field("WORKFLOW", description="JetStream stream 名称")
+    jetstream_domain: str = Field(
+        default_factory=lambda: os.getenv("NATS_JETSTREAM_DOMAIN", "hub"),
+        description="JetStream domain；云边 NATS Hub 默认使用 hub",
+    )
     stream_subjects: List[str] = Field(
-        default_factory=lambda: ["workflow.demo.>"],
+        default_factory=lambda: ["workflow.>"],
         description="stream 不存在时创建使用的 subjects",
     )
     timeout_sec: float = Field(30.0, description="等待 reply 的超时时间")
+
+
+class _NatsReceiveRequest(BaseModel):
+    """从当前 AOE 管理集群的 NATS/JetStream 拉取消息，用于 UI 简单验证。"""
+    subject: str = Field(..., description="要接收的 NATS subject")
+    servers: Optional[List[str]] = Field(
+        None,
+        description="可选 NATS servers；默认使用当前 AOE 的 NATS_SERVERS",
+    )
+    stream: str = Field("WORKFLOW", description="JetStream stream 名称")
+    jetstream_domain: str = Field(
+        default_factory=lambda: os.getenv("NATS_JETSTREAM_DOMAIN", "hub"),
+        description="JetStream domain；云边 NATS Hub 默认使用 hub",
+    )
+    stream_subjects: List[str] = Field(
+        default_factory=lambda: ["workflow.>"],
+        description="stream 不存在时创建使用的 subjects",
+    )
+    durable: Optional[str] = Field(None, description="可选 durable 名称；为空则自动生成")
+    batch: int = Field(1, ge=1, le=50, description="一次最多拉取消息数")
+    timeout_sec: float = Field(5.0, description="等待消息的超时时间")
 
 
 class _AoePeer(BaseModel):
@@ -114,7 +139,7 @@ class _AoeAgentChainTestRequest(BaseModel):
     target_url: Optional[str] = None
     workflow_id: Optional[str] = None
     text: str = "hello aoe"
-    in_subject: str = "workflow.demo.agent.b.in"
+    in_subject: str = "workflow.edge-a.agent.b.in"
     reply_subject: Optional[str] = None
     timeout_seconds: Optional[int] = None
 
@@ -122,6 +147,71 @@ class _AoeAgentChainTestRequest(BaseModel):
 def _safe_nats_token(value: str) -> str:
     token = re.sub(r"[^a-zA-Z0-9_-]+", "-", value)
     return token.strip("-") or uuid.uuid4().hex[:8]
+
+
+def _nats_subject_matches(pattern: str, subject: str) -> bool:
+    pattern_tokens = pattern.split(".")
+    subject_tokens = subject.split(".")
+
+    for idx, token in enumerate(pattern_tokens):
+        if token == ">":
+            return idx == len(pattern_tokens) - 1
+        if idx >= len(subject_tokens):
+            return False
+        if token != "*" and token != subject_tokens[idx]:
+            return False
+    return len(pattern_tokens) == len(subject_tokens)
+
+
+def _covered_by_subjects(subject: Optional[str], patterns: List[str]) -> bool:
+    if not subject:
+        return True
+    return any(_nats_subject_matches(pattern, subject) for pattern in patterns)
+
+
+def _required_stream_subjects(req: _NatsPublishRequest) -> List[str]:
+    subjects = [item.strip() for item in req.stream_subjects if item.strip()]
+    for subject in [req.subject, req.reply_subject]:
+        if subject and not _covered_by_subjects(subject, subjects):
+            subjects.append(subject)
+    return subjects or ["workflow.>"]
+
+
+async def _ensure_jetstream_stream(js, req: _NatsPublishRequest) -> Dict[str, Any]:
+    required_subjects = _required_stream_subjects(req)
+    try:
+        info = await js.stream_info(req.stream)
+    except Exception as exc:
+        if exc.__class__.__name__ != "NotFoundError":
+            raise
+        await js.add_stream(name=req.stream, subjects=required_subjects)
+        return {"created": True, "subjects": required_subjects}
+
+    config = getattr(info, "config", None)
+    current_subjects = list(getattr(config, "subjects", None) or [])
+    if not current_subjects:
+        current_subjects = required_subjects
+
+    missing = [
+        subject
+        for subject in [req.subject, req.reply_subject]
+        if subject and not _covered_by_subjects(subject, current_subjects)
+    ]
+    if not missing:
+        return {"created": False, "subjects": current_subjects}
+
+    merged_subjects = current_subjects[:]
+    for subject in required_subjects:
+        if subject not in merged_subjects:
+            merged_subjects.append(subject)
+
+    try:
+        await js.update_stream(name=req.stream, subjects=merged_subjects)
+    except TypeError:
+        from nats.js.api import StreamConfig
+
+        await js.update_stream(StreamConfig(name=req.stream, subjects=merged_subjects))
+    return {"created": False, "updated": True, "subjects": merged_subjects, "added_subjects": missing}
 
 
 AOE_CLUSTER_CONFIG_PATH = os.path.abspath(
@@ -385,7 +475,8 @@ async def test_aoe_agent_chain(req: _AoeAgentChainTestRequest):
     config = _load_aoe_config()
     timeout = int(req.timeout_seconds or config.get("default_timeout_seconds") or 30)
     workflow_id = req.workflow_id or f"ui_aoe_{uuid.uuid4().hex[:8]}"
-    reply_subject = req.reply_subject or f"workflow.demo.ui.agentbc.reply.{_safe_nats_token(workflow_id)}"
+    cluster_id = os.getenv("CLUSTER_ID", os.getenv("AOE_CLUSTER_NAME", "edge-b")).strip() or "edge-b"
+    reply_subject = req.reply_subject or f"workflow.{cluster_id}.reply.{_safe_nats_token(workflow_id)}"
     body = {
         "subject": req.in_subject,
         "payload": {
@@ -395,7 +486,8 @@ async def test_aoe_agent_chain(req: _AoeAgentChainTestRequest):
         },
         "reply_subject": reply_subject,
         "timeout_sec": float(timeout),
-        "stream_subjects": ["workflow.demo.>"],
+        "jetstream_domain": os.getenv("NATS_JETSTREAM_DOMAIN", "hub"),
+        "stream_subjects": ["workflow.>"],
     }
     try:
         async with httpx.AsyncClient(timeout=float(timeout) + 10.0) as client:
@@ -432,7 +524,6 @@ async def publish_nats_message(req: _NatsPublishRequest):
     try:
         from nats.aio.client import Client as NATS
         from nats.errors import TimeoutError as NatsTimeoutError
-        from nats.js.errors import NotFoundError
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -455,11 +546,8 @@ async def publish_nats_message(req: _NatsPublishRequest):
             reconnect_time_wait=2,
             max_reconnect_attempts=3,
         )
-        js = nc.jetstream()
-        try:
-            await js.stream_info(req.stream)
-        except NotFoundError:
-            await js.add_stream(name=req.stream, subjects=req.stream_subjects)
+        js = nc.jetstream(domain=req.jetstream_domain or None)
+        stream_state = await _ensure_jetstream_stream(js, req)
 
         reply_sub = None
         durable = None
@@ -472,8 +560,13 @@ async def publish_nats_message(req: _NatsPublishRequest):
             "status": "sent",
             "servers": servers,
             "subject": req.subject,
+            "jetstream_domain": req.jetstream_domain,
             "stream": ack.stream,
+            "stream_subjects": stream_state.get("subjects"),
+            "stream_created": bool(stream_state.get("created")),
+            "stream_updated": bool(stream_state.get("updated")),
             "seq": ack.seq,
+            "delivery": "jetstream",
         }
 
         if reply_sub:

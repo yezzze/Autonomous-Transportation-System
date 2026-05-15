@@ -83,97 +83,55 @@ class AppManager:
             logger.warning(f"[APPM] 保存应用列表失败: {e}")
 
     def _ensure_builtin_apps(self):
-        """确保 gRPC/B/C 三个内置应用始终存在于应用列表中。"""
-        for app in self._apps.values():
-            app.image_ids = ["agent-grpc:v1" if image_id == "agent-a-grpc:v2" else image_id for image_id in app.image_ids]
-            if app.guidance_file:
-                app.guidance_file.agents_required = [
-                    "agent-grpc" if capability == "agent-a" else capability
-                    for capability in app.guidance_file.agents_required
-                ]
-                app.guidance_file.task_description = app.guidance_file.task_description.replace(
-                    "agent-a/agent-b/agent-c", "agent_gRPC/agent-b/agent-c"
-                ).replace("Agent A", "agent_gRPC")
+        """仅执行历史兼容迁移，不再自动创建内置应用或探测本地镜像。"""
+        changed = False
 
         old_agent_a = self._apps.pop("app_builtin_agent_a", None)
-        if old_agent_a is not None and "app_builtin_agent_grpc" not in self._apps:
-            old_agent_a.app_id = "app_builtin_agent_grpc"
-            self._apps[old_agent_a.app_id] = old_agent_a
+        if old_agent_a is not None:
+            changed = True
+            if "app_builtin_agent_grpc" not in self._apps:
+                old_agent_a.app_id = "app_builtin_agent_grpc"
+                if old_agent_a.guidance_file:
+                    old_agent_a.guidance_file.app_id = old_agent_a.app_id
+                self._apps[old_agent_a.app_id] = old_agent_a
 
-        builtin_specs = [
-            {
-                "app_id": "app_builtin_agent_grpc",
-                "name": "agent_gRPC",
-                "capability": "agent-grpc",
-                "task_description": "启动 agent_gRPC，作为 gRPC 入口并通过 NATS 转发任务。",
-            },
-            {
-                "app_id": "app_builtin_agent_b",
-                "name": "Agent B",
-                "capability": "agent-b",
-                "task_description": "启动 Agent B，作为 NATS worker 转发任务给 Agent C 并回传结果。",
-            },
-            {
-                "app_id": "app_builtin_agent_c",
-                "name": "Agent C",
-                "capability": "agent-c",
-                "task_description": "启动 Agent C，作为 NATS worker 处理消息并返回结果。",
-            },
-            {
-                "app_id": "app_builtin_perception2intermediatefeature",
-                "name": "Perception2IntermediateFeature",
-                "capability": "perception2intermediatefeature",
-                "task_description": (
-                    "启动 Perception2IntermediateFeature，"
-                    "将自动驾驶感知输入转换为中间特征。"
-                ),
-            },
-            {
-                "app_id": "app_builtin_cooperativefeaturefusiondetectionviz",
-                "name": "CooperativeFeatureFusionDetectionViz",
-                "capability": "cooperativefeaturefusiondetectionviz",
-                "task_description": (
-                    "启动 CooperativeFeatureFusionDetectionViz，"
-                    "执行协同特征融合、目标检测与可视化。"
-                ),
-            },
-        ]
+        for app in self._apps.values():
+            migrated_image_ids = [
+                "agent-grpc:v1" if image_id == "agent-a-grpc:v2" else image_id
+                for image_id in app.image_ids
+            ]
+            if migrated_image_ids != app.image_ids:
+                app.image_ids = migrated_image_ids
+                changed = True
 
-        changed = False
-        warehouse = self._get_warehouse()
-        engine = self._get_engine()
-
-        for spec in builtin_specs:
-            image = next(iter(warehouse.find_by_capability(spec["capability"])), None)
-            if image is None:
+            guidance = app.guidance_file
+            if guidance is None:
                 continue
 
-            app = self._apps.get(spec["app_id"])
-            guidance = GuidanceFile(
-                app_id=spec["app_id"],
-                task_description=spec["task_description"],
-                agents_required=[spec["capability"]],
-                orchestration_mode="adaptive",
-                constraints={"timeout_seconds": 120},
-                metadata={"deploy_only": True},
-            )
-
-            if app is None:
-                app = AppInfo.create(name=spec["name"], guidance_file=guidance)
-                app.app_id = spec["app_id"]
-                app.name = spec["name"]
-                app.image_ids = [image.image_id] if image else []
-                self._apps[app.app_id] = app
-                changed = True
-            else:
-                app.name = spec["name"]
-                app.guidance_file = guidance
-                app.image_ids = [image.image_id] if image else app.image_ids
+            migrated_agents_required = [
+                "agent-grpc" if capability == "agent-a" else capability
+                for capability in guidance.agents_required
+            ]
+            if migrated_agents_required != guidance.agents_required:
+                guidance.agents_required = migrated_agents_required
                 changed = True
 
-            engine.install_app_logic(guidance)
+            migrated_task_description = guidance.task_description.replace(
+                "agent-a/agent-b/agent-c", "agent_gRPC/agent-b/agent-c"
+            ).replace("Agent A", "agent_gRPC")
+            if migrated_task_description != guidance.task_description:
+                guidance.task_description = migrated_task_description
+                changed = True
+
+            if guidance.app_id != app.app_id:
+                guidance.app_id = app.app_id
+                changed = True
 
         if changed:
+            engine = self._get_engine()
+            for app in self._apps.values():
+                if app.guidance_file:
+                    engine.install_app_logic(app.guidance_file)
             self._save_to_disk()
 
     # ------------------------------------------------------------------

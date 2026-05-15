@@ -656,17 +656,104 @@ async function loadResources() {
 }
 
 // ====================================================================
-// Tab: AOE Cross Cluster
+// Tab: NATS Cloud / Edge Subject
 // ====================================================================
 let aoeConfigLoaded = false;
+const NATS_UI_STORAGE_KEY = 'langmanus-nats-cloud-edge-ui';
 
-function _aoeTargetUrl() {
-  return document.getElementById('aoe-dispatch-url').value.trim()
-      || document.getElementById('aoe-peer-url').value.trim();
+function _natsUiDefaults() {
+  return {
+    localCluster: 'edge-b',
+    targetCluster: 'edge-a',
+    servers: 'nats://nats:4222',
+    jetstreamDomain: 'hub',
+    streamSubjects: 'workflow.>',
+    timeout: 60,
+  };
 }
 
-function _aoeChainTargetUrl() {
-  return document.getElementById('aoe-chain-url').value.trim() || _aoeTargetUrl();
+function _readNatsUiConfig() {
+  const fallback = _natsUiDefaults();
+  try {
+    return Object.assign(fallback, JSON.parse(localStorage.getItem(NATS_UI_STORAGE_KEY) || '{}'));
+  } catch {
+    return fallback;
+  }
+}
+
+function _writeNatsUiConfig() {
+  const cfg = {
+    localCluster: document.getElementById('nats-local-cluster').value.trim() || 'edge-b',
+    targetCluster: document.getElementById('nats-target-cluster').value.trim() || 'edge-a',
+    servers: document.getElementById('nats-servers').value.trim() || 'nats://nats:4222',
+    jetstreamDomain: document.getElementById('nats-js-domain').value.trim() || 'hub',
+    streamSubjects: document.getElementById('nats-stream-subjects').value.trim() || 'workflow.>',
+    timeout: parseInt(document.getElementById('aoe-timeout').value, 10) || 60,
+  };
+  localStorage.setItem(NATS_UI_STORAGE_KEY, JSON.stringify(cfg));
+  return cfg;
+}
+
+function _applyNatsUiConfig(cfg) {
+  document.getElementById('nats-local-cluster').value = cfg.localCluster || 'edge-b';
+  document.getElementById('nats-target-cluster').value = cfg.targetCluster || 'edge-a';
+  document.getElementById('nats-servers').value = cfg.servers || 'nats://nats:4222';
+  document.getElementById('nats-js-domain').value = cfg.jetstreamDomain || 'hub';
+  document.getElementById('nats-stream-subjects').value = cfg.streamSubjects || 'workflow.>';
+  document.getElementById('aoe-timeout').value = cfg.timeout || 60;
+  _refreshNatsSubjectDefaults();
+}
+
+function _safeSubjectToken(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, '-')
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'agent';
+}
+
+function _agentSubjectToken(agent) {
+  const raw = agent.subject_agent_id || agent.agent_subject_id || agent.capability || agent.id || 'agent';
+  const token = _safeSubjectToken(raw);
+  if (token === 'agent-grpc') return 'agent.grpc';
+  if (token === 'agent-b') return 'agent.b';
+  if (token === 'agent-c') return 'agent.c';
+  if (token.startsWith('agent-')) return `agent.${token.slice(6)}`;
+  return token;
+}
+
+function _inputSubject(clusterId, agent) {
+  return agent.in_subject || agent.nats_subject || `workflow.${clusterId}.${_agentSubjectToken(agent)}.in`;
+}
+
+function _replySubject(localCluster, workflowId) {
+  return `workflow.${localCluster}.reply.${_safeSubjectToken(workflowId)}`;
+}
+
+function _natsPublishBody(subject, payload, replySubject) {
+  const cfg = _writeNatsUiConfig();
+  const body = {
+    subject,
+    payload,
+    reply_subject: replySubject || null,
+    stream_subjects: cfg.streamSubjects.split(',').map(s => s.trim()).filter(Boolean),
+    timeout_sec: Number(cfg.timeout || 60),
+  };
+  if (cfg.servers) body.servers = cfg.servers.split(',').map(s => s.trim()).filter(Boolean);
+  if (cfg.jetstreamDomain) body.jetstream_domain = cfg.jetstreamDomain;
+  return body;
+}
+
+function _refreshNatsSubjectDefaults() {
+  const cfg = _readNatsUiConfig();
+  const targetSubject = `workflow.${cfg.targetCluster || 'edge-a'}.agent.b.in`;
+  const chainSubject = document.getElementById('aoe-chain-subject');
+  const dispatchSubject = document.getElementById('aoe-dispatch-subject');
+  const chainCluster = document.getElementById('aoe-chain-cluster');
+  if (dispatchSubject && !dispatchSubject.value.trim()) dispatchSubject.value = targetSubject;
+  if (chainSubject && !chainSubject.value.trim()) chainSubject.value = targetSubject;
+  if (chainCluster) chainCluster.value = cfg.targetCluster || 'edge-a';
 }
 
 async function loadAoeTab() {
@@ -678,46 +765,18 @@ async function loadAoeTab() {
 }
 
 async function loadAoeConfig() {
-  try {
-    const res = await fetch(`${API}/api/aoe/config`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
-    const c = data.config || {};
-    document.getElementById('aoe-local-name').value = c.local_name || '';
-    document.getElementById('aoe-local-url').value = c.local_aoe_url || '';
-    document.getElementById('aoe-peer-url').value = c.default_peer_url || (c.peers && c.peers[0] && c.peers[0].url) || '';
-    document.getElementById('aoe-dispatch-url').value = document.getElementById('aoe-peer-url').value;
-    document.getElementById('aoe-chain-url').value = document.getElementById('aoe-peer-url').value;
-    document.getElementById('aoe-timeout').value = c.default_timeout_seconds || 60;
-    showAlert('aoe-alert', 'info', `配置文件：${data.path}`, 2500);
-  } catch(e) {
-    showAlert('aoe-alert', 'error', `加载配置失败：${e.message}`, 0);
-  }
+  const cfg = _readNatsUiConfig();
+  _applyNatsUiConfig(cfg);
+  showAlert('aoe-alert', 'info', '已加载 NATS cloud/edge subject 配置', 2500);
 }
 
 async function saveAoeConfig() {
-  const peerUrl = document.getElementById('aoe-peer-url').value.trim();
-  const body = {
-    local_name: document.getElementById('aoe-local-name').value.trim() || 'cluster',
-    local_aoe_url: document.getElementById('aoe-local-url').value.trim(),
-    default_peer_url: peerUrl,
-    peers: peerUrl ? [{ name: 'default-peer', url: peerUrl }] : [],
-    default_timeout_seconds: parseInt(document.getElementById('aoe-timeout').value, 10) || 60,
-  };
-  try {
-    const res = await fetch(`${API}/api/aoe/config`, {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
-    document.getElementById('aoe-dispatch-url').value = peerUrl;
-    document.getElementById('aoe-chain-url').value = peerUrl;
-    showAlert('aoe-alert', 'success', 'AOE 配置已保存');
-  } catch(e) {
-    showAlert('aoe-alert', 'error', `保存失败：${e.message}`, 0);
-  }
+  const cfg = _writeNatsUiConfig();
+  const targetSubject = `workflow.${cfg.targetCluster}.agent.b.in`;
+  document.getElementById('aoe-dispatch-subject').value = targetSubject;
+  document.getElementById('aoe-chain-cluster').value = cfg.targetCluster;
+  document.getElementById('aoe-chain-subject').value = targetSubject;
+  showAlert('aoe-alert', 'success', 'NATS subject 配置已保存到浏览器');
 }
 
 function _flattenRegistry(data) {
@@ -737,19 +796,20 @@ async function loadAoeRegistry() {
     if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
     const rows = _flattenRegistry(data);
     const tbody = document.getElementById('aoe-registry-tbody');
+    const cfg = _readNatsUiConfig();
     document.getElementById('aoe-refresh-hint').textContent =
-      `local=${(data.local||[]).length} peers=${Object.keys(data.peers||{}).length} merged=${(data.merged||[]).length} · ${fmtTime()}`;
+      `local=${(data.local||[]).length} peers=${Object.keys(data.peers||{}).length} subject=workflow.<edge>.<agent>.in · ${fmtTime()}`;
     if (!rows.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无 Agent；可先点击“从目标拉取 Agent”</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无 Agent；启动 Agent 后会按 cluster-id 生成 subject</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(({source, agent}) => `
       <tr>
         <td style="font-family:monospace;font-size:12px;color:#667">${escHtml(source)}</td>
+        <td style="font-family:monospace;font-size:12px">${escHtml(agent.cluster_id || cfg.targetCluster || 'edge-a')}</td>
         <td style="font-family:monospace;font-size:12px">${escHtml(agent.id || '—')}</td>
         <td>${escHtml(agent.capability || '—')}</td>
-        <td style="font-family:monospace;font-size:12px">${escHtml(agent.ip || '—')}</td>
-        <td>${agent.port || '—'}</td>
+        <td style="font-family:monospace;font-size:12px">${escHtml(_inputSubject(agent.cluster_id || cfg.targetCluster || 'edge-a', agent))}</td>
         <td>${statusBadge(agent.status || 'unknown')}</td>
       </tr>
     `).join('');
@@ -760,35 +820,11 @@ async function loadAoeRegistry() {
 }
 
 async function pullAoeRegistry() {
-  try {
-    const res = await fetch(`${API}/api/aoe/registry/pull`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ target_url: _aoeTargetUrl() }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
-    showAlert('aoe-alert', 'success', `已从 ${data.target_url} 拉取 ${data.received_agents} 个 Agent`);
-    await loadAoeRegistry();
-  } catch(e) {
-    showAlert('aoe-alert', 'error', `拉取失败：${e.message}`, 0);
-  }
+  showAlert('aoe-alert', 'info', '当前云边模式通过 NATS subject 路由，不再需要按 HTTP 地址拉取 registry', 4000);
 }
 
 async function pushAoeGossip() {
-  try {
-    const res = await fetch(`${API}/api/aoe/gossip/push`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ target_url: _aoeTargetUrl() }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
-    showAlert('aoe-alert', data.status === 'ok' ? 'success' : 'error',
-      `推送到 ${data.target_url}：${data.status}，本地 Agent ${data.local_agents} 个`);
-  } catch(e) {
-    showAlert('aoe-alert', 'error', `推送失败：${e.message}`, 0);
-  }
+  showAlert('aoe-alert', 'info', '当前云边模式通过 NATS subject 路由，不再需要按 HTTP 地址推送 gossip', 4000);
 }
 
 async function dispatchAoeTask() {
@@ -804,13 +840,21 @@ async function dispatchAoeTask() {
   resultEl.className = 'query-result show';
   resultEl.textContent = '执行中...';
   try {
-    const body = {
-      target_url: _aoeTargetUrl(),
-      task_id: document.getElementById('aoe-task-id').value.trim() || null,
+    const cfg = _writeNatsUiConfig();
+    const workflowId = document.getElementById('aoe-task-id').value.trim() || `ui_nats_${Date.now()}`;
+    const subject = document.getElementById('aoe-dispatch-subject').value.trim()
+      || `workflow.${cfg.targetCluster}.agent.b.in`;
+    const replySubject = document.getElementById('aoe-dispatch-reply-subject').value.trim()
+      || _replySubject(cfg.localCluster, workflowId);
+    const body = _natsPublishBody(subject, {
+      workflow_id: workflowId,
       task_description: desc,
-      timeout_seconds: parseInt(document.getElementById('aoe-timeout').value, 10) || 60,
-    };
-    const res = await fetch(`${API}/api/aoe/dispatch`, {
+      text: desc,
+      reply_subject: replySubject,
+      source_cluster_id: cfg.localCluster,
+      target_cluster_id: cfg.targetCluster,
+    }, replySubject);
+    const res = await fetch(`${API}/api/comm/nats/publish`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body),
@@ -818,13 +862,13 @@ async function dispatchAoeTask() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
     resultEl.textContent = JSON.stringify(data, null, 2);
-    showAlert('aoe-alert', 'success', `已转发到 ${data.target_url}`);
+    showAlert('aoe-alert', 'success', `JetStream 已写入 ${subject}`);
   } catch(e) {
     resultEl.textContent = `错误：${e.message}`;
-    showAlert('aoe-alert', 'error', `转发失败：${e.message}`, 0);
+    showAlert('aoe-alert', 'error', `JetStream 发布失败：${e.message}`, 0);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '转发执行';
+    btn.innerHTML = 'JetStream 发布';
   }
 }
 
@@ -841,29 +885,35 @@ async function testAoeAgentChain() {
   resultEl.className = 'query-result show';
   resultEl.textContent = '验证中...';
   try {
-    const body = {
-      target_url: _aoeChainTargetUrl(),
-      workflow_id: document.getElementById('aoe-chain-workflow-id').value.trim() || null,
+    const cfg = _writeNatsUiConfig();
+    const targetCluster = document.getElementById('aoe-chain-cluster').value.trim() || cfg.targetCluster;
+    const workflowId = document.getElementById('aoe-chain-workflow-id').value.trim() || `ui_nats_${Date.now()}`;
+    const subject = document.getElementById('aoe-chain-subject').value.trim()
+      || `workflow.${targetCluster}.agent.b.in`;
+    const replySubject = document.getElementById('aoe-chain-reply-subject').value.trim()
+      || _replySubject(cfg.localCluster, workflowId);
+    const body = _natsPublishBody(subject, {
+      workflow_id: workflowId,
       text,
-      in_subject: document.getElementById('aoe-chain-subject').value.trim() || 'workflow.demo.agent.b.in',
-      reply_subject: document.getElementById('aoe-chain-reply-subject').value.trim() || null,
-      timeout_seconds: parseInt(document.getElementById('aoe-timeout').value, 10) || 60,
-    };
-    const res = await fetch(`${API}/api/aoe/agent-chain-test`, {
+      reply_subject: replySubject,
+      source_cluster_id: cfg.localCluster,
+      target_cluster_id: targetCluster,
+    }, replySubject);
+    const res = await fetch(`${API}/api/comm/nats/publish`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
-    const reply = data.response && data.response.reply ? data.response.reply : null;
+    const reply = data.reply || null;
     resultEl.textContent = JSON.stringify(data, null, 2);
     showAlert(
       'aoe-alert',
-      data.chain_ok ? 'success' : 'error',
-      data.chain_ok
+      data.reply_status === 'received' ? 'success' : 'error',
+      data.reply_status === 'received'
         ? `链路成功：${reply && reply.result ? reply.result : '已收到回复'}`
-        : '已发送，但未收到 AgentC 经 AgentB 返回的回复'
+        : `JetStream 已写入 ${subject}，但未在 ${replySubject} 拉到回复`
     );
   } catch(e) {
     resultEl.textContent = `错误：${e.message}`;

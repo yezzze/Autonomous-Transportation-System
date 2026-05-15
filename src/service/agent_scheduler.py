@@ -115,11 +115,18 @@ class AgentScheduler:
         self.k8s_namespace = self.startup_config.k8s_namespace
         self.nats_config = NatsStartupConfig.from_env()
         self.nats_servers = self.nats_config.servers
+        self.agent_nats_servers = os.getenv(
+            "AGENT_NATS_SERVERS",
+            f"nats://{self.nats_config.service_name}:{self.nats_config.client_port}"
+            if self.deploy_backend == "kubernetes"
+            else self.nats_servers,
+        )
         self.ensure_nats = self.startup_config.ensure_nats
         logger.info(
-            "AgentScheduler (ASD) 初始化完成: backend=%s, nats_servers=%s, ensure_nats=%s",
+            "AgentScheduler (ASD) 初始化完成: backend=%s, nats_servers=%s, agent_nats_servers=%s, ensure_nats=%s",
             self.deploy_backend,
             self.nats_servers,
+            self.agent_nats_servers,
             self.ensure_nats,
         )
 
@@ -355,8 +362,8 @@ class AgentScheduler:
         env = container.setdefault("env", [])
         self._upsert_env_var(env, "AGENT_ID", record.agent_id)
         self._upsert_env_var(env, "AGENT_CAPABILITY", capability)
-        self._upsert_env_var(env, "NATS_SERVERS", self.nats_servers)
-        self._upsert_env_var(env, "NATS_SERVER_URL", self.nats_servers)
+        self._upsert_env_var(env, "NATS_SERVERS", self.agent_nats_servers)
+        self._upsert_env_var(env, "NATS_SERVER_URL", self.agent_nats_servers)
 
         container["resources"] = self._resource_requirements(
             record.cpu_cores,
@@ -430,8 +437,8 @@ class AgentScheduler:
                                 "env": [
                                     {"name": "AGENT_ID", "value": record.agent_id},
                                     {"name": "AGENT_CAPABILITY", "value": capability},
-                                    {"name": "NATS_SERVERS", "value": self.nats_servers},
-                                    {"name": "NATS_SERVER_URL", "value": self.nats_servers},
+                                    {"name": "NATS_SERVERS", "value": self.agent_nats_servers},
+                                    {"name": "NATS_SERVER_URL", "value": self.agent_nats_servers},
                                 ],
                                 "resources": self._resource_requirements(
                                     record.cpu_cores,

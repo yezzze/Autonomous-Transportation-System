@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-namespace="kube-system"
+namespace="default"
 
 read -r -p "请输入要删除的 Pod 名称: " pod_name
 

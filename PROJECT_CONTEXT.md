@@ -35,6 +35,8 @@
 
 ## 当前正在解决的问题
 
+**应用详情页 Agent 前端视图本地可访问性修复中**（2026-05-08）：`/ui/apps/{app_id}` 的 demo 视图原先回填 `http://192.168.49.2:30092`，在本机无法直连时会导致 iframe 打不开；现已改为在已知 demo 场景下优先改写到 `http://127.0.0.1:30092`，配合本地 `kubectl port-forward` 使用。
+
 **应用详情页智能体前端视图已实现**（2026-05-07）：`/ui/apps/{app_id}` 现在会按运行中的 Agent 生成纵向堆叠 iframe 视窗，并通过新增的 `/api/apps/{app_id}/agent-views` 接口回填 `ip:port` 前端地址。
 
 **Kubernetes 共享 GPU 联调验证完成**（2026-05-07）：已为 `nvidia-device-plugin-daemonset` 注入 `--config-file=/etc/nvidia-device-plugin/config.yaml` 并挂载 `nvidia-device-plugin-config`。节点 `nvidia.com/gpu` Capacity 已从 1 提升为 4，`perception2intermediatefeature-agent` 与 `cooperativefeaturefusiondetectionviz-agent` 已同时 Running，节点分配显示 `nvidia.com/gpu Requests/Limits = 2/2`。

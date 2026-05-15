@@ -33,7 +33,7 @@ spec:
             - name: NATS_SERVER_URL
               value: nats://nats:4222
             - name: NATS_SUBJECT
-              value: workflow.demo.perception2feature.result
+              value: workflow.demo.perception2feature.result.0515
           resources:
             requests:
               nvidia.com/gpu: "1"

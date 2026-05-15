@@ -22,6 +22,8 @@ NATS_ENV_KEYS = [
     "NATS_CONFIG_FILE_NAME",
     "NATS_EXTRA_ARGS",
     "NATS_SERVERS",
+    "AGENT_NATS_SERVERS",
+    "AGENT_DEPLOY_BACKEND",
 ]
 
 
@@ -98,6 +100,19 @@ def test_nats_startup_reads_env(monkeypatch):
     assert service["spec"]["ports"][0]["port"] == 4223
     assert service["spec"]["ports"][1]["port"] == 8223
     assert service["spec"]["type"] == "NodePort"
+
+
+def test_kubernetes_agent_nats_uses_in_cluster_service(monkeypatch):
+    _clear_nats_env(monkeypatch)
+    monkeypatch.setenv("AGENT_DEPLOY_BACKEND", "kubernetes")
+    monkeypatch.setenv("NATS_SERVERS", "nats://127.0.0.1:14222")
+
+    from src.service.agent_scheduler import AgentScheduler
+
+    scheduler = AgentScheduler()
+
+    assert scheduler.nats_servers == "nats://127.0.0.1:14222"
+    assert scheduler.agent_nats_servers == "nats://nats:4222"
 
 
 def test_nats_startup_can_disable_jetstream(monkeypatch):

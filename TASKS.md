@@ -39,6 +39,7 @@
 - [x] AgentScheduler 支持优先读取 `k8s/` 根目录 YAML，失败回退到字典构造（2026-05-06）
 - [x] 前端：应用列表自动刷新时对 `apps` 结果做签名比对，相同结果不重绘表格（2026-05-07）
 - [x] 前端：应用详情页智能体视图改为纵向堆叠 iframe，并新增 `/api/apps/{app_id}/agent-views`（2026-05-07）
+- [x] 前端：应用详情页 demo 智能体视图在本地自动改写为 `127.0.0.1:30092`，配合 `kubectl port-forward` 访问（2026-05-08）
 - [x] Kubernetes：`k8s/cooperativefeaturefusiondetectionviz-agent.yaml` 与 `k8s/perception2intermediatefeature-agent.yaml` 更新为共享 GPU 友好资源配置（2026-05-07）
 
 ---

@@ -54,19 +54,19 @@ _KNOWN_IMAGE_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "description": "NATS worker，处理消息并返回转换结果",
         "metadata": {"k8s": {"cpu_cores": 0.5, "memory_mb": 512, "gpu_count": 0}},
     },
-    "perception2intermediatefeature-agent:0.1.1": {
+    "perception2intermediatefeature-agent:0.1.2": {
         "name": "Perception2IntermediateFeature",
-        "version": "0.1.1",
-        "capability": "perception2intermediatefeature",
-        "description": "自动驾驶感知输入转换为中间特征",
-        "metadata": {"k8s": {"cpu_cores": 2.0, "memory_mb": 4096, "gpu_count": 1}},
+        "version": "0.1.2",
+        "capability": "perception",
+        "description": "专门用于将自车感知数据转换为中间通信特征的 Agent，支持端端协同感知流程",
+        "metadata": {},
     },
-    "cooperativefeaturefusiondetectionviz-agent:0.1.1": {
+    "cooperativefeaturefusiondetectionviz-agent:0.1.2": {
         "name": "CooperativeFeatureFusionDetectionViz",
-        "version": "0.1.1",
-        "capability": "cooperativefeaturefusiondetectionviz",
-        "description": "协同特征融合、目标检测与可视化",
-        "metadata": {"k8s": {"cpu_cores": 2.0, "memory_mb": 8192, "gpu_count": 1}},
+        "version": "0.1.2",
+        "capability": "cognition",
+        "description": "收集自车和协同车辆的中间特征，进行融合并可视化检测结果的 Agent，支持端端协同感知流程",
+        "metadata": {},
     },
 }
 
@@ -91,9 +91,6 @@ class AgentWarehouse:
         # image_id → AgentImage
         self._images: Dict[str, AgentImage] = {}
         self._load_from_json()
-        if not self._images:
-            self._load_from_apps_store()
-        self.refresh_from_kubernetes()
         logger.info(
             f"AgentWarehouse (AW) 初始化完成，已加载 {len(self._images)} 个镜像"
         )
@@ -171,7 +168,7 @@ class AgentWarehouse:
         """按 image_id 查询镜像"""
         return self._images.get(image_id)
 
-    def list_images(self, refresh: bool = True) -> List[AgentImage]:
+    def list_images(self, refresh: bool = False) -> List[AgentImage]:
         """列出所有镜像"""
         if refresh:
             self.refresh_from_kubernetes()
@@ -179,7 +176,6 @@ class AgentWarehouse:
 
     def find_by_capability(self, capability: str) -> List[AgentImage]:
         """按能力类型查找镜像"""
-        self.refresh_from_kubernetes()
         return [img for img in self._images.values() if img.capability == capability]
 
     def refresh_from_kubernetes(self) -> int:
@@ -311,9 +307,6 @@ class AgentWarehouse:
             for item in data.get("images", []):
                 img = AgentImage(**item)
                 self._images[img.image_id] = img
-            for image_id in list(self._images.keys()):
-                if image_id in _KNOWN_IMAGE_DEFAULTS:
-                    self._upsert_image(image_id)
             logger.debug(f"[AW] 从文件加载 {len(self._images)} 个镜像: {path}")
         except Exception as e:
             logger.warning(f"[AW] 加载镜像仓库文件失败: {e}")
@@ -354,6 +347,41 @@ class AgentWarehouse:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning(f"[AW] 持久化镜像仓库失败: {e}")
+
+    def _sync_known_local_images(self):
+        """将本地集群中真实存在的已知镜像同步到仓库。"""
+        local_images = self._local_image_ids()
+        changed = False
+        for image_id in _KNOWN_IMAGE_DEFAULTS:
+            if image_id in local_images or f"docker.io/library/{image_id}" in local_images:
+                changed = self._upsert_image(image_id, registered=True) or changed
+        if changed:
+            self._save_to_json()
+
+    def _prune_unavailable_images(self):
+        """Kubernetes 后端下按需移除本地集群不可用的镜像记录。"""
+        if os.getenv("AGENT_WAREHOUSE_PRUNE_UNAVAILABLE", "0").strip().lower() not in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            return
+        if os.getenv("AGENT_DEPLOY_BACKEND", "mock").strip().lower() != "kubernetes":
+            return
+        local_images = self._local_image_ids()
+        if not local_images:
+            return
+
+        changed = False
+        for image_id in list(self._images.keys()):
+            if image_id in local_images or f"docker.io/library/{image_id}" in local_images:
+                continue
+            del self._images[image_id]
+            changed = True
+            logger.info("[AW] 移除本地集群不可用镜像: image_id=%s", image_id)
+        if changed:
+            self._save_to_json()
 
     def _upsert_image(
         self,
@@ -464,6 +492,44 @@ class AgentWarehouse:
             },
         }
         return metadata
+
+    @staticmethod
+    def _local_image_ids() -> set[str]:
+        def _collect(command: List[str]) -> set[str]:
+            images: set[str] = set()
+            try:
+                import subprocess
+
+                result = subprocess.run(
+                    command,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                    timeout=8,
+                )
+            except Exception:
+                return images
+            if result.returncode != 0:
+                return images
+            for line in result.stdout.splitlines():
+                image_id = line.strip()
+                if not image_id or image_id == "<none>:<none>":
+                    continue
+                images.add(image_id)
+                if image_id.startswith("docker.io/library/"):
+                    images.add(image_id.removeprefix("docker.io/library/"))
+            return images
+
+        minikube_images = _collect(["minikube", "image", "ls"])
+        if (
+            os.getenv("AGENT_DEPLOY_BACKEND", "mock").strip().lower() == "kubernetes"
+            and minikube_images
+        ):
+            return minikube_images
+
+        docker_images = _collect(["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"])
+        return minikube_images | docker_images
 
 
 # ======================================================================

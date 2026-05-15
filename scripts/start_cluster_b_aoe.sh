@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+source "$ROOT_DIR/scripts/aoe_nats_port_forward.sh"
 
 HOST_IP="${CLUSTER_B_HOST_IP:-$(ip route get 1.1.1.1 | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')}"
 PORT="${PORT:-8001}"
@@ -25,11 +26,13 @@ export K8S_NAMESPACE="${K8S_NAMESPACE:-default}"
 export PORT
 export REMOTE_AOE_PORT="${REMOTE_AOE_PORT:-$PORT}"
 
-# Cluster B local NATS. Agent pods use this in-cluster Service name.
-export NATS_DEPLOYMENT_NAME="${NATS_DEPLOYMENT_NAME:-nats-b}"
-export NATS_SERVICE_NAME="${NATS_SERVICE_NAME:-nats-b}"
-export NATS_APP_LABEL="${NATS_APP_LABEL:-nats-b}"
-export NATS_SERVERS="${NATS_SERVERS:-nats://nats-b:4222}"
+# Cluster B local NATS. In separate Kubernetes clusters, both sides can keep the
+# in-cluster service name as "nats"; the host AOE uses a distinct local tunnel.
+export NATS_DEPLOYMENT_NAME="${NATS_DEPLOYMENT_NAME:-nats}"
+export NATS_SERVICE_NAME="${NATS_SERVICE_NAME:-nats}"
+export NATS_APP_LABEL="${NATS_APP_LABEL:-nats}"
+export NATS_SERVERS="${NATS_SERVERS:-nats://127.0.0.1:24222}"
+export AGENT_NATS_SERVERS="${AGENT_NATS_SERVERS:-nats://${NATS_SERVICE_NAME}:4222}"
 export NATS_IMAGE="${NATS_IMAGE:-docker.m.daocloud.io/library/nats:2.10}"
 
 # Keep Kubernetes/minikube traffic away from the local HTTP proxy.
@@ -47,7 +50,11 @@ echo "[cluster-b-aoe] root=$ROOT_DIR"
 echo "[cluster-b-aoe] local=$LOCAL_AOE_URL"
 echo "[cluster-b-aoe] peers=${PEER_AOE_URLS:-<none>}"
 echo "[cluster-b-aoe] remote_aoe_port=$REMOTE_AOE_PORT"
-echo "[cluster-b-aoe] nats=$NATS_SERVERS deployment=$NATS_DEPLOYMENT_NAME service=$NATS_SERVICE_NAME"
+echo "[cluster-b-aoe] aoe_nats=$NATS_SERVERS"
+echo "[cluster-b-aoe] agent_nats=$AGENT_NATS_SERVERS deployment=$NATS_DEPLOYMENT_NAME service=$NATS_SERVICE_NAME"
 echo "[cluster-b-aoe] no_proxy=$no_proxy"
 
-exec "${PYTHON:-python}" server.py
+trap cleanup_aoe_nats_port_forward EXIT INT TERM
+start_aoe_nats_port_forward
+
+"${PYTHON:-python}" server.py

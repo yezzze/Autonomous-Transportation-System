@@ -12,9 +12,9 @@
       "registered": true
     },
     {
-      "image_id": "agent-b-worker:v3",
+      "image_id": "agent-b-worker:v4",
       "name": "agent-b",
-      "version": "v3",
+      "version": "v4",
       "capability": "agent-b",
       "description": "NATS worker that forwards work to agent-c and replies to agent_gRPC",
       "exposed_external": false,
@@ -23,9 +23,9 @@
       "registered": true
     },
     {
-      "image_id": "agent-c-worker:v1",
+      "image_id": "agent-c-worker:v2",
       "name": "agent-c",
-      "version": "v1",
+      "version": "v2",
       "capability": "agent-c",
       "description": "NATS worker that processes requests from agent-b",
       "exposed_external": false,
@@ -34,9 +34,9 @@
       "registered": true
     },
     {
-      "image_id": "perception2intermediatefeature-agent:0.1.1",
+      "image_id": "perception2intermediatefeature-agent:0.1.2",
       "name": "perception2intermediatefeature-agent",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "capability": "perception",
       "description": "专门用于将自车感知数据转换为中间通信特征的 Agent，支持端端协同感知流程",
       "exposed_external": false,
@@ -45,9 +45,9 @@
       "registered": true
     },
     {
-      "image_id": "cooperativefeaturefusiondetectionviz-agent:0.1.1",
+      "image_id": "cooperativefeaturefusiondetectionviz-agent:0.1.2",
       "name": "cooperativefeaturefusiondetectionviz-agent",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "capability": "cognition",
       "description": "收集自车和协同车辆的中间特征，进行融合并可视化检测结果的 Agent，支持端端协同感知流程",
       "exposed_external": false,

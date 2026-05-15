@@ -29,9 +29,9 @@ spec:
             - name: NATS_SERVER_URL
               value: nats://nats:4222
             - name: NATS_SUBJECT
-              value: workflow.demo.perception2feature.result
+              value: workflow.demo.perception2feature.result.0515
             - name: NATS_DURABLE
-              value: workflow-demo-perception2feature-result
+              value: workflow-demo-perception2feature-result-0515
           resources:
             requests:
               nvidia.com/gpu: "1"
@@ -54,3 +54,23 @@ spec:
       port: 9002
       targetPort: 9002
   type: NodePort
+#   type: ClusterIP
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: cooperativefeaturefusiondetectionviz-agent
+#   annotations:
+#     nginx.ingress.kubernetes.io/rewrite-target: /
+# spec:
+#   rules:
+#     - host: cooperativefeaturefusion.local
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: cooperativefeaturefusiondetectionviz-agent
+#                 port:
+#                   number: 9002
