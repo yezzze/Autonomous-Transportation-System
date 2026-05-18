@@ -35,9 +35,5 @@ pydantic>=2.7.4
 nest-asyncio>=1.5.8
 kubernetes>=29.0.0
 
-# Vector search and embeddings (for large-scale agent retrieval)
-hnswlib>=0.8.0
-sentence-transformers>=2.2.2
-
 # MCP (Model Context Protocol) support
 mcp>=0.9.0

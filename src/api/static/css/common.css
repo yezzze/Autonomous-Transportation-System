@@ -437,6 +437,10 @@ header .badge {
   background: #fee2e2;
   color: #dc2626;
 }
+.s-scheduled{ 
+  background: #ede9fe; 
+  color: #7c3aed; 
+}
 table {
   width: 100%;
   border-collapse: collapse;
@@ -551,6 +555,42 @@ tbody td {
 }
 .collapse-body.open {
   display: block;
+}
+/* schedule history table (nested) */
+.sched-history { 
+  font-size: 12px; 
+  margin-top: 10px; 
+}
+.sched-history th { 
+  font-size: 11px; 
+  padding: 6px 8px; 
+}
+.sched-history td { 
+  padding: 6px 8px; 
+  font-size: 12px; 
+}
+.sched-badge { 
+  display: inline-block; 
+  padding: 1px 7px; 
+  border-radius: 10px;
+  font-size: 11px; 
+  font-weight: 600; 
+}
+.sb-running   { 
+  background: #dcfce7; 
+  color: #16a34a; 
+}
+.sb-completed { 
+  background: #dbeafe; 
+  color: #2563eb; 
+}
+.sb-failed    { 
+  background: #fee2e2; 
+  color: #dc2626; 
+}
+.sb-cancelled { 
+  background: #f1f5f9; 
+  color: #94a3b8; 
 }
 tr.warn-row td {
   background: #fff7ed !important;

@@ -140,8 +140,6 @@
 - [x] 已包含其他依赖（httpx, aiohttp, pydantic等）
 
 #### ✅ 其他已有依赖
-- [x] hnswlib>=0.8.0
-- [x] sentence-transformers>=2.2.2
 - [x] websockets>=12.0
 - [x] langgraph>=0.3.5
 - [x] fastapi>=0.110.0
@@ -149,7 +147,7 @@
 ### 6. 文档更新
 
 #### ✅ README.md 更新
-- [x] 核心亮点新增 MCP 和 HNSW
+- [x] 核心亮点新增 MCP
 - [x] 快速开始新增 MCP 安装步骤
 - [x] 配置说明新增 MCP 环境变量
 - [x] 文档索引新增 3 个 MCP 文档

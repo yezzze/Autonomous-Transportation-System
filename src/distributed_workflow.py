@@ -8,6 +8,7 @@ import asyncio
 from src.graph.distributed_builder import build_distributed_graph
 from src.graph.magentic_builder import build_magentic_graph
 from src.graph.adaptive_orchestrator import evaluate_task_complexity
+from src.service.viz_bus import get_viz_bus
 
 # 配置日志
 logging.basicConfig(
@@ -123,11 +124,17 @@ async def run_distributed_workflow(
         "complexity_level": complexity if adaptive_mode else "unknown",
         "orchestration_mode": orchestration_mode,
 
+        # 跨主体编排状态（§2.2）
+        "cross_host_sessions": {},
+        "session_timeout_seconds": timeout_seconds,
+        "failed_cross_host_tasks": [],
+        "failed_remote_aoe_urls": {},
+
         # 应用层 Skills 指引
         "skills_content": skills_content,
         # 固定拓扑（Pipeline 模式，非空时 Planner 直接使用，跳过 LLM）
         "pipeline_topology": pipeline_topology,
-        
+
         # Magentic-One 相关字段（如果使用）
         "magentic_round": 0,
         "magentic_stall_count": 0,
@@ -138,28 +145,37 @@ async def run_distributed_workflow(
         "reset_count": 0
     }
     
-    # 执行工作流
+    # ========== 注册到可视化总线(支持联动可视化页面) ==========
+    bus = get_viz_bus()
+    title = (user_input[:60] + "...") if len(user_input) > 60 else user_input
+    workflow_id = bus.register(title=title)
+    # 把 orchestration_mode/complexity 提前写入,首屏就能展示
+    initial_state["orchestration_mode"] = orchestration_mode
+    bus.update_state(workflow_id, initial_state, node_name="__init__")
+
+    # 执行工作流(改为 astream,逐节点推送 state)
     try:
-        # Magentic-One 和 Sequential 都使用异步调用（因为 executor 节点现在是异步的）
-        if orchestration_mode == "magentic":
-            result = await graph.ainvoke(
-                initial_state,
-                config={"recursion_limit": 50}  # 增加递归限制
-            )
-        else:
-            # Sequential 也使用异步调用（executor 节点已改为异步）
-            result = await graph.ainvoke(initial_state)
-            
-        logger.info(f"✅ 工作流执行完成，使用模式: {orchestration_mode.upper()}")
-        logger.debug(f"最终状态：{result}")
-        
-        # 添加编排模式信息到结果
+        config = {"recursion_limit": 50} if orchestration_mode == "magentic" else {}
+        last_state = dict(initial_state)
+        async for chunk in graph.astream(initial_state, config=config):
+            # chunk 形如 { "node_name": <updated_state_or_partial> }
+            for node_name, node_state in chunk.items():
+                if isinstance(node_state, dict):
+                    # LangGraph 给的可能是节点返回的 partial,也可能是完整 state
+                    last_state.update(node_state)
+                bus.update_state(workflow_id, last_state, node_name=node_name)
+
+        result = last_state
         result["orchestration_mode"] = orchestration_mode
         result["complexity_level"] = complexity if adaptive_mode else "unknown"
-        
+        bus.finish(workflow_id, status="done", final_state=result)
+
+        logger.info(f"✅ 工作流执行完成 [wf_id={workflow_id}], 使用模式: {orchestration_mode.upper()}")
+        logger.debug(f"最终状态：{result}")
         return result
     except Exception as e:
-        logger.error(f"工作流执行出错：{e}", exc_info=True)
+        logger.error(f"工作流执行出错 [wf_id={workflow_id}]：{e}", exc_info=True)
+        bus.finish(workflow_id, status="failed", error=str(e))
         raise
 
 
