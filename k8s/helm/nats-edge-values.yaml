@@ -1,4 +1,7 @@
 config:
+  merge:
+    max_payload: 8388608
+
   leafnodes:
     enabled: true
     merge:

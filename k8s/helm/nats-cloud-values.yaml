@@ -1,4 +1,7 @@
 config:
+  merge:
+    max_payload: 8388608
+
   cluster:
     enabled: true
     replicas: 3

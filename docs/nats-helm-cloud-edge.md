@@ -123,9 +123,13 @@ kubectl config current-context
 部署边缘 NATS leafnode：
 
 ```bash
-NATS_CLOUD_HOST=<cloud-host> \
-EDGE_CLUSTER_ID=edge-b \
 bash scripts/setup_edge_nats_helm.sh
+```
+
+默认值见 [scripts/edge-nats.defaults.env](../scripts/edge-nats.defaults.env)（当前默认 `NATS_CLOUD_HOST=10.112.136.44`、`EDGE_CLUSTER_ID=edge-a`）。需要覆盖时：
+
+```bash
+NATS_CLOUD_HOST=<cloud-host> EDGE_CLUSTER_ID=edge-b bash scripts/setup_edge_nats_helm.sh
 ```
 
 变量说明：

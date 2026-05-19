@@ -253,6 +253,12 @@ kubectl get pods -o wide
 docs/nats-helm-cloud-edge.md
 ```
 
+新的 Agent 接入 NATS 的环境变量、subject 命名和回复约定见：
+
+```text
+docs/agent-nats-config.md
+```
+
 跨集群不把多台机器 join 成同一个 Kubernetes 集群。每个集群独立调度自己的 Pod，跨集群只打通两条通道：
 - 数据/业务消息通道：各集群本地 NATS，业务代码统一通过 `NATS_SERVERS` 访问本集群消息总线
 - 编排/控制通道：`K8S-Autonomous` AOE HTTP peer，负责 registry sync 和远端任务分发
