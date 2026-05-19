@@ -35,9 +35,9 @@ spec:
             - name: NATS_STREAM_SUBJECTS
               value: "workflow.>"
             - name: CLUSTER_ID
-              value: "edge-a"
+              value: "__EDGE_CLUSTER_ID__"
             - name: IN_SUBJECT
-              value: "workflow.edge-a.agent.c.in"
+              value: "workflow.__EDGE_CLUSTER_ID__.agent.c.in"
           resources:
             requests:
               cpu: "200m"

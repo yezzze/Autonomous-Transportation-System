@@ -306,8 +306,10 @@ kubectl get endpointslice -l kubernetes.io/service-name=nats -o wide
 
 ```bash
 bash scripts/setup_edge_nats_helm.sh
-# 默认 cloud_host=10.112.136.44、edge_cluster_id=edge-a（见 scripts/edge-nats.defaults.env）
-# 覆盖：NATS_CLOUD_HOST=... EDGE_CLUSTER_ID=edge-b bash scripts/setup_edge_nats_helm.sh
+# 见 scripts/local/cluster.env.example；部署 NATS 后渲染 subject：
+#   bash scripts/render_agent_subject_env.sh
+# 应用带占位符的 agent/nats YAML：
+#   bash scripts/apply_k8s_with_local_cluster.sh
 ```
 
 脚本会清理旧 selector。

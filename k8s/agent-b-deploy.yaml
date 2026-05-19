@@ -35,15 +35,15 @@ spec:
             - name: NATS_STREAM_SUBJECTS
               value: "workflow.>"
             - name: CLUSTER_ID
-              value: "edge-a"
+              value: "__EDGE_CLUSTER_ID__"
             - name: IN_SUBJECT
-              value: "workflow.edge-a.agent.b.in"
+              value: "workflow.__EDGE_CLUSTER_ID__.agent.b.in"
             - name: C_IN_SUBJECT
-              value: "workflow.edge-a.agent.c.in"
+              value: "workflow.__EDGE_CLUSTER_ID__.agent.c.in"
             - name: OUT_SUBJECT
-              value: "workflow.edge-a.agent.grpc.reply.default"
+              value: "workflow.__EDGE_CLUSTER_ID__.agent.grpc.reply.default"
             - name: B_REPLY_PREFIX
-              value: "workflow.edge-a.agent.b.c.reply"
+              value: "workflow.__EDGE_CLUSTER_ID__.agent.b.c.reply"
           resources:
             requests:
               cpu: "200m"

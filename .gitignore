@@ -11,3 +11,6 @@ venv/
 env/
 
 .DS_Store
+
+# 集群 A/B 本地配置（每台机器一份，不提交）
+scripts/local/cluster.env

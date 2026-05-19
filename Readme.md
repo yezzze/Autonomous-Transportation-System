@@ -345,11 +345,19 @@ __CLUSTER_B_HOST__
 
 ```bash
 # 集群 A 机器上
-sed 's/__CLUSTER_A_HOST__/10.112.136.44/g; s/__CLUSTER_B_HOST__/10.112.221.121/g' \
+# 推荐：从 scripts/local/cluster.env 渲染并 apply
+bash scripts/apply_k8s_with_local_cluster.sh
+
+# 或手动 sed（需自行替换 IP）：
+sed 's/__CLUSTER_A_HOST__/<cluster-a-ip>/g; s/__CLUSTER_B_HOST__/<cluster-b-ip>/g' \
   k8s/multicluster/nats-cluster-a.yaml | kubectl apply -f -
 
 # 集群 B 机器上
-sed 's/__CLUSTER_A_HOST__/10.112.136.44/g; s/__CLUSTER_B_HOST__/10.112.221.121/g' \
+# 推荐：从 scripts/local/cluster.env 渲染并 apply
+bash scripts/apply_k8s_with_local_cluster.sh
+
+# 或手动 sed（需自行替换 IP）：
+sed 's/__CLUSTER_A_HOST__/<cluster-a-ip>/g; s/__CLUSTER_B_HOST__/<cluster-b-ip>/g' \
   k8s/multicluster/nats-cluster-b.yaml | kubectl apply -f -
 ```
 

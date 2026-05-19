@@ -4,6 +4,9 @@ set -euo pipefail
 HELM="${HELM:-helm}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=lib/load_cluster_env.sh
+source "${SCRIPT_DIR}/lib/load_cluster_env.sh"
+
 PROFILE="${MINIKUBE_PROFILE:-cloud}"
 NAMESPACE="${NATS_CLOUD_NAMESPACE:-nats-cloud}"
 RELEASE="${NATS_CLOUD_RELEASE:-nats-hub}"
@@ -32,10 +35,16 @@ kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply
 "${HELM}" repo add nats https://nats-io.github.io/k8s/helm/charts/ >/dev/null 2>&1 || true
 "${HELM}" repo update
 
+tmp_values="$(mktemp)"
+trap 'rm -f "${tmp_values}"' EXIT
+sed -e "s/change-me-leaf-password/${NATS_CLOUD_PASSWORD}/g" "${VALUES_FILE}" > "${tmp_values}"
+
+echo "[cloud-nats] cluster_a_host=${CLUSTER_A_HOST} leaf_password=(from cluster.env)"
+
 "${HELM}" upgrade --install "${RELEASE}" nats/nats \
   --namespace "${NAMESPACE}" \
   --version "${CHART_VERSION}" \
-  -f "${VALUES_FILE}"
+  -f "${tmp_values}"
 
 kubectl rollout status -n "${NAMESPACE}" statefulset/"${RELEASE}" --timeout=300s
 kubectl get pods,svc,pvc -n "${NAMESPACE}"

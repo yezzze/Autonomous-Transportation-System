@@ -23,9 +23,9 @@ data:
     gateway {
       name: "gw-b"
       listen: "0.0.0.0:7222"
-      advertise: "10.112.221.121:7222"
+      advertise: "__CLUSTER_B_HOST__:7222"
       gateways: [
-        { name: "gw-a", urls: ["nats://10.112.136.44:7222"] }
+        { name: "gw-a", urls: ["nats://__CLUSTER_A_HOST__:7222"] }
       ]
     }
 ---

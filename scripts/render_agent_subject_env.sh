@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EDGE_CLUSTER_ID="${EDGE_CLUSTER_ID:?Set EDGE_CLUSTER_ID, for example edge-a or edge-b}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/load_cluster_env.sh
+source "${SCRIPT_DIR}/lib/load_cluster_env.sh"
 
 cat <<EOF
 # Common NATS runtime env

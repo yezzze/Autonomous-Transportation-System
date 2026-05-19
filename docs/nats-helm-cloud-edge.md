@@ -126,17 +126,22 @@ kubectl config current-context
 bash scripts/setup_edge_nats_helm.sh
 ```
 
-默认值见 [scripts/edge-nats.defaults.env](../scripts/edge-nats.defaults.env)（当前默认 `NATS_CLOUD_HOST=10.112.136.44`、`EDGE_CLUSTER_ID=edge-a`）。需要覆盖时：
+每台机器复制本地配置（不提交 git）：
 
 ```bash
-NATS_CLOUD_HOST=<cloud-host> EDGE_CLUSTER_ID=edge-b bash scripts/setup_edge_nats_helm.sh
+cp scripts/local/cluster.env.example scripts/local/cluster.env
+# 编辑 LOCAL_CLUSTER=a|b、CLUSTER_A_HOST、CLUSTER_B_HOST、NATS_CLOUD_PASSWORD
+bash scripts/setup_edge_nats_helm.sh
 ```
+
+临时覆盖配置文件路径：`CLUSTER_ENV_FILE=/path/to/cluster.env bash scripts/setup_edge_nats_helm.sh`
 
 变量说明：
 
 - `NATS_CLOUD_HOST`：云端 Hub 对当前边缘机器可达的 IP 或域名，不包含端口。
-- `EDGE_CLUSTER_ID`：当前边缘集群的业务 ID，例如 `edge-a`、`edge-b`。
-- `NATS_CLOUD_PASSWORD`：可选，默认 `change-me-leaf-password`，必须和云端 values 中 leafnode 密码一致。
+- `LOCAL_CLUSTER`：本机是 `a` 还是 `b`（自动选用 `CLUSTER_*_EDGE_ID`）。
+- `CLUSTER_A_HOST` / `CLUSTER_B_HOST`：两台宿主机 IP。
+- `NATS_CLOUD_PASSWORD`：须与云端 leafnode 密码一致。
 
 脚本会：
 
@@ -231,7 +236,7 @@ CLUSTER_ID=<edge-cluster-id>
 生成某个集群的 Agent subject env：
 
 ```bash
-EDGE_CLUSTER_ID=edge-b bash scripts/render_agent_subject_env.sh
+bash scripts/render_agent_subject_env.sh
 ```
 
 示例输出：
