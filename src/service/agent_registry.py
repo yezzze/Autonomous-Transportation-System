@@ -7,10 +7,6 @@ L3 Agent 注册表模拟器
 支持两种模式：
 1. 配置文件模式：从 config/agent_registry.json 读取（生产推荐）
 2. Mock 模式：使用代码中定义的默认配置（开发测试）
-
-集成 HNSW 向量检索：
-- 在大规模智能体场景下（>1000），使用 HNSW 快速初筛
-- 小规模场景使用传统的精确匹配
 """
 import asyncio
 import logging
@@ -21,12 +17,9 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
 
-from src.graph.distributed_types import AgentInfo
+from src.graph.distributed_types import AgentInfo, SubWorkflowInfo
 
 logger = logging.getLogger(__name__)
-
-# HNSW 索引阈值：超过此数量的智能体将启用 HNSW 检索
-HNSW_THRESHOLD = 100
 
 
 class AgentRegistryClient:
@@ -36,7 +29,6 @@ class AgentRegistryClient:
         self, 
         registry_url: str = "http://localhost:8001/registry",
         config_file: str = None,
-        use_hnsw: bool = None  # None = 自动判断
     ):
         """
         初始化注册表客户端
@@ -44,7 +36,6 @@ class AgentRegistryClient:
         Args:
             registry_url: 注册表服务的 URL（实际系统中使用）
             config_file: 配置文件路径（支持 JSON 格式）
-            use_hnsw: 是否使用 HNSW 检索（None=自动判断，True=强制启用，False=禁用）
         """
         self.registry_url = registry_url
         self.config_file = config_file or os.getenv(
@@ -52,6 +43,11 @@ class AgentRegistryClient:
             "config/agent_registry.json"
         )
         self._mock_agents = self._load_agents()
+
+        # ── 子工作流注册表 ────────────────────────────────────────────
+        self._sub_workflows: List[SubWorkflowInfo] = self._load_sub_workflows()
+        # peer_url → List[SubWorkflowInfo]（来自对等节点的子工作流列表）
+        self._peer_sub_workflows: Dict[str, List[SubWorkflowInfo]] = {}
 
         # ── Gossip 跨节点同步状态 ──────────────────────────────────────
         # peer_url  →  List[AgentInfo]（来自对等节点的 agent 列表）
@@ -61,31 +57,10 @@ class AgentRegistryClient:
         # gossip 后台 asyncio.Task 引用，防止被 GC
         self._gossip_task: Optional[asyncio.Task] = None
 
-        # 决定是否使用 HNSW
-        if use_hnsw is None:
-            # 自动判断：智能体数量超过阈值时启用
-            self.use_hnsw = len(self._mock_agents) >= HNSW_THRESHOLD
-        else:
-            self.use_hnsw = use_hnsw
-        
-        # 初始化 HNSW 索引
-        self.hnsw_index = None
-        if self.use_hnsw:
-            try:
-                from src.service.agent_hnsw_index import get_hnsw_index
-                self.hnsw_index = get_hnsw_index()
-                # 构建索引
-                self.hnsw_index.add_agents(self._mock_agents, rebuild=True)
-                logger.info(
-                    f"✅ HNSW 索引已启用 ({len(self._mock_agents)} 个智能体)"
-                )
-            except Exception as e:
-                logger.warning(f"⚠️  HNSW 索引初始化失败，回退到传统检索: {e}")
-                self.use_hnsw = False
-        else:
-            logger.info(
-                f"ℹ️  使用传统精确匹配 ({len(self._mock_agents)} 个智能体)"
-            )
+        logger.info(
+            f"ℹ️  使用精确匹配 ({len(self._mock_agents)} 个智能体, "
+            f"{len(self._sub_workflows)} 个子工作流)"
+        )
     
     def _load_agents(self) -> List[AgentInfo]:
         """
@@ -178,60 +153,89 @@ class AgentRegistryClient:
                 "description": "专门用于网页交互的 Agent，支持浏览器自动化操作"
             },
         ]
-    
+
+    def _load_sub_workflows(self) -> List[SubWorkflowInfo]:
+        """
+        从 config/sub_workflows.json 加载子工作流定义。
+
+        自动补充 owner_ip / owner_port（从 LOCAL_AOE_URL 推断）。
+        """
+        swf_config = os.getenv("SUB_WORKFLOWS_CONFIG", "config/sub_workflows.json")
+        config_path = Path(swf_config)
+        if not config_path.exists():
+            logger.info(f"⚠️  子工作流配置不存在: {config_path}，跳过加载")
+            return []
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # 推断本节点 IP/Port
+            import urllib.parse
+            local_url = os.getenv("LOCAL_AOE_URL", "http://localhost:8000")
+            parsed = urllib.parse.urlparse(local_url)
+            owner_ip = parsed.hostname or "127.0.0.1"
+            owner_port = parsed.port or 8000
+
+            sub_workflows: List[SubWorkflowInfo] = []
+            for swf in data.get("sub_workflows", []):
+                if not swf.get("enabled", True):
+                    continue
+                sub_workflows.append({
+                    "id": swf["id"],
+                    "capability": swf.get("capability", ""),
+                    "description": swf.get("description", ""),
+                    "owner_ip": owner_ip,
+                    "owner_port": owner_port,
+                    "pipeline": swf.get("pipeline", []),
+                    "status": "online",
+                })
+
+            logger.info(f"✅ 从配置文件加载了 {len(sub_workflows)} 个子工作流: {config_path}")
+            return sub_workflows
+
+        except Exception as e:
+            logger.warning(f"⚠️  子工作流配置加载失败: {e}")
+            return []
+
+    # ──────────────────────────────────────────────────────────────────
+    # 子工作流查询
+    # ──────────────────────────────────────────────────────────────────
+
+    def get_all_sub_workflows(self) -> List[SubWorkflowInfo]:
+        """获取所有子工作流（本地 + peer），以 id 去重（本地优先）"""
+        merged: Dict[str, SubWorkflowInfo] = {}
+        for peer_list in self._peer_sub_workflows.values():
+            for swf in peer_list:
+                merged[swf["id"]] = swf
+        for swf in self._sub_workflows:
+            merged[swf["id"]] = swf
+        return list(merged.values())
+
+    def get_sub_workflow_by_id(self, swf_id: str) -> Optional[SubWorkflowInfo]:
+        """按 ID 查找子工作流（仅本地）"""
+        for swf in self._sub_workflows:
+            if swf["id"] == swf_id:
+                return swf
+        return None
+
+    def get_local_sub_workflows(self) -> List[SubWorkflowInfo]:
+        """仅返回本地在线子工作流（用于 Gossip 推送）"""
+        return [swf for swf in self._sub_workflows if swf.get("status") == "online"]
+
     def query_agents(
         self, 
         capability: str = None,
-        task_description: str = None,
-        top_k: int = 10
     ) -> List[AgentInfo]:
         """
-        查询可用的 Agent
-        
-        支持两种模式：
-        1. 传统模式：基于 capability 精确匹配（小规模）
-        2. HNSW 模式：基于任务描述向量检索（大规模）
+        查询可用的 Agent（精确匹配）
         
         Args:
             capability: 过滤条件，只返回具有特定能力的 Agent
-            task_description: 任务描述（用于 HNSW 向量检索）
-            top_k: 返回前 K 个结果（HNSW 模式）
         
         Returns:
             符合条件的 Agent 列表
         """
-        # 大规模场景：使用 HNSW 向量检索
-        if self.use_hnsw and self.hnsw_index and task_description:
-            logger.info(
-                f"🔍 使用 HNSW 检索 (query='{task_description[:50]}...', "
-                f"capability={capability}, top_k={top_k})"
-            )
-            
-            # HNSW 初筛
-            candidates = self.hnsw_index.search(
-                query=task_description,
-                top_k=top_k * 2,  # 多返回一些候选，供后续 LLM 精筛
-                filter_capability=capability,
-                filter_enabled=True
-            )
-            
-            # 转换格式并过滤在线状态
-            agents = []
-            for agent, similarity in candidates:
-                if agent.get("status") == "online":
-                    # 附加相似度得分
-                    agent_copy = agent.copy()
-                    agent_copy["_similarity_score"] = similarity
-                    agents.append(agent_copy)
-            
-            logger.info(
-                f"✅ HNSW 初筛返回 {len(agents)} 个候选智能体 "
-                f"(相似度: {agents[0]['_similarity_score']:.3f} - {agents[-1]['_similarity_score']:.3f})"
-                if agents else "✅ HNSW 未找到匹配的智能体"
-            )
-            return agents[:top_k]
-        
-        # 小规模场景：传统精确匹配（含 peer agents）
         logger.info(f"🔍 使用精确匹配 (capability={capability})")
 
         agents = self._merge_all_agents()
@@ -289,22 +293,35 @@ class AgentRegistryClient:
             "merged": self._merge_all_agents(),
         }
 
-    def sync_from_peer(self, peer_url: str, agents: List[AgentInfo]) -> int:
+    def sync_from_peer(
+        self,
+        peer_url: str,
+        agents: List[AgentInfo],
+        sub_workflows: Optional[List[SubWorkflowInfo]] = None,
+    ) -> int:
         """
-        接收来自 peer 节点的 agent 列表，更新内部 peer 缓存。
+        接收来自 peer 节点的 agent 列表和子工作流列表，更新内部 peer 缓存。
 
         Args:
-            peer_url: 来源节点 URL
-            agents:   该节点的 online agent 列表
+            peer_url:       来源节点 URL
+            agents:         该节点的 online agent 列表
+            sub_workflows:  该节点的 online 子工作流列表（可选，向后兼容）
 
         Returns:
             合并后 peer agents 数量
         """
         self._peer_agents[peer_url] = agents
         self._peer_last_seen[peer_url] = time.time()
-        logger.info(
-            f"[ARDC Gossip] 收到来自 {peer_url} 的同步，{len(agents)} 个 agents"
-        )
+        if sub_workflows is not None:
+            self._peer_sub_workflows[peer_url] = sub_workflows
+            logger.info(
+                f"[ARDC Gossip] 收到来自 {peer_url} 的同步，"
+                f"{len(agents)} 个 agents, {len(sub_workflows)} 个子工作流"
+            )
+        else:
+            logger.info(
+                f"[ARDC Gossip] 收到来自 {peer_url} 的同步，{len(agents)} 个 agents"
+            )
         return sum(len(v) for v in self._peer_agents.values())
 
     def prune_stale_peers(self, ttl_seconds: int = 120):
@@ -322,6 +339,7 @@ class AgentRegistryClient:
         for url in stale:
             del self._peer_agents[url]
             del self._peer_last_seen[url]
+            self._peer_sub_workflows.pop(url, None)
             logger.info(f"[ARDC Gossip] 清理过期 peer: {url}")
 
     async def push_to_peer(self, peer_url: str, local_url: str) -> bool:
@@ -344,6 +362,7 @@ class AgentRegistryClient:
                     json={
                         "source_url": local_url,
                         "agents": self.get_local_agents(),
+                        "sub_workflows": self.get_local_sub_workflows(),
                     },
                 )
                 resp.raise_for_status()
@@ -486,12 +505,8 @@ class AgentRegistryClient:
             "online_agents": online,
             "available_capabilities": capabilities,
             "last_update": datetime.now().isoformat(),
-            "retrieval_mode": "HNSW" if self.use_hnsw else "Exact Match"
+            "retrieval_mode": "Exact Match"
         }
-        
-        # 添加 HNSW 索引统计
-        if self.use_hnsw and self.hnsw_index:
-            summary["hnsw_stats"] = self.hnsw_index.get_stats()
         
         return summary
 

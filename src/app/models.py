@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Literal, Optional
 # 应用状态
 # ======================================================================
 
-AppStatus = Literal["idle", "starting", "running", "stopping", "stopped", "error"]
+AppStatus = Literal["idle", "starting", "running", "stopping", "stopped", "error", "scheduled"]
 
 
 # ======================================================================
@@ -91,6 +91,32 @@ class GuidanceFile:
     # skills.md 内容：应用专属技能指引，注入给编排引擎 planner
     skills_content: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+
+    def to_dict(self) -> Dict:
+        return asdict(self)
+
+
+# ======================================================================
+# 周期调度执行记录
+# ======================================================================
+
+@dataclass
+class ScheduleExecutionRecord:
+    """
+    单次周期执行记录
+
+    WorkflowScheduler 每次触发工作流时创建一条记录，
+    完成后更新 finished_at / status / result_summary。
+    持久化到 data/schedule_history.json。
+    """
+    run_id: str                         # 唯一标识，如 "run_abc123"
+    app_id: str                         # 所属应用
+    workflow_handle: str                # 工作流句柄
+    started_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    finished_at: Optional[str] = None   # 完成时间（运行中为 None）
+    status: str = "running"             # "running" | "completed" | "failed" | "cancelled"
+    result_summary: str = ""            # 结果摘要（截断到 500 字符）
+    error: Optional[str] = None         # 错误信息
 
     def to_dict(self) -> Dict:
         return asdict(self)

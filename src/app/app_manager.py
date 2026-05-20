@@ -61,7 +61,7 @@ class AppManager:
                     guidance_file = GuidanceFile(**gf_dict)
                 app = AppInfo(**app_dict, guidance_file=guidance_file)
                 # 重启后将运行中/启动中状态重置为 stopped
-                if app.status in ("running", "starting", "stopping"):
+                if app.status in ("running", "starting", "stopping", "scheduled"):
                     app.status = "stopped"
                     app.workflow_handle = None
                 self._apps[app_id] = app
@@ -337,6 +337,116 @@ class AppManager:
             return False
 
     # ------------------------------------------------------------------
+    # 周期调度
+    # ------------------------------------------------------------------
+
+    async def start_schedule(self, app_id: str) -> bool:
+        """
+        启动应用的周期调度
+
+        从 GuidanceFile.constraints 读取调度配置：
+        - schedule_interval_seconds (必填)
+        - schedule_max_parallel (默认 5)
+        - schedule_max_history (默认 100)
+
+        Args:
+            app_id: 应用 ID
+
+        Returns:
+            True 表示成功启动
+        """
+        app = self._apps.get(app_id)
+        if not app:
+            logger.error(f"[APPM] start_schedule: app_id={app_id} 未找到")
+            return False
+
+        if app.status == "scheduled":
+            logger.warning(f"[APPM] start_schedule: app_id={app_id} 已在调度中")
+            return False
+
+        if not app.guidance_file:
+            logger.error(f"[APPM] start_schedule: app_id={app_id} 无指导文件")
+            return False
+
+        constraints = app.guidance_file.constraints
+        interval = constraints.get("schedule_interval_seconds")
+        if not interval or int(interval) < 1:
+            logger.error(
+                f"[APPM] start_schedule: app_id={app_id} "
+                f"未配置 schedule_interval_seconds 或值无效"
+            )
+            return False
+
+        max_parallel = int(constraints.get("schedule_max_parallel", 5))
+        max_history = int(constraints.get("schedule_max_history", 100))
+
+        scheduler = self._get_scheduler()
+        success = await scheduler.start_schedule(
+            app_id, int(interval), max_parallel, max_history
+        )
+        if success:
+            app.update_status("scheduled")
+            self._save_to_disk()
+            logger.info(
+                f"[APPM] 周期调度已启动: app_id={app_id}, "
+                f"interval={interval}s"
+            )
+        return success
+
+    async def stop_schedule(self, app_id: str) -> bool:
+        """
+        停止应用的周期调度
+
+        活跃的工作流实例继续运行直到完成。
+
+        Args:
+            app_id: 应用 ID
+
+        Returns:
+            True 表示成功停止
+        """
+        app = self._apps.get(app_id)
+        if not app:
+            logger.warning(f"[APPM] stop_schedule: app_id={app_id} 未找到")
+            return False
+
+        if app.status != "scheduled":
+            logger.warning(
+                f"[APPM] stop_schedule: app_id={app_id} "
+                f"当前状态 {app.status}，非 scheduled"
+            )
+            return False
+
+        scheduler = self._get_scheduler()
+        success = await scheduler.stop_schedule(app_id)
+        if success:
+            app.update_status("stopped")
+            self._save_to_disk()
+            logger.info(f"[APPM] 周期调度已停止: app_id={app_id}")
+        return success
+
+    async def restore_schedules(self):
+        """
+        恢复之前处于 scheduled 状态的应用的周期调度。
+
+        在 FastAPI startup 事件中调用。仅恢复配置了
+        schedule_auto_restart: true 的应用。
+        """
+        restored = 0
+        for app in self._apps.values():
+            if app.status != "stopped" or not app.guidance_file:
+                continue
+            constraints = app.guidance_file.constraints
+            auto_restart = constraints.get("schedule_auto_restart", False)
+            interval = constraints.get("schedule_interval_seconds")
+            if auto_restart and interval and int(interval) >= 1:
+                success = await self.start_schedule(app.app_id)
+                if success:
+                    restored += 1
+        if restored:
+            logger.info(f"[APPM] 自动恢复了 {restored} 个周期调度")
+
+    # ------------------------------------------------------------------
     # 查询接口
     # ------------------------------------------------------------------
 
@@ -421,6 +531,10 @@ class AppManager:
     def _get_engine(self):
         from src.app.app_logic_engine import get_app_logic_engine
         return get_app_logic_engine()
+
+    def _get_scheduler(self):
+        from src.service.workflow_scheduler import get_workflow_scheduler
+        return get_workflow_scheduler()
 
 
 # ======================================================================

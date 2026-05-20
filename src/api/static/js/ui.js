@@ -74,6 +74,12 @@ function _saveQueryState() {
       _openPanels.delete(appId);
     }
   });
+  // 保存调度历史面板状态
+  document.querySelectorAll('[id^="shp-"]').forEach(el => {
+    const appId = el.id.slice(4);
+    if (el.classList.contains('open')) _openHistoryPanels.add(appId);
+    else _openHistoryPanels.delete(appId);
+  });
   // 保存编辑面板状态
   document.querySelectorAll('[id^="ep-"]').forEach(el => {
     const appId = el.id.slice(3);
@@ -109,6 +115,11 @@ function _restoreQueryState() {
         if (_panelResult[appId].show) res.classList.add('show');
       }
     }
+  });
+  // 恢复调度历史面板
+  _openHistoryPanels.forEach(appId => {
+    const panel = document.getElementById('shp-' + appId);
+    if (panel) panel.classList.add('open');
   });
   // 恢复编辑面板
   _openEditPanels.forEach(appId => {
@@ -212,20 +223,35 @@ function renderApps(apps) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="5">暂无应用，请先安装</td></tr>';
     return;
   }
-  tbody.innerHTML = apps.map(a => `
+  const _hasScheduleConfig = (a) => a.guidance_file && a.guidance_file.constraints && a.guidance_file.constraints.schedule_interval_seconds > 0;
+  tbody.innerHTML = apps.map(a => {
+    const hasSched = _hasScheduleConfig(a);
+    const schedInterval = hasSched ? a.guidance_file.constraints.schedule_interval_seconds : 0;
+    return `
     <tr id="app-row-${a.app_id}">
       <td><strong>${escHtml(a.name)}</strong></td>
       <td style="font-family:monospace;font-size:12px;color:#778">${a.app_id}</td>
-      <td>${statusBadge(a.status)}</td>
+      <td>${statusBadge(a.status)}${a.status==='scheduled'?`<div style="font-size:11px;color:#7c3aed;margin-top:2px">每 ${schedInterval}s</div>`:''}</td>
       <td style="font-family:monospace;font-size:12px;color:#aaa">${a.workflow_handle||'—'}</td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${a.status==='idle'||a.status==='stopped'
-            ? `<button class="btn btn-success btn-sm" onclick="toggleStart('${a.app_id}')">▶ 启动</button>`
+            // ? `<button class="btn btn-success btn-sm" onclick="toggleStart('${a.app_id}')">▶ 启动</button>`
+            ? `<button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">▶ 启动</button>`
+            : ''}
+          ${(a.status==='idle'||a.status==='stopped') && hasSched
+            ? `<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="startSchedule('${a.app_id}')">⏱ 定时启动</button>`
+            : ''}
+          ${a.status==='scheduled'
+            ? `<button class="btn btn-danger btn-sm" onclick="stopSchedule('${a.app_id}')">⏹ 停止调度</button>
+               <button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>`
             : ''}
           ${a.status==='running'
             ? `<button class="btn btn-warning btn-sm" onclick="toggleQuery('${a.app_id}')">💬 查询</button>
                <button class="btn btn-danger btn-sm" onclick="stopApp('${a.app_id}')">⏹ 停止</button>`
+            : ''}
+          ${hasSched && (a.status==='idle'||a.status==='stopped')
+            ? `<button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>`
             : ''}
           <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${a.app_id}')">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="uninstallApp('${a.app_id}')">🗑</button>
@@ -289,9 +315,20 @@ function renderApps(apps) {
           </div>
           <div class="query-result" id="qr-${a.app_id}"></div>
         </div>
+        <!-- 调度历史面板 -->
+        <div class="query-panel" id="shp-${a.app_id}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <strong style="font-size:13px">调度执行历史</strong>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span id="sh-status-${a.app_id}" style="font-size:11px;color:#778"></span>
+              <button class="btn btn-ghost btn-sm" onclick="loadScheduleHistory('${a.app_id}')">🔄</button>
+            </div>
+          </div>
+          <div id="sh-body-${a.app_id}"><div style="color:#aaa;font-size:12px">加载中...</div></div>
+        </div>
       </td>
     </tr>
-  `).join('');
+  `}).join('');
 }
 
 function escHtml(s) {
@@ -305,6 +342,15 @@ async function installApp() {
   const selected = [...document.querySelectorAll('#f-agent-choices input[type="checkbox"]:checked')].map(el => el.value);
   const agents = selected;
   const skillsMd = document.getElementById('f-skills').value.trim() || null;
+  const schedInterval = parseInt(document.getElementById('f-schedule-interval').value)||0;
+  const schedParallel = parseInt(document.getElementById('f-schedule-parallel').value)||5;
+  const schedAutoRestart = document.getElementById('f-schedule-autorestart').checked;
+  const constraints = { timeout_seconds: parseInt(document.getElementById('f-timeout').value)||120 };
+  if (schedInterval > 0) {
+    constraints.schedule_interval_seconds = schedInterval;
+    constraints.schedule_max_parallel = schedParallel;
+    constraints.schedule_auto_restart = schedAutoRestart;
+  }
   const images = warehouseImages
     .filter(img => selected.includes(img.capability))
     .map(img => ({
@@ -322,7 +368,7 @@ async function installApp() {
     orchestration_mode: document.getElementById('f-mode').value,
     agents_required: agents,
     images,
-    constraints: { timeout_seconds: parseInt(document.getElementById('f-timeout').value)||120 },
+    constraints: constraints,
     skills_md: skillsMd
   };
   try {
@@ -506,6 +552,102 @@ async function sendQuery(appId) {
 function openAppDetails(appId) {
   // 使用 ui 的模板路由，后端路由在 src/api/app.py 已添加
   window.location.href = `/ui/apps/${encodeURIComponent(appId)}`;
+}
+
+// ====================================================================
+// Schedule controls
+// ====================================================================
+async function startSchedule(appId) {
+  try {
+    const res = await fetch(`${API}/api/apps/${appId}/schedule/start`, {method:'POST'});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail||JSON.stringify(data));
+    showAlert('apps-alert','success','⏱ 周期调度已启动');
+    loadApps();
+  } catch(e) {
+    showAlert('apps-alert','error',`❌ 启动调度失败：${e.message}`);
+  }
+}
+
+async function stopSchedule(appId) {
+  try {
+    const res = await fetch(`${API}/api/apps/${appId}/schedule/stop`, {method:'POST'});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail||JSON.stringify(data));
+    showAlert('apps-alert','success','⏹ 周期调度已停止');
+    loadApps();
+  } catch(e) {
+    showAlert('apps-alert','error',`❌ 停止调度失败：${e.message}`);
+  }
+}
+
+const _openHistoryPanels = new Set();
+
+function toggleScheduleHistory(appId) {
+  const panel = document.getElementById(`shp-${appId}`);
+  if (!panel) return;
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    _openHistoryPanels.add(appId);
+    loadScheduleHistory(appId);
+  } else {
+    _openHistoryPanels.delete(appId);
+  }
+}
+
+function schedBadge(s) {
+  return `<span class="sched-badge sb-${s}">${s}</span>`;
+}
+
+async function loadScheduleHistory(appId) {
+  const body = document.getElementById(`sh-body-${appId}`);
+  const statusEl = document.getElementById(`sh-status-${appId}`);
+  if (!body) return;
+  try {
+    // Fetch status and history in parallel
+    const [statusRes, histRes] = await Promise.all([
+      fetch(`${API}/api/apps/${appId}/schedule/status`),
+      fetch(`${API}/api/apps/${appId}/schedule/history?limit=20`)
+    ]);
+    const statusData = await statusRes.json();
+    const histData = await histRes.json();
+
+    // Show status summary
+    if (statusData.scheduled) {
+      statusEl.innerHTML = `<span style="color:#7c3aed">活跃 ${statusData.active_runs||0} 个 / 累计 ${statusData.total_runs||0} 次</span>`;
+    } else {
+      statusEl.textContent = '未调度';
+    }
+
+    const records = histData.records || [];
+    if (!records.length) {
+      body.innerHTML = '<div style="color:#aaa;font-size:12px;padding:8px 0">暂无执行记录</div>';
+      return;
+    }
+    body.innerHTML = `<table class="sched-history" style="width:100%">
+      <thead><tr><th>Run ID</th><th>状态</th><th>开始时间</th><th>完成时间</th><th>耗时</th></tr></thead>
+      <tbody>${records.map(r => {
+        const startT = r.started_at ? new Date(r.started_at).toLocaleString('zh-CN') : '—';
+        const endT = r.finished_at ? new Date(r.finished_at).toLocaleString('zh-CN') : '—';
+        let duration = '—';
+        if (r.started_at && r.finished_at) {
+          const ms = new Date(r.finished_at) - new Date(r.started_at);
+          duration = ms < 1000 ? ms+'ms' : (ms/1000).toFixed(1)+'s';
+        } else if (r.status === 'running') {
+          duration = '<span class="spinner" style="width:10px;height:10px;border-width:1.5px;border-color:rgba(124,58,237,.3);border-top-color:#7c3aed"></span>';
+        }
+        return `<tr>
+          <td style="font-family:monospace">${r.run_id}</td>
+          <td>${schedBadge(r.status)}</td>
+          <td>${startT}</td>
+          <td>${endT}</td>
+          <td>${duration}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  } catch(e) {
+    body.innerHTML = `<div style="color:#ef4444;font-size:12px">加载失败：${e.message}</div>`;
+  }
 }
 
 // ====================================================================
