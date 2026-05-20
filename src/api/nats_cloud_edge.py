@@ -2,7 +2,7 @@
 NATS 云边可视化后端：连接状态、K8s Agent subject 发现、本机 port-forward。
 
 UI 控制台跑在宿主机时，通过 NATS_SERVERS 或自动 port-forward 连接本集群 NATS；
-业务 Agent 在集群内仍使用 nats://nats:4222，不经 AOE HTTP 转发。
+业务 Agent 在集群内使用 nats://nats:4222；跨集群走 NATS subject，不经编排 HTTP 转发。
 """
 
 from __future__ import annotations

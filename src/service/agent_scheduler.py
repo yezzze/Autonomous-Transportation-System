@@ -24,7 +24,6 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 from src.service.agent_startup import AgentStartupConfig
-from src.service.nats_startup import NatsStartupConfig
 
 logger = logging.getLogger(__name__)
 
@@ -113,21 +112,22 @@ class AgentScheduler:
         self.startup_config = AgentStartupConfig.from_env()
         self.deploy_backend = self.startup_config.deploy_backend
         self.k8s_namespace = self.startup_config.k8s_namespace
-        self.nats_config = NatsStartupConfig.from_env()
-        self.nats_servers = self.nats_config.servers
+        nats_service = os.getenv("NATS_SERVICE_NAME", "nats")
+        nats_port = int(os.getenv("NATS_CLIENT_PORT", "4222"))
+        self.nats_servers = os.getenv("NATS_SERVERS", f"nats://127.0.0.1:{nats_port}")
         self.agent_nats_servers = os.getenv(
             "AGENT_NATS_SERVERS",
-            f"nats://{self.nats_config.service_name}:{self.nats_config.client_port}"
+            f"nats://{nats_service}:{nats_port}"
             if self.deploy_backend == "kubernetes"
             else self.nats_servers,
         )
-        self.ensure_nats = self.startup_config.ensure_nats
+        self.nats_jetstream_domain = os.getenv("NATS_JETSTREAM_DOMAIN", "hub")
+        self.nats_stream_subjects = os.getenv("NATS_STREAM_SUBJECTS", "workflow.>")
         logger.info(
-            "AgentScheduler (ASD) 初始化完成: backend=%s, nats_servers=%s, agent_nats_servers=%s, ensure_nats=%s",
+            "AgentScheduler (ASD) 初始化完成: backend=%s, nats_servers=%s, agent_nats_servers=%s",
             self.deploy_backend,
             self.nats_servers,
             self.agent_nats_servers,
-            self.ensure_nats,
         )
 
     # ------------------------------------------------------------------
@@ -228,6 +228,13 @@ class AgentScheduler:
                 item["value"] = value
                 return
         env_list.append({"name": name, "value": value})
+
+    def _upsert_agent_nats_env(self, env_list: List[Dict]) -> None:
+        """注入 Agent 连接本集群 NATS 所需的环境变量。"""
+        self._upsert_env_var(env_list, "NATS_SERVERS", self.agent_nats_servers)
+        self._upsert_env_var(env_list, "NATS_SERVER_URL", self.agent_nats_servers)
+        self._upsert_env_var(env_list, "NATS_JETSTREAM_DOMAIN", self.nats_jetstream_domain)
+        self._upsert_env_var(env_list, "NATS_STREAM_SUBJECTS", self.nats_stream_subjects)
 
     def _kubernetes_manifest_path(self, deployment_name: str) -> Path:
         """返回 k8s/ 根目录下对应 Deployment 名称的 YAML 路径。"""
@@ -362,8 +369,7 @@ class AgentScheduler:
         env = container.setdefault("env", [])
         self._upsert_env_var(env, "AGENT_ID", record.agent_id)
         self._upsert_env_var(env, "AGENT_CAPABILITY", capability)
-        self._upsert_env_var(env, "NATS_SERVERS", self.agent_nats_servers)
-        self._upsert_env_var(env, "NATS_SERVER_URL", self.agent_nats_servers)
+        self._upsert_agent_nats_env(env)
 
         container["resources"] = self._resource_requirements(
             record.cpu_cores,
@@ -437,8 +443,6 @@ class AgentScheduler:
                                 "env": [
                                     {"name": "AGENT_ID", "value": record.agent_id},
                                     {"name": "AGENT_CAPABILITY", "value": capability},
-                                    {"name": "NATS_SERVERS", "value": self.agent_nats_servers},
-                                    {"name": "NATS_SERVER_URL", "value": self.agent_nats_servers},
                                 ],
                                 "resources": self._resource_requirements(
                                     record.cpu_cores,
@@ -456,6 +460,9 @@ class AgentScheduler:
         )
         if node_selector:
             deployment_body["spec"]["template"]["spec"]["nodeSelector"] = node_selector
+        self._upsert_agent_nats_env(
+            deployment_body["spec"]["template"]["spec"]["containers"][0]["env"]
+        )
 
         service_body = {
             "apiVersion": "v1",
@@ -507,8 +514,6 @@ class AgentScheduler:
         core = client.CoreV1Api()
 
         namespace = record.namespace or self.k8s_namespace
-        if self.ensure_nats:
-            self._ensure_kubernetes_nats(namespace, apps, core)
 
         deployment_name = record.k8s_deployment_name or self._safe_k8s_name(record.agent_id)
         record.namespace = namespace
@@ -587,56 +592,6 @@ class AgentScheduler:
         record.updated_at = datetime.utcnow().isoformat()
         self._register_to_ardc(record.agent_id, record.node_id, port=service_port, capability=capability)
         return record
-
-    def _ensure_kubernetes_nats(self, namespace: str, apps, core) -> None:
-        """确保集群内 NATS Deployment/Service 存在；已存在时按启动配置 patch 更新。"""
-        from kubernetes.client.rest import ApiException
-
-        config_map_body = self.nats_config.config_map_body()
-        deployment_body = self.nats_config.deployment_body()
-        service_body = self.nats_config.service_body()
-
-        try:
-            core.create_namespaced_config_map(namespace=namespace, body=config_map_body)
-        except ApiException as exc:
-            if exc.status != 409:
-                raise
-            core.patch_namespaced_config_map(
-                name=config_map_body["metadata"]["name"],
-                namespace=namespace,
-                body=config_map_body,
-            )
-
-        try:
-            apps.create_namespaced_deployment(namespace=namespace, body=deployment_body)
-        except ApiException as exc:
-            if exc.status != 409:
-                raise
-            apps.patch_namespaced_deployment(
-                name=self.nats_config.deployment_name,
-                namespace=namespace,
-                body=deployment_body,
-            )
-
-        try:
-            core.create_namespaced_service(namespace=namespace, body=service_body)
-        except ApiException as exc:
-            if exc.status != 409:
-                raise
-            core.patch_namespaced_service(
-                name=self.nats_config.service_name,
-                namespace=namespace,
-                body=service_body,
-            )
-
-        logger.info(
-            "[ASD] NATS ensured: namespace=%s, deployment=%s, service=%s, image=%s, args=%s",
-            namespace,
-            self.nats_config.deployment_name,
-            self.nats_config.service_name,
-            self.nats_config.image,
-            self.nats_config.server_args(),
-        )
 
     # ------------------------------------------------------------------
     # 核心部署接口

@@ -25,7 +25,6 @@ AGENT_ENV_KEYS = [
     "AGENT_READINESS_PERIOD_SECONDS",
     "AGENT_LIVENESS_INITIAL_DELAY_SECONDS",
     "AGENT_LIVENESS_PERIOD_SECONDS",
-    "AGENT_ENSURE_NATS",
     "AGENT_LOCAL_NODE_IDS",
     "AGENT_SUBPROCESS_HOST",
     "AGENT_SUBPROCESS_SCRIPT",
@@ -74,7 +73,6 @@ def test_agent_startup_reads_env(monkeypatch):
     monkeypatch.setenv("AGENT_IMAGE_PULL_POLICY", "Always")
     monkeypatch.setenv("AGENT_ENABLE_HEALTH_PROBE", "true")
     monkeypatch.setenv("AGENT_HEALTH_PATH", "/ready")
-    monkeypatch.setenv("AGENT_ENSURE_NATS", "false")
     monkeypatch.setenv("AGENT_LOCAL_NODE_IDS", "local-a,local-b")
     monkeypatch.setenv("AGENT_SUBPROCESS_HOST", "0.0.0.0")
     monkeypatch.setenv("AGENT_SUBPROCESS_SCRIPT", "custom_agent.py")
@@ -93,7 +91,6 @@ def test_agent_startup_reads_env(monkeypatch):
     assert cfg.k8s_ports(True) == (15051, 50051, "ClusterIP", "grpc")
     assert cfg.grpc_node_port == 30051
     assert cfg.image_pull_policy == "Always"
-    assert cfg.ensure_nats is False
     assert cfg.is_local_node("local-a")
     assert not cfg.is_local_node("localhost")
     assert cfg.is_grpc_entry("grpc-entry-1", "image:v1", "x")

@@ -72,13 +72,13 @@ class _DispatchRequest(BaseModel):
 
 
 class _NatsPublishRequest(BaseModel):
-    """由 AOE 代发 NATS 消息，默认投递到本 AOE 管理集群的 NATS。"""
+    """由编排服务代发 NATS 消息，默认投递到本集群 NATS。"""
     subject: str = Field(..., description="要发布的 NATS subject")
     payload: Dict[str, Any] = Field(default_factory=dict, description="JSON payload")
     reply_subject: Optional[str] = Field(None, description="需要等待的 reply subject")
     servers: Optional[List[str]] = Field(
         None,
-        description="可选 NATS servers；默认使用当前 AOE 的 NATS_SERVERS",
+        description="可选 NATS servers；默认使用 NATS_SERVERS",
     )
     stream: str = Field("WORKFLOW", description="JetStream stream 名称")
     jetstream_domain: str = Field(
@@ -93,11 +93,11 @@ class _NatsPublishRequest(BaseModel):
 
 
 class _NatsReceiveRequest(BaseModel):
-    """从当前 AOE 管理集群的 NATS/JetStream 拉取消息，用于 UI 简单验证。"""
+    """从本集群 NATS/JetStream 拉取消息，用于 UI 简单验证。"""
     subject: str = Field(..., description="要接收的 NATS subject")
     servers: Optional[List[str]] = Field(
         None,
-        description="可选 NATS servers；默认使用当前 AOE 的 NATS_SERVERS",
+        description="可选 NATS servers；默认使用 NATS_SERVERS",
     )
     stream: str = Field("WORKFLOW", description="JetStream stream 名称")
     jetstream_domain: str = Field(
