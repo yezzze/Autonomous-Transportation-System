@@ -13,7 +13,8 @@
       "enabled": true,
       "priority": 10,
       "tags": ["search", "web", "tavily"],
-      "node_name": "localhost"
+      "node_name": "node-01",
+      "is_local": false
     },
     {
       "id": "compute_agent_001",
@@ -25,7 +26,8 @@
       "enabled": true,
       "priority": 8,
       "tags": ["compute", "math", "data"],
-      "node_name": "node-02"
+      "node_name": "node-02",
+      "is_local": false
     },
     {
       "id": "vision_agent_001",
@@ -37,7 +39,8 @@
       "enabled": true,
       "priority": 7,
       "tags": ["vision", "image", "ocr"],
-      "node_name": "node-03"
+      "node_name": "node-03",
+      "is_local": false
     },
     {
       "id": "nlp_agent_001",
@@ -49,7 +52,8 @@
       "enabled": true,
       "priority": 9,
       "tags": ["nlp", "text", "language"],
-      "node_name": "node-04"
+      "node_name": "node-04",
+      "is_local": false
     },
     {
       "id": "code_agent_001",
@@ -61,7 +65,8 @@
       "enabled": true,
       "priority": 6,
       "tags": ["code", "python", "execution"],
-      "node_name": "node-05"
+      "node_name": "node-05",
+      "is_local": false
     },
     {
       "id": "web_agent_001",
@@ -73,31 +78,35 @@
       "enabled": true,
       "priority": 5,
       "tags": ["web", "browser", "automation"],
-      "node_name": "node-06"
+      "node_name": "node-06",
+      "is_local": false
     },
     {
       "id": "Perception2IntermediateFeature_agent_001",
-      "ip": "192.168.49.2",
-      "port": 30091,
+      "ip": "10.112.136.44",
+      "port": 9001,
       "capability": "Perception2IntermediateFeature",
       "status": "online",
       "description": "专门用于将自车感知数据转换为中间通信特征的 Agent，支持端端协同感知流程",
       "enabled": true,
       "priority": 10,
       "tags": ["perception", "intermediate_feature", "vehicle", "cooperative"],
-      "node_name": "localhost"
+      "node_name": "10.112.136.44",
+      "is_local": true
     },
     {
       "id": "CooperativeFeatureFusionDetectionViz_agent_001",
       "ip": "192.168.49.2",
-      "port": 30092,
+      "port": 30092
+      ,
       "capability": "CooperativeFeatureFusionDetectionViz",
       "status": "online",
       "description": "收集自车和协同车辆的中间特征，进行融合并可视化检测结果的 Agent，支持端端协同感知流程",
       "enabled": true,
       "priority": 10,
       "tags": ["intermediate_feature", "vehicle", "cooperative", "fusion", "detection", "visualization"],
-      "node_name": "localhost"
+      "node_name": "localhost",
+      "is_local": true
     }
   ],
   "_comments": {

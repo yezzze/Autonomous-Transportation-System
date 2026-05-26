@@ -199,6 +199,10 @@
     width: 14px; height: 14px; border-radius: 3px;
     border: 1px solid rgba(255,255,255,.1);
   }
+  .stats-top {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+    margin: 0 0 12px 0;
+  }
   .stats-bar {
     display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
     margin-bottom: 12px;
@@ -322,6 +326,10 @@
 
 <!-- ============ Pane 2 ============ -->
 <div class="pane" id="p2" style="position:relative">
+  <div class="stats-top">
+    <div class="stat"><div class="n" id="s-sched-total" style="color:var(--accent-2)">0</div><div class="l">调度总次数</div></div>
+    <div class="stat"><div class="n" id="s-sched-failed" style="color:var(--red)">0</div><div class="l">调度失败数</div></div>
+  </div>
   <div class="stats-bar">
     <div class="stat"><div class="n" id="s-total">0</div><div class="l">任务总数</div></div>
     <div class="stat"><div class="n" id="s-completed" style="color:var(--green)">0</div><div class="l">已完成</div></div>
@@ -376,7 +384,28 @@ const state = {
   snapshot: null,
   workflows: [],     // 全部工作流摘要
   currentWfId: null, // 当前选中
+  pane1SigByWf: {},  // wf_id -> orchestration signature
+  pane1PlatformsSigByWf: {}, // wf_id -> stable platform list signature
 };
+
+// localStorage key prefix for storing view (pan/zoom) per workflow
+const VIEW_KEY_PREFIX = 'viz_view_';
+
+function saveViewState() {
+  if (!state.currentWfId || !window.localStorage || !cy) return;
+  try {
+    const v = { pan: cy.pan(), zoom: cy.zoom() };
+    localStorage.setItem(VIEW_KEY_PREFIX + state.currentWfId, JSON.stringify(v));
+  } catch (e) { console.warn('saveViewState failed', e); }
+}
+
+function loadViewState(wfId) {
+  if (!wfId || !window.localStorage) return null;
+  try {
+    const raw = localStorage.getItem(VIEW_KEY_PREFIX + wfId);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
 
 function $(id) { return document.getElementById(id); }
 function setBadge(el, text, cls) {
@@ -388,7 +417,49 @@ function setWfStatus(summary) {
   if (!summary) { el.style.display = "none"; return; }
   el.style.display = "inline-block";
   const map = { running: "live", done: "live", failed: "demo", cancelled: "demo" };
-  setBadge(el, `${summary.status} · ${summary.task_completed}/${summary.task_total} · ${summary.elapsed}s`, map[summary.status] || "");
+  // 如果是调度视图并且后端提供了 schedule_run_no，则用 schedule_run_no/task_total 显示，
+  // 否则回退到 completed/total 的显示。
+  if (summary.schedule_run_no !== undefined && summary.view_type === 'schedule') {
+    setBadge(el, `${summary.status} · 第${summary.schedule_run_no}次调度 · ${summary.elapsed}s`, map[summary.status] || "");
+  } else {
+    setBadge(el, `${summary.status} · ${summary.task_completed}/${summary.task_total} · ${summary.elapsed}s`, map[summary.status] || "");
+  }
+}
+
+function hasMeaningfulOrchestration(o) {
+  if (!o || typeof o !== "object") return false;
+  const hasSkills = Boolean((o.skills_content || "").trim());
+  const hasPipeline = Array.isArray(o.pipeline_topology) && o.pipeline_topology.length > 0;
+  const hasAgents = Array.isArray(o.available_agents) && o.available_agents.length > 0;
+  const hasSelected = Array.isArray(o.selected_agents) && o.selected_agents.length > 0;
+  return hasSkills || hasPipeline || hasAgents || hasSelected;
+}
+
+function getStablePlatformSig(o) {
+  if (!o || !Array.isArray(o.available_agents)) return "";
+  // 只按静态身份信息生成签名：Agent id / 平台 / 地址 / 能力。
+  // 不包含 status / is_selected 这类每轮都会波动的字段，避免每个调度周期都重绘平台候选区。
+  return o.available_agents
+    .slice()
+    .sort((a, b) => String(a.id || "").localeCompare(String(b.id || "")))
+    .map(a => [
+    a.id || "",
+    a.platform || "",
+    a.platform_key || "",
+    a.capability || "",
+    a.ip || "",
+    String(a.port || ""),
+    a.is_local ? "1" : "0",
+  ].join("|")).join(";;");
+}
+
+function shouldIgnoreScheduleEmptyOrchestration(o, summary, hasSig) {
+  if (!summary || summary.view_type !== "schedule") return false;
+  if (!hasSig) return false;
+  const noSkills = !((o && o.skills_content) || "").trim();
+  const noPipeline = !Array.isArray(o && o.pipeline_topology) || o.pipeline_topology.length === 0;
+  const noSelected = !Array.isArray(o && o.selected_agents) || o.selected_agents.length === 0;
+  return noSkills && noPipeline && noSelected;
 }
 
 /* ---------- WebSocket: 全局工作流列表 ---------- */
@@ -426,6 +497,8 @@ function switchWorkflow(wfId) {
   // 先 HTTP 拉一次,避免空白
   fetch(`/api/viz/workflows/${wfId}/full`).then(r => r.json()).then(d => {
     state.snapshot = d;
+    // 切换工作流时清除该工作流的 Pane1 签名缓存, 强制渲染首屏内容
+    state.pane1SigByWf[wfId] = "";
     renderAll();
   }).catch(e => console.warn("fetch full failed", e));
   // 关掉旧的
@@ -437,6 +510,10 @@ function switchWorkflow(wfId) {
     if (msg.type === "snapshot") {
       state.snapshot = msg.data;
       if (msg.summary) setWfStatus(msg.summary);
+      // 切换或收到快照时，若这是首次加载该工作流，清除 Pane1 的缓存签名，
+      // 以确保 Skills.md 等首屏信息被强制渲染（避免旧签名导致忽略空快照）。
+      const wfIdKey = state.currentWfId || "__none__";
+      state.pane1SigByWf[wfIdKey] = state.pane1SigByWf[wfIdKey] || "";
       renderAll();
     } else if (msg.type === "error") {
       console.warn("ws error:", msg.message);
@@ -454,6 +531,12 @@ function renderWfSelect() {
   sel.innerHTML = state.workflows.map(w => {
     const icon = ({ running: "🔵", done: "✅", failed: "❌", cancelled: "⏸" })[w.status] || "•";
     const title = (w.title || w.id).replace(/[<>]/g, "");
+    // 如果条目被标记为调度视图，或包含 schedule_workflow_handle（有时后端会把调度以不同字段返回），
+    // 则统一使用调度格式显示，避免下拉项在两种样式间闪烁。
+    if (w.view_type === "schedule" || w.schedule_workflow_handle) {
+      const scheduleNo = Number(w.schedule_run_no || 0);
+      return `<option value="${w.id}">${icon} ${title} (第${scheduleNo}次调度 · ${w.task_completed}/${w.task_total})</option>`;
+    }
     return `<option value="${w.id}">${icon} ${title} (${w.task_completed}/${w.task_total})</option>`;
   }).join("");
   if (cur) sel.value = cur;
@@ -488,7 +571,23 @@ $("btnReset").onclick = async () => {
  * ================================================================ */
 function renderAll() {
   if (!state.snapshot) return;
-  renderPane1(state.snapshot.orchestration);
+  const wfId = state.currentWfId || "__none__";
+  const orchestration = state.snapshot.orchestration || {};
+  const curSummary = state.workflows.find(w => w.id === state.currentWfId) || null;
+  const previousSig = state.pane1SigByWf[wfId] || "";
+
+  if (shouldIgnoreScheduleEmptyOrchestration(orchestration, curSummary, Boolean(previousSig))) {
+    // 调度会话在 run_started 阶段可能推送空编排快照, 保持上次有效 Pane1
+  } else if (hasMeaningfulOrchestration(orchestration)) {
+    const nextSig = JSON.stringify(orchestration);
+    if (nextSig !== previousSig) {
+      state.pane1SigByWf[wfId] = nextSig;
+      renderPane1(orchestration);
+    }
+  } else if (!previousSig) {
+    // 首次进入且没有有效数据时, 允许渲染空态一次
+    renderPane1(orchestration);
+  }
   renderPane2(state.snapshot.topology);
   renderPane3(state.snapshot.execution);
   $("cnt-tasks").textContent = state.snapshot.topology.total || 0;
@@ -504,75 +603,96 @@ function renderPane1(o) {
   $("m-remote").textContent = o.remote_agents.length;
   $("m-selected").textContent = o.selected_agents.length;
 
-  // 平台分组
-  const box = $("platformsBox");
-  box.innerHTML = "";
-  const groups = {};
-  o.available_agents.forEach(a => {
-    const k = a.platform_key;
-    (groups[k] = groups[k] || { agents: [], platform: a.platform }).agents.push(a);
-  });
-  Object.entries(groups).forEach(([key, g]) => {
-    const block = document.createElement("div");
-    block.className = "platform-block";
-    const flag = g.platform === "local"
-      ? `<span style="color:var(--local)">⬤ 本机</span>`
-      : `<span style="color:var(--remote)">⬤ 远端</span>`;
-    block.innerHTML = `
-      <div class="platform-title">
-        <div class="name">${flag} <span style="color:var(--muted);margin-left:6px">${key}</span></div>
-        <div class="count">${g.agents.length} agents</div>
-      </div>
-      <div class="agent-grid">
-        ${g.agents.map(a => `
-          <div class="agent-chip ${a.is_selected?'selected':''} ${a.status==='busy'?'busy':''}"
-               title="${a.description}">
-            <div>${a.id}</div>
-            <div class="cap">${a.capability} · ${a.status}</div>
-          </div>
-        `).join("")}
-      </div>`;
-    box.appendChild(block);
-  });
+  // 平台分组：仅在稳定签名变化时重绘，避免每次快照刷新时闪动
+  const wfId = state.currentWfId || "__none__";
+  const nextPlatformSig = getStablePlatformSig(o);
+  const previousPlatformSig = state.pane1PlatformsSigByWf[wfId] || "";
+  if (nextPlatformSig !== previousPlatformSig) {
+    state.pane1PlatformsSigByWf[wfId] = nextPlatformSig;
+    const box = $("platformsBox");
+    box.innerHTML = "";
+    const groups = {};
+    o.available_agents.forEach(a => {
+      const k = a.platform_key;
+      (groups[k] = groups[k] || { agents: [], platform: a.platform }).agents.push(a);
+    });
+    Object.entries(groups).forEach(([key, g]) => {
+      const block = document.createElement("div");
+      block.className = "platform-block";
+      const flag = g.platform === "local"
+        ? `<span style="color:var(--local)">⬤ 本机</span>`
+        : `<span style="color:var(--remote)">⬤ 远端</span>`;
+      block.innerHTML = `
+        <div class="platform-title">
+          <div class="name">${flag} <span style="color:var(--muted);margin-left:6px">${key}</span></div>
+          <div class="count">${g.agents.length} agents</div>
+        </div>
+        <div class="agent-grid">
+          ${g.agents.map(a => `
+            <div class="agent-chip ${a.is_selected?'selected':''} ${a.status==='busy'?'busy':''}"
+                 title="${a.description}">
+              <div>${a.id}</div>
+              <div class="cap">${a.capability} · ${a.status}</div>
+            </div>
+          `).join("")}
+        </div>`;
+      box.appendChild(block);
+    });
+  }
 
-  // Pipeline 流
+  // Pipeline 流（严格按后端平坦格式：每项为对象，使用 parallel_group 标识并行）
   const pf = $("pipelineFlow");
   pf.innerHTML = "";
   if (o.pipeline_topology && o.pipeline_topology.length) {
-    const groups2 = [];
-    let cur = null;
-    o.pipeline_topology.forEach(s => {
-      const pg = s.parallel_group || "";
-      if (pg && cur && cur.pg === pg) {
-        cur.steps.push(s);
-      } else {
-        cur = { pg, steps: [s] };
-        groups2.push(cur);
-      }
-    });
-    groups2.forEach((g, idx) => {
-      if (g.pg) {
+    const items = o.pipeline_topology;
+    const createStepEl = (step) => {
+      const el = document.createElement("div");
+      el.className = "pipe-step";
+      el.textContent = step.step || step.capability || step.description || step.agent_id || "";
+      return el;
+    };
+    let i = 0;
+    while (i < items.length) {
+      const it = items[i];
+      const isArrayGroup = Array.isArray(it);
+      const pg = !isArrayGroup && (it && it.parallel_group) || "";
+
+      if (isArrayGroup || pg) {
+        // 收集同组连续项作为并行组
         const wrap = document.createElement("div");
         wrap.className = "pipe-parallel";
-        g.steps.forEach(s => {
-          const el = document.createElement("div");
-          el.className = "pipe-step";
-          el.textContent = s.step;
-          wrap.appendChild(el);
-        });
+        if (isArrayGroup) {
+          it.forEach((step) => {
+            if (step && typeof step === 'object') {
+              wrap.appendChild(createStepEl(step));
+            }
+          });
+          i++;
+        } else {
+          let j = i;
+          while (j < items.length && items[j] && items[j].parallel_group === pg) {
+            const s = items[j];
+            if (s && typeof s === 'object' && !Array.isArray(s)) {
+              wrap.appendChild(createStepEl(s));
+            }
+            j++;
+          }
+          i = j;
+        }
         pf.appendChild(wrap);
       } else {
-        const el = document.createElement("div");
-        el.className = "pipe-step";
-        el.textContent = g.steps[0].step;
-        pf.appendChild(el);
+        if (it && typeof it === 'object') {
+          pf.appendChild(createStepEl(it));
+        }
+        i++;
       }
-      if (idx < groups2.length - 1) {
+
+      if (i < items.length) {
         const arr = document.createElement("span");
         arr.className = "pipe-arrow"; arr.textContent = "→";
         pf.appendChild(arr);
       }
-    });
+    }
   } else {
     pf.innerHTML = `<span class="empty">无固定 Pipeline,使用 LLM Planner 动态规划</span>`;
   }
@@ -658,6 +778,8 @@ function initCy() {
     layout: { name: "dagre", rankDir: "LR", nodeSep: 50, rankSep: 90 },
     wheelSensitivity: 0.2,
   });
+  // 当用户平移/缩放时，保存视口状态
+  cy.on('pan zoom', () => { saveViewState(); });
 }
 
 const STATUS_COLORS = {
@@ -673,6 +795,8 @@ function renderPane2(t) {
   $("s-running").textContent = t.counts.running;
   $("s-failed").textContent = t.counts.failed;
   $("s-cross").textContent = t.cross_host_count;
+  $("s-sched-total").textContent = t.schedule_total_runs || 0;
+  $("s-sched-failed").textContent = t.schedule_failed_runs || 0;
 
   if (!cy) initCy();
 
@@ -716,7 +840,15 @@ function renderPane2(t) {
 
   cy.elements().remove();
   cy.add(elements);
-  cy.layout({ name: "dagre", rankDir: "LR", nodeSep: 40, rankSep: 100 }).run();
+  // 使用 fit:false 避免 layout 改变视口（我们要保留 pan/zoom）
+  const savedView = loadViewState(state.currentWfId);
+  try {
+    cy.layout({ name: "dagre", rankDir: "LR", nodeSep: 40, rankSep: 100, fit: false, animate: false }).run();
+  } catch (e) { console.warn('layout failed', e); }
+  // 恢复已保存的视口（pan/zoom）以保持用户缩放与平移
+  if (savedView && savedView.zoom !== undefined && savedView.pan) {
+    try { cy.zoom(savedView.zoom); cy.pan(savedView.pan); } catch (e) { /* ignore */ }
+  }
 }
 
 /* ----------- Pane3 ----------- */

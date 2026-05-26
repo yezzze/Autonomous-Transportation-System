@@ -5,8 +5,10 @@ Agent 启动参数配置。
 本机 subprocess Agent 时用到的默认值，避免这些参数散落在调度逻辑里。
 """
 
+import json
 import os
 import shlex
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
@@ -32,6 +34,25 @@ def _env_list(name: str, default: List[str]) -> List[str]:
     if raw is None:
         return list(default)
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _default_local_node_ids() -> List[str]:
+    """从 agent_registry.json 中读取 is_local=true 的 node_name 作为本地节点列表。"""
+    registry_path = Path(os.getenv("AGENT_REGISTRY_CONFIG", "config/agent_registry.json"))
+    try:
+        with open(registry_path, "r", encoding="utf-8") as f:
+            config_data = json.load(f)
+        node_names = {
+            agent.get("node_name")
+            for agent in config_data.get("agents", [])
+            if agent.get("is_local") and agent.get("node_name")
+        }
+        if node_names:
+            return sorted(node_names)
+    except Exception:
+        pass
+
+    return []
 
 
 class AgentStartupConfig:
@@ -82,12 +103,7 @@ class AgentStartupConfig:
         self.readiness_period_seconds = readiness_period_seconds
         self.liveness_initial_delay_seconds = liveness_initial_delay_seconds
         self.liveness_period_seconds = liveness_period_seconds
-        self.local_node_ids = local_node_ids or [
-            "localhost",
-            "127.0.0.1",
-            "host.docker.internal",
-            "node_localhost",
-        ]
+        self.local_node_ids = local_node_ids or _default_local_node_ids()
         self.subprocess_host = subprocess_host
         self.subprocess_script = subprocess_script
         self.subprocess_ready_timeout = subprocess_ready_timeout
@@ -123,7 +139,7 @@ class AgentStartupConfig:
             liveness_period_seconds=_env_int("AGENT_LIVENESS_PERIOD_SECONDS", 10),
             local_node_ids=_env_list(
                 "AGENT_LOCAL_NODE_IDS",
-                ["localhost", "127.0.0.1", "host.docker.internal", "node_localhost"],
+                _default_local_node_ids(),
             ),
             subprocess_host=os.getenv("AGENT_SUBPROCESS_HOST", "127.0.0.1"),
             subprocess_script=os.getenv("AGENT_SUBPROCESS_SCRIPT", "agent_server.py"),

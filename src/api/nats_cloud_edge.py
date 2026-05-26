@@ -289,8 +289,9 @@ async def nats_status(servers: Optional[List[str]] = None) -> Dict[str, Any]:
             max_reconnect_attempts=1,
         )
         result["connected"] = True
-        result["server_id"] = nc.connected_server_id
-        result["server_name"] = nc.connected_server_name
+        result["server_id"] = getattr(nc, "connected_server_id", None)
+        result["server_name"] = getattr(nc, "connected_server_name", None)
+        result["server_version"] = getattr(nc, "connected_server_version", None)
 
         js = nc.jetstream(domain=domain or None)
         try:

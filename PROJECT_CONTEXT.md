@@ -1,6 +1,6 @@
 # 项目上下文快照
 
-> 最后更新：2026-05-07
+> 最后更新：2026-05-22
 
 ---
 
@@ -29,6 +29,7 @@
 | QoS 监控框架 | ✅ 已完成 | record_call / check_threshold / get_alert_agents |
 | QoS → ASD 反馈闭环 | ✅ 已完成 | register_alert_callback 注册回调，cooldown 60s 防 storm，redeploy 后 reset 指标 |
 | 跨主体编排主动触发 | ✅ 已完成 | identify_cross_host_tasks() 在 Planner 出口调用，写入 cross_host_sessions |
+| Agent 本地/远端判定统一 | ✅ 已完成 | `agent_registry.json.is_local` 作为唯一来源，`visualization.py` / `distributed_nodes.py` / `agent_startup.py` 已移除硬编码 local 集合 |
 | 子工作流即服务（Sub-Workflow as a Service） | ✅ 已完成 | config/sub_workflows.json 定义 + ARDC Gossip 发现 + Executor 三路径路由 |
 | 周期性工作流调度 | ✅ 已完成 | WorkflowScheduler asyncio 循环 + 并行执行 + 历史持久化 + 自动恢复 |
 | 项目交接文档 | ✅ 已完成 | `接口/项目交接文档.md` 11 章节全面交接 |
@@ -38,6 +39,18 @@
 ---
 
 ## 当前正在解决的问题
+
+**工作流标识对齐已完成**（2026-05-25）：`src/distributed_workflow.py` 的 `run_distributed_workflow()` 新增 `workflow_id` 入参，VizBus 注册阶段优先使用外部传入值；`src/app/app_logic_engine.py` 的 `_run_workflow()` 调用已透传 `workflow_handle` 到 `workflow_id`，确保应用层句柄与可视化工作流 ID 一致。
+
+**应用详情页可视化 Tab 合并进行中**（2026-05-25）：已将 `static/visualization.html` 的“编排过程/拓扑结果/执行监控”三块并入 `src/api/templates/app_details.html`，并移除原“运行状态”tab；当前页面 tab 顺序已固定为“逻辑文件 → 编排过程 → 拓扑结果 → 执行监控 → 智能体视图”，`src/api/static/js/app_details.js` 已接入 `/api/viz/workflows/{wf_id}/full` + `/ws/viz/workflows/{wf_id}` 实时渲染。
+
+**周期调度前端刷新抖动修复**（2026-05-22）：`static/visualization.html` 已为 Pane1（Skills/平台候选/Pipeline）增加“按工作流缓存签名 + 调度空快照忽略”逻辑，避免每周期 `run_started` 将界面回退为“(空)/无固定 Pipeline”；工作流下拉项显示“第 N 次调度 · m/n”。
+
+**周期调度可视化聚合已实现**（2026-05-22）：周期调度启动时会创建一个 `schedule_workflow_handle` 对应的主可视化记录，后续每个周期触发的工作流都挂载到该会话记录追踪；并关闭周期子工作流的逐条 `viz_bus.register()`，前端 `/viz` 不再被大量短周期子工作流刷屏。
+
+**APPM 调度句柄回填已实现**（2026-05-26）：`src/app/app_manager.py` 的 `start_schedule()` 在调度启动成功后会从 `WorkflowScheduler.get_schedule_status()` 读取 `schedule_workflow_handle` 并回填到 `app.workflow_handle`；`stop_schedule()` 停止后同步清空 `app.workflow_handle`，与 `start()`/`stop()` 的句柄生命周期保持一致。
+
+**Agent 本地/远端判定统一完成**（2026-05-22）：`agent_registry.json` 新增 `is_local` 字段，前端可视化与分布式调度已改为仅读取该字段判断 Agent 是否为本机；同时将 `agent_startup.py` 的本地节点列表改为从注册表中提取 `is_local=true` 的 `node_name`，清理了分散的硬编码集合。
 
 **应用详情页 Agent 前端视图本地可访问性修复中**（2026-05-08）：`/ui/apps/{app_id}` 的 demo 视图原先回填 `http://192.168.49.2:30092`，在本机无法直连时会导致 iframe 打不开；现已改为在已知 demo 场景下优先改写到 `http://127.0.0.1:30092`，配合本地 `kubectl port-forward` 使用。
 
@@ -49,16 +62,18 @@
 
 **周期性工作流调度**（2026-05-07 完成）
 
-支持将应用配置为周期性执行，按固定时间间隔自动触发工作流。每次触发启动独立实例（允许并行），执行历史持久化。
+支持将应用配置为周期性执行，按固定时间间隔自动触发工作流。每次触发启动独立实例（允许并行），执行历史持久化；可视化层按“调度会话”聚合展示，不再按周期子工作流逐条展示。
 
 **实现要点**：
 - `src/service/workflow_scheduler.py` — WorkflowScheduler 单例，asyncio 调度循环
+- 周期调度会话主记录：`schedule_workflow_handle`（直接作为可视化工作流 id，一次调度一条可视化主记录）
 - `GuidanceFile.constraints` 扩展：`schedule_interval_seconds` / `schedule_max_parallel` / `schedule_auto_restart`
 - `AppStatus` 新增 `"scheduled"` 状态
-- `ScheduleExecutionRecord` 数据类跟踪每次执行
+ - `ScheduleExecutionRecord` 数据类跟踪每次执行（新增 `schedule_workflow_handle` 关联字段）
 - 4 个 API 端点：`schedule/start` / `schedule/stop` / `schedule/status` / `schedule/history`
 - FastAPI startup 自动恢复 `schedule_auto_restart=true` 的应用
 - Web UI 安装表单新增调度字段 + 调度控制按钮 + 历史面板
+- `run_distributed_workflow(viz_enabled=False)` 被周期调度路径使用，避免为每次周期 run 单独注册可视化工作流
 
 **子工作流即服务（Sub-Workflow as a Service）**（2026-05-07 完成）
 
@@ -139,6 +154,7 @@ POST /api/apps/install + /start  (或 任何调 run_distributed_workflow 的入�
 
 ## 关键约束与决策
 
+- `agent_registry.json.is_local` 是 Agent 本地/远端判定的唯一来源；可视化、Planner、重编排与启动层不要再内置独立的 localhost/127.0.0.1 集合
 - `qwq-plus` 只支持 streaming=True，在 `src/agents/llm.py` 中特殊处理；节点中使用 `llm.astream()` 异步流式调用
 - 所有 LangGraph 节点函数（planner/executor/monitor/reporter）均为 `async def`，所有 LLM 调用均使用异步方法（`astream`/`ainvoke`），确保多工作流并发执行
 - LLM 模拟器（`llm_agent_simulator.py`）：executor 降级路径必须用 `await simulate_agent_call()` 而非同步版本，否则会冻结事件循环
@@ -153,6 +169,8 @@ POST /api/apps/install + /start  (或 任何调 run_distributed_workflow 的入�
 - 不引入 Kafka/MQ，跨主体通信用 httpx 直连
 - COMM 消息路由中间件（`src/service/message_router.py`）暂未实现
 - 接口文档以“代码接口契约”为主体，HTTP API 作为子集纳入；必须覆盖 DistributedState、核心节点、共享配置契约
+- 周期调度场景下，可视化主视图以调度会话记录为单位；周期子工作流默认不再独立注册到 `viz_bus`
+- 应用层 `_run_workflow()` 调用编排层时，需将 `workflow_handle` 透传为 `workflow_id`，避免应用句柄与 VizBus 工作流 ID 断链
 
 ---
 

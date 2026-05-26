@@ -236,8 +236,8 @@ function renderApps(apps) {
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${a.status==='idle'||a.status==='stopped'
-            // ? `<button class="btn btn-success btn-sm" onclick="toggleStart('${a.app_id}')">▶ 启动</button>`
-            ? `<button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">▶ 启动</button>`
+            ? `<button class="btn btn-success btn-sm" onclick="toggleStart('${a.app_id}')">▶ 启动</button>`
+            // ? `<button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">▶ 启动</button>`
             : ''}
           ${(a.status==='idle'||a.status==='stopped') && hasSched
             ? `<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="startSchedule('${a.app_id}')">⏱ 定时启动</button>`

@@ -13,6 +13,8 @@
 ## 进行中
 
 - [ ] 验证集群侧 NVIDIA device plugin 是否已加载 time-slicing 配置（ConfigMap 挂载与参数生效）
+- [ ] 周期调度记录聚合的前端交互优化（调度会话详情筛选、历史分页）
+- [ ] 应用详情页可视化联动稳定性验证：`/ui/apps/{app_id}` 三可视化 tab 在无 `workflow_handle`、运行中、调度会话三场景下的数据映射与回退展示
 
 
 ---
@@ -33,37 +35,13 @@
 
 ## 已完成（本 Sprint）
 
-- [x] **周期性工作流调度**（2026-05-07）：新增 `src/service/workflow_scheduler.py` WorkflowScheduler 单例。`models.py` 新增 `ScheduleExecutionRecord` + AppStatus `"scheduled"`。`app_manager.py` 新增 `start_schedule()/stop_schedule()/restore_schedules()`。`app_logic_engine.py` 暴露 `run_single_workflow()`。`app.py` 新增 4 个调度 API + startup 自动恢复。`ui.py` 前端新增调度配置字段 + 控制按钮 + 历史面板。32 个集成测试全通过。
-- [x] **项目交接文档**（2026-05-07）：编写 `接口/项目交接文档.md`，11 章节覆盖项目简介、快速启动、架构概览、核心模块详解、目录结构、API 速查、骨架说明、关键约束、进度与待办、常见问题、文档索引。
-- [x] **子工作流即服务（Sub-Workflow as a Service）**（2026-05-07）：新增 `config/sub_workflows.json` 定义子工作流（复用 PipelineTopology 格式）。`distributed_types.py` 新增 `SubWorkflowInfo` + `TaskAssignment.sub_workflow_id`。`agent_registry.py` 加载/查询/Gossip 同步子工作流。Planner LLM prompt 展示子工作流，Executor 新增三路径路由（远端→本地子工作流→本地 Agent）。`agent_server.py` E_AOE 支持 `sub_workflow_id` 查找本地 pipeline 执行。32 个集成测试全通过。
-- [x] **跨主体编排主动触发修复**（2026-05-07）：修复 `identify_cross_host_tasks()` 从未被调用的缺陷。在 `distributed_planner_node()` Pipeline 路径和 LLM 路径两个出口注入调用，写入 `cross_host_sessions`。`distributed_workflow.py` 补充跨节点 state 字段初始化。
-- [x] **可视化与主服务联动**（2026-05-07）：可视化合并进 `server.py`(端口 8000)。新增工作流总线 `src/service/viz_bus.py`(VizBus 单例,多工作流注册+订阅) + `src/api/visualization_routes.py`(APIRouter 挂载到 app)。改造 `distributed_workflow.py` 用 `graph.astream()` 每节点 publish state。前端加工作流下拉选择器 + 双 WebSocket(全局列表 + 单工作流) + URL `?wf=<id>` 路由。**真实分布式工作流自动出现在 /viz 页面**,支持多工作流并发切换。访问: `python server.py` → http://127.0.0.1:8000/viz
-- [x] **编排过程动态可视化 H5**（2026-04-22）：独立 FastAPI 服务 `visualization_server.py`(默认端口 8888)，提供 3 场景:① 编排过程(Skills/平台候选 Agent/已选高亮)、② 拓扑结果(Cytoscape+dagre 平台分组拓扑图)、③ 工作流执行(进度条+当前 Agent+MCP/A2A 工具调用气泡+时间线)。HTTP API + WebSocket 实时推送 + Demo/Live 双模式。数据提取层 `src/api/visualization.py`。启动: `./scripts/run_visualization.sh`
-- [x] 编排模式优化研究报告：对比 LangManus vs OpenClaw/Clawith Aware 编排模式，识别 5 个借鉴方向（Focus List / Monitor Watchdog / 异步 Dispatch / 事件触发层 / 自适应参数），输出至 `接口/编排模式优化研究-基于OpenClaw借鉴分析.md`（2026-03-30）
-- [x] 修复多应用工作流并行执行（两阶段）：①节点 async 化 ②executor 降级路径 simulate_agent_call_sync→await simulate_agent_call + 模拟器内部 llm.stream→llm.astream，消除事件循环阻塞（2026-03-30）
-- [x] HNSW 向量检索全量移除：删除 3 文件 + 修改 agent_registry.py + 移除 hnswlib/sentence-transformers 依赖 + 清理 10 个文档中 HNSW 引用（2026-03-29）
-- [x] 创建 CLAUDE.md（项目规范入口，AI 自动读取）
-- [x] 创建 PROJECT_CONTEXT.md（项目状态快照）
-- [x] 创建 TASKS.md（Sprint 任务看板）
-- [x] QoS → ASD 反馈闭环：register_alert_callback + cooldown + redeploy_agent + reset_metrics（2026-03-08）
-- [x] 创建 `/接口/接口文档.md`：补齐应用层 / 编排层 / 运行层代码接口契约与对外接口说明（2026-03-10）
-- [x] 创建 `接口/系统接口与代码映射文档.md`：统一接口文档 — 架构图+类关系图+流程序列图+代码映射表+HTTP API+DistributedState 全字段+设计模式+骨架区域说明（2026-03-10）
-- [x] 前端：添加 `应用详情` 页面与路由（`app_details.html` / `app_details.js`），并在应用列表中加入“应用详情”按钮（2026-05-02）
-- [x] 前端：应用详情页运行态编排区支持从 `Skills.md` 的 `## Pipeline` 解析工作流并渲染节点/箭头（2026-05-06）
-- [x] AgentScheduler 支持优先读取 `k8s/` 根目录 YAML，失败回退到字典构造（2026-05-06）
-- [x] 前端：应用列表自动刷新时对 `apps` 结果做签名比对，相同结果不重绘表格（2026-05-07）
-- [x] 前端：应用详情页智能体视图改为纵向堆叠 iframe，并新增 `/api/apps/{app_id}/agent-views`（2026-05-07）
-- [x] 前端：应用详情页 demo 智能体视图在本地自动改写为 `127.0.0.1:30092`，配合 `kubectl port-forward` 访问（2026-05-08）
-- [x] Kubernetes：`k8s/cooperativefeaturefusiondetectionviz-agent.yaml` 与 `k8s/perception2intermediatefeature-agent.yaml` 更新为共享 GPU 友好资源配置（2026-05-07）
+- [x] **工作流标识透传对齐（2026-05-25）**：`run_distributed_workflow()` 新增 `workflow_id` 参数并在 VizBus 注册阶段优先使用；`AppLogicEngine._run_workflow()` 调用时已传入 `workflow_handle`，统一应用层句柄与可视化工作流 ID。
+- [x] **应用详情页 Tab 重构（2026-05-25）**：`src/api/templates/app_details.html` 已移除“运行状态”tab，并接入 `visualization.html` 的“编排过程/拓扑结果/执行监控”三 tab，最终顺序为“逻辑文件 → 编排过程 → 拓扑结果 → 执行监控 → 智能体视图”；`src/api/static/js/app_details.js` 已改为通过 `/api/viz/*` 与 `/ws/viz/*` 渲染实时可视化数据。
+- [x] **Agent 本地/远端判定统一**（2026-05-22）：`agent_registry.json` 新增 `is_local` 字段，`src/api/visualization.py`、`src/graph/distributed_nodes.py`、`src/service/agent_startup.py` 改为只读注册表字段判断 local/remote，移除前端/调度层硬编码本地集合。
+- [x] **周期调度可视化聚合**（2026-05-22）：`WorkflowScheduler` 启动时创建 `schedule_workflow_handle` 主记录并写入 `viz_bus`，周期子工作流关闭逐条可视化注册，前端 `/viz` 改为按调度会话记录展示；`ScheduleExecutionRecord` 新增 `schedule_workflow_handle` 便于追踪。
+- [x] **周期调度前端刷新抑制**（2026-05-22）：`static/visualization.html` 对 Pane1 增加“按工作流编排签名缓存 + 调度空快照忽略”逻辑，周期触发不再把 Skills/Pipeline 回退为空，同时保留“第 N 次调度 · m/n”下拉展示。
+- [x] **APPM 调度句柄对齐**（2026-05-26）：`AppManager.start_schedule()` 启动成功后回填 `app.workflow_handle=schedule_workflow_handle`，`stop_schedule()` 停止后清空 `app.workflow_handle`，保证与普通 `start()/stop()` 的句柄语义一致。
 
----
 
 ## 已完成（历史）
 
-- [x] §1 应用层：install / start / stop / display + Skills.md 在线编辑
-- [x] §2.1 单主体工作流：planner → executor → monitor → reporter
-- [x] ARDC HTTP Gossip 智能体发现（PEER_AOE_URLS + /registry/sync）
-- [x] ASD subprocess 进程管理（自动端口分配 + 就绪检测）
-- [x] §2.2 跨主体编排：httpx dispatch + SessionRegistry + 引用计数
-- [x] §2.3 跨主体重编排（Rule 0 failover + find_alternative_remote_aoe）
-- [x] §2.4 跨主体工作流停止（DELETE /orchestration/session/{id} 传播）

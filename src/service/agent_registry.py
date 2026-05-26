@@ -110,7 +110,8 @@ class AgentRegistryClient:
                 "port": 8080,
                 "capability": "search",
                 "status": "online",
-                "description": "专门用于网络搜索和信息检索的 Agent，支持多引擎搜索"
+                "description": "专门用于网络搜索和信息检索的 Agent，支持多引擎搜索",
+                "is_local": True,
             },
             {
                 "id": "compute_agent_001",
@@ -118,7 +119,8 @@ class AgentRegistryClient:
                 "port": 8081,
                 "capability": "compute",
                 "status": "online",
-                "description": "专门用于数学计算和数据分析的 Agent，支持 Python/NumPy/Pandas"
+                "description": "专门用于数学计算和数据分析的 Agent，支持 Python/NumPy/Pandas",
+                "is_local": True,
             },
             {
                 "id": "vision_agent_001",
@@ -126,7 +128,8 @@ class AgentRegistryClient:
                 "port": 8082,
                 "capability": "vision",
                 "status": "online",
-                "description": "专门用于图像分析和视觉任务的 Agent，支持 OCR、目标检测等"
+                "description": "专门用于图像分析和视觉任务的 Agent，支持 OCR、目标检测等",
+                "is_local": True,
             },
             {
                 "id": "nlp_agent_001",
@@ -134,7 +137,8 @@ class AgentRegistryClient:
                 "port": 8083,
                 "capability": "nlp",
                 "status": "online",
-                "description": "专门用于自然语言处理的 Agent，支持翻译、摘要、情感分析等"
+                "description": "专门用于自然语言处理的 Agent，支持翻译、摘要、情感分析等",
+                "is_local": True,
             },
             {
                 "id": "code_agent_001",
@@ -142,7 +146,8 @@ class AgentRegistryClient:
                 "port": 8084,
                 "capability": "code_execution",
                 "status": "online",
-                "description": "专门用于代码执行的 Agent，支持多种编程语言"
+                "description": "专门用于代码执行的 Agent，支持多种编程语言",
+                "is_local": True,
             },
             {
                 "id": "web_agent_001",
@@ -150,7 +155,8 @@ class AgentRegistryClient:
                 "port": 8085,
                 "capability": "web_interaction",
                 "status": "online",
-                "description": "专门用于网页交互的 Agent，支持浏览器自动化操作"
+                "description": "专门用于网页交互的 Agent，支持浏览器自动化操作",
+                "is_local": True,
             },
         ]
 
@@ -277,7 +283,7 @@ class AgentRegistryClient:
 
     def get_local_agents(self) -> List[AgentInfo]:
         """仅返回本地 online agents，用于向 peer 推送"""
-        return [a for a in self._mock_agents if a.get("status") == "online"]
+        return [a for a in self._mock_agents if a.get("status") == "online" and self._agent_is_local(a)]
 
     def get_agents_by_source(self) -> Dict[str, Any]:
         """返回按来源分组的 Agent 视图，用于跨集群查看。"""
@@ -374,6 +380,11 @@ class AgentRegistryClient:
         except Exception as e:
             logger.warning(f"[ARDC Gossip] 推送到 {peer_url} 失败（非关键）: {e}")
             return False
+
+    @staticmethod
+    def _agent_is_local(agent: Dict[str, Any]) -> bool:
+        """仅根据注册表中的 is_local 字段判断是否为本机 Agent。"""
+        return bool(agent.get("is_local", False))
 
     async def start_gossip_background(
         self,

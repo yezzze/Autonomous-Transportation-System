@@ -112,6 +112,7 @@ class ScheduleExecutionRecord:
     run_id: str                         # 唯一标识，如 "run_abc123"
     app_id: str                         # 所属应用
     workflow_handle: str                # 工作流句柄
+    schedule_workflow_handle: str = ""      # 所属调度会话工作流句柄
     started_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     finished_at: Optional[str] = None   # 完成时间（运行中为 None）
     status: str = "running"             # "running" | "completed" | "failed" | "cancelled"

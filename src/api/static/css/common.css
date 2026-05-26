@@ -27,14 +27,13 @@ header .badge {
   font-weight: 600;
 }
 .main {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 24px auto;
   padding: 0 16px;
 }
 .tabs {
   display: flex;
   gap: 4px;
-  margin-bottom: 20px;
 }
 .tab-btn {
   padding: 9px 22px;

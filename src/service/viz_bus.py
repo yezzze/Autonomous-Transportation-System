@@ -47,6 +47,55 @@ class WorkflowEntry:
     subscribers: Set[asyncio.Queue] = field(default_factory=set)
 
     def to_summary(self) -> Dict[str, Any]:
+        # 如果 entry 是一个调度会话的 view（view_type == 'schedule'），
+        # 则返回为调度汇总的摘要格式：优先使用 state 中的 `execution` 字段
+        #（它通常由 extract_full_view 生成，包含 total 与 counts），若无则
+        #回退到从 execution_plan 计算统计。这样可以直接利用 WS 中的
+        # data.execution.total 与 data.execution.counts，避免重复计算。
+        is_schedule = (
+            self.state.get("view_type") == "schedule"
+            or self.state.get("schedule_workflow_handle")
+            or self.id.startswith("viz_sched_")
+        )
+        if is_schedule:
+            exec_view = self.state.get("execution") or {}
+            if exec_view and isinstance(exec_view, dict):
+                total = int(exec_view.get("total", 0) or 0)
+                counts = exec_view.get("counts", {}) or {}
+                completed = int(counts.get("completed", 0) or 0)
+                running = int(counts.get("running", 0) or 0)
+                failed = int(counts.get("failed", 0) or 0)
+            else:
+                plan = self.state.get("execution_plan", []) or []
+                total = len(plan)
+                completed = sum(1 for t in plan if t.get("status") == "completed")
+                running = sum(1 for t in plan if t.get("status") == "running")
+                failed = sum(1 for t in plan if t.get("status") == "failed")
+
+            active_count = int(self.state.get("schedule_active_count", 0) or 0)
+            total_runs = int(self.state.get("schedule_total_runs", 0) or 0)
+            schedule_run_no = total_runs
+            return {
+                "id": self.id,
+                "title": self.title or self.id,
+                "status": self.status,
+                "started_at": self.started_at,
+                "updated_at": self.updated_at,
+                "elapsed": round(self.updated_at - self.started_at, 2),
+                # 对于调度视图, task_total/task_completed 表示当前子运行的任务数与已完成数
+                "task_total": total,
+                "task_completed": completed,
+                "task_running": running,
+                "task_failed": failed,
+                "complexity_level": self.state.get("complexity_level", "schedule"),
+                "orchestration_mode": "schedule",
+                "error": self.error,
+                "view_type": "schedule",
+                "app_id": self.state.get("app_id", ""),
+                "schedule_workflow_handle": self.state.get("schedule_workflow_handle", ""),
+                "schedule_run_no": schedule_run_no,
+            }
+
         plan = self.state.get("execution_plan", []) or []
         return {
             "id": self.id,
@@ -62,6 +111,7 @@ class WorkflowEntry:
             "complexity_level": self.state.get("complexity_level", ""),
             "orchestration_mode": self.state.get("orchestration_mode", ""),
             "error": self.error,
+            "view_type": self.state.get("view_type", "workflow"),
         }
 
 
@@ -91,7 +141,16 @@ class VizBus:
         if not e:
             return
         # 浅拷贝即可,DistributedState 字段都是 list/dict/标量
-        e.state = self._snapshot(state)
+        new_state = self._snapshot(state)
+        # 对调度会话，保留既有的调度标识，避免某次局部状态写入把它们覆盖掉。
+        if e.state.get("schedule_workflow_handle") and e.state.get("view_type") == "schedule":
+            new_state.setdefault("view_type", "schedule")
+            new_state.setdefault("schedule_workflow_handle", e.state.get("schedule_workflow_handle"))
+            new_state.setdefault("app_id", e.state.get("app_id", ""))
+            new_state.setdefault("schedule_total_runs", e.state.get("schedule_total_runs", 0))
+            new_state.setdefault("schedule_active_runs", e.state.get("schedule_active_runs", []))
+            new_state.setdefault("schedule_active_count", e.state.get("schedule_active_count", 0))
+        e.state = new_state
         e.updated_at = time.time()
         if node_name:
             e.node_history.append({
@@ -197,7 +256,15 @@ class VizBus:
     @staticmethod
     def _snapshot(state: Dict[str, Any]) -> Dict[str, Any]:
         """轻量快照:只保留可视化需要的字段,避免大对象/不可序列化对象。"""
+        # 注意：此白名单既包含普通工作流所需的 execution/metrics 字段，
+        # 也包含 schedule 视图需要的聚合字段。确保 schedule 发布时这些
+        # 字段不会被丢弃，从而能让前端识别 view_type 并显示调度汇总。
         keep = (
+            "view_type", "app_id", "schedule_workflow_handle",
+            "schedule_interval_seconds", "schedule_max_parallel",
+            "schedule_started_at", "schedule_status", "schedule_error",
+            "schedule_total_runs", "schedule_active_runs", "schedule_active_count",
+            "last_run_id", "last_workflow_handle", "last_run_result_preview", "last_run_error",
             "skills_content", "pipeline_topology", "complexity_level",
             "orchestration_mode", "agent_registry_cache", "execution_plan",
             "current_task_index", "all_tasks_completed", "failed_tasks",

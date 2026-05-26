@@ -5,6 +5,317 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>应用详情</title>
   <link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <style>
+    .viz-grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+      gap: 14px;
+    }
+    .viz-meta-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 0;
+      border-bottom: 1px dashed #e4e9f2;
+      font-size: 13px;
+    }
+    .viz-meta-row:last-child {
+      border-bottom: none;
+    }
+    .viz-meta-row .k {
+      color: #5f6b82;
+    }
+    .viz-meta-row .v {
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+    .viz-platform-block {
+      border: 1px dashed #d7deec;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #f9fbff;
+    }
+    .viz-platform-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .viz-platform-title .name {
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+    .viz-platform-title .count {
+      color: #7b8799;
+      font-size: 12px;
+    }
+    .viz-agent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+    .viz-agent-chip {
+      border: 1px solid #d8deea;
+      border-radius: 8px;
+      background: #fff;
+      padding: 8px;
+      font-size: 12px;
+    }
+    .viz-agent-chip.selected {
+      border-color: #22c55e;
+      box-shadow: inset 0 0 0 1px rgba(34, 197, 94, .2);
+      background: #f2fff6;
+    }
+    .viz-agent-chip.busy {
+      opacity: .65;
+    }
+    .viz-agent-chip .cap {
+      color: #64748b;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .viz-pipeline-flow {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .viz-pipe-step {
+      border: 1px solid #d7deec;
+      border-radius: 7px;
+      background: #f8faff;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: #1f2b40;
+    }
+    .viz-pipe-arrow {
+      color: #6780d8;
+      font-weight: 600;
+    }
+    .viz-pipe-parallel {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      border: 1px dashed #9aa9d3;
+      border-radius: 8px;
+      padding: 8px;
+      background: #f5f8ff;
+    }
+    .viz-stats-top,
+    .viz-stats-bar {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .viz-stats-top {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .viz-stats-bar {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+    .viz-stat {
+      border: 1px solid #dce3ef;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      background: #f9fbff;
+    }
+    .viz-stat .n {
+      font-size: 22px;
+      font-weight: 700;
+      color: #315efb;
+      line-height: 1;
+    }
+    .viz-stat .l {
+      margin-top: 5px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .viz-stat .n.red {
+      color: #dc2626;
+    }
+    .viz-stat .n.green {
+      color: #16a34a;
+    }
+    .viz-stat .n.purple {
+      color: #6d28d9;
+    }
+    #cy {
+      width: 100%;
+      height: 500px;
+      border: 1px solid #dde3f2;
+      border-radius: 10px;
+      background: radial-gradient(circle at center, #ffffff 0%, #f5f7fb 100%);
+    }
+    .viz-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 0;
+      font-size: 12px;
+      color: #556070;
+      position: absolute;
+      bottom: 30px;
+      right: 40px;
+      z-index: 5;
+      padding: 12px;
+      border: 1px solid #d9e2f3;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(6px);
+      box-shadow: 0 8px 24px rgba(26, 26, 46, 0.08);
+    }
+    .viz-legend .title {
+      margin-bottom: 6px;
+      color: #7b8799;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .02em;
+    }
+    .viz-legend .row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 0;
+    }
+    .viz-legend .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .viz-topology-wrap {
+      position: relative;
+      margin-top: 10px;
+    }
+    .viz-topology-wrap #cy {
+      margin-top: 0;
+    }
+    .viz-progress-track {
+      width: 100%;
+      height: 9px;
+      border: 1px solid #d8deea;
+      border-radius: 999px;
+      background: #f1f4fa;
+      overflow: hidden;
+      margin: 8px 0 14px;
+    }
+    .viz-progress-fill {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, #4a6cf7, #6f8aff);
+      transition: width .35s ease;
+    }
+    .viz-current-card {
+      border: 1px solid #d7e1fb;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #f8fbff 0%, #f2f6ff 100%);
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .viz-current-card .title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+    }
+    .viz-current-card .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 12px;
+      color: #475569;
+    }
+    .viz-current-card .meta-tag {
+      background: #fff;
+      border: 1px solid #d9e2f3;
+      border-radius: 999px;
+      padding: 3px 8px;
+    }
+    .viz-tools {
+      margin-top: 8px;
+    }
+    .viz-tool-tag {
+      display: inline-block;
+      margin: 2px 4px 0 0;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: #eef2ff;
+      border: 1px solid #d7defa;
+      color: #3949ab;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .viz-timeline {
+      list-style: none;
+      padding-left: 0;
+    }
+    .viz-timeline li {
+      position: relative;
+      padding: 10px 0 10px 22px;
+      border-left: 2px solid #e4e9f2;
+      margin-left: 6px;
+    }
+    .viz-timeline li::before {
+      content: "";
+      position: absolute;
+      left: -6px;
+      top: 15px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+    .viz-timeline li.completed::before {
+      background: #16a34a;
+    }
+    .viz-timeline li.running::before {
+      background: #2563eb;
+    }
+    .viz-timeline li.failed::before {
+      background: #dc2626;
+    }
+    .viz-timeline li.empty-state::before {
+      display: none;
+    }
+    .viz-timeline .ti-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .viz-timeline .ti-meta {
+      margin-top: 2px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    #panel-execution .row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    @media (max-width: 980px) {
+      .viz-grid-2,
+      .row {
+        grid-template-columns: 1fr;
+      }
+      #panel-execution .row {
+        grid-template-columns: 1fr;
+      }
+      .viz-stats-top {
+        grid-template-columns: 1fr;
+      }
+      .viz-stats-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      #cy {
+        height: 400px;
+      }
+    }
+  </style>
 </head>
 <body>
   <header>
@@ -15,13 +326,21 @@
   </header>
   <div class="main">
     <div class="toolbar">
-      <div class="toolbar-title" id="app-title">应用：<span id="app-id">-</span></div>
+      <div>
+        <div class="toolbar-title" id="app-title">应用：<span id="app-id">-</span></div>
+        <div id="toolbar-meta" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:12px;color:#5f6b82">
+          <span>状态：<span id="toolbar-status" style="font-weight:600;color:#1a1a2e">-</span></span>
+          <span>workflow_handle：<span id="toolbar-workflow-handle" style="font-weight:600;color:#1a1a2e">-</span></span>
+        </div>
+      </div>
     </div>
 
     <div class="tabs">
       <button class="tab-btn active" data-tab="logic">逻辑文件</button>
-      <button class="tab-btn" data-tab="runtime">运行状态</button>
-      <button class="tab-btn" data-tab="agents">智能体前端视图</button>
+      <button class="tab-btn" data-tab="orchestration">编排过程</button>
+      <button class="tab-btn" data-tab="topology">拓扑结果</button>
+      <button class="tab-btn" data-tab="execution">执行监控</button>
+      <button class="tab-btn" data-tab="agents">智能体视图</button>
     </div>
 
     <div id="panel-logic" class="panel active">
@@ -64,27 +383,85 @@
       </div>
     </div>
 
-    <div id="panel-runtime" class="panel">
-      <div class="row">
+    <div id="panel-orchestration" class="panel">
+      <div class="viz-grid-2">
         <div>
           <div class="card">
-            <div class="card-title">运行信息</div>
-            <div id="runtime-info">加载中...</div>
+            <div class="card-title"><span class="icon">📄</span> Skills.md</div>
+            <pre class="workflow-canvas" id="skillsContent" style="white-space:pre-wrap;line-height:1.55;min-height:180px">加载中...</pre>
           </div>
           <div class="card">
-            <div class="card-title">编排工作流</div>
-            <div id="workflow-summary" class="workflow-summary"></div>
-            <div id="orchestrator" class="workflow-canvas">未加载工作流</div>
+            <div class="card-title"><span class="icon">🧠</span> 编排决策</div>
+            <div class="viz-meta-row"><span class="k">复杂度等级</span><span class="v" id="m-complexity">-</span></div>
+            <div class="viz-meta-row"><span class="k">编排模式</span><span class="v" id="m-mode">-</span></div>
+            <div class="viz-meta-row"><span class="k">候选 Agent 总数</span><span class="v" id="m-total">0</span></div>
+            <div class="viz-meta-row"><span class="k">本机 Agent</span><span class="v" id="m-local">0</span></div>
+            <div class="viz-meta-row"><span class="k">远端 Agent</span><span class="v" id="m-remote">0</span></div>
+            <div class="viz-meta-row"><span class="k">已选中 Agent</span><span class="v" id="m-selected">0</span></div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title"><span class="icon">🔀</span> Pipeline 流程</div>
+            <div id="pipelineFlow" class="viz-pipeline-flow"></div>
           </div>
         </div>
         <div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title"><span class="icon">🌐</span> 平台候选 Agent</div>
+            <div id="platformsBox"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-topology" class="panel">
+      <div class="viz-stats-top">
+        <div class="viz-stat"><div class="n purple" id="s-sched-total">0</div><div class="l">调度总次数</div></div>
+        <div class="viz-stat"><div class="n red" id="s-sched-failed">0</div><div class="l">调度失败数</div></div>
+      </div>
+      <div class="viz-stats-bar">
+        <div class="viz-stat"><div class="n" id="s-total">0</div><div class="l">任务总数</div></div>
+        <div class="viz-stat"><div class="n green" id="s-completed">0</div><div class="l">已完成</div></div>
+        <div class="viz-stat"><div class="n" id="s-running">0</div><div class="l">执行中</div></div>
+        <div class="viz-stat"><div class="n red" id="s-failed">0</div><div class="l">失败</div></div>
+        <div class="viz-stat"><div class="n purple" id="s-cross">0</div><div class="l">跨主体</div></div>
+      </div>
+      <div class="viz-topology-wrap">
+        <div id="cy"></div>
+        <div class="viz-legend">
+          <div class="title">图例</div>
+          <div class="row"><span class="swatch" style="background:#3b82f6"></span>本机平台</div>
+          <div class="row"><span class="swatch" style="background:#8b5cf6"></span>远端平台</div>
+          <div class="row"><span class="swatch" style="background:#16a34a"></span>已完成</div>
+          <div class="row"><span class="swatch" style="background:#2563eb;box-shadow:0 0 8px #2563eb"></span>执行中</div>
+          <div class="row"><span class="swatch" style="background:#dc2626"></span>失败</div>
+          <div class="row"><span class="swatch" style="background:#64748b"></span>等待</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-execution" class="panel">
+      <div class="row">
+        <div>
           <div class="card">
-            <div class="card-title">快速操作</div>
-            <div class="actions">
-              <button class="btn btn-ghost" id="btn-start">启动应用</button>
-              <button class="btn btn-ghost" id="btn-stop">停止应用</button>
-              <button class="btn btn-ghost" id="btn-reload">刷新状态</button>
-            </div>
+            <div class="card-title">当前执行</div>
+            <div id="currentBox" class="empty-state">暂无执行任务</div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title">总进度与 Magentic 状态</div>
+            <div class="viz-progress-track"><div class="viz-progress-fill" id="progressFill"></div></div>
+            <div class="viz-meta-row"><span class="k">已完成 / 总数</span><span class="v" id="p-frac">0 / 0</span></div>
+            <div class="viz-meta-row"><span class="k">百分比</span><span class="v" id="p-pct">0%</span></div>
+            <div class="viz-meta-row"><span class="k">失败数</span><span class="v" id="p-failed">0</span></div>
+            <div class="viz-meta-row"><span class="k">重规划次数</span><span class="v" id="p-replan">0</span></div>
+            <div class="viz-meta-row"><span class="k">当前轮次</span><span class="v" id="m1-round">-</span></div>
+            <div class="viz-meta-row"><span class="k">停滞计数</span><span class="v" id="m1-stall">-</span></div>
+            <div class="viz-meta-row"><span class="k">模式</span><span class="v" id="m1-mode">-</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title">执行时间线</div>
+            <ul class="viz-timeline" id="timelineList"></ul>
           </div>
         </div>
       </div>
@@ -92,7 +469,7 @@
 
     <div id="panel-agents" class="panel">
       <div class="card" style="margin-bottom:0">
-        <div class="card-title">智能体前端视图</div>
+        <div class="card-title">智能体视图</div>
         <div id="agents-host" class="agent-view-list">加载中...</div>
       </div>
     </div>

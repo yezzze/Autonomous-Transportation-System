@@ -26,8 +26,18 @@ logger = logging.getLogger(__name__)
 USE_LLM_SIMULATOR = os.getenv("USE_LLM_SIMULATOR", "true").lower() == "true"
 LLM_SIMULATOR_MODEL = os.getenv("LLM_SIMULATOR_MODEL", "basic")  # "basic" or "reasoning"
 
-# 本地节点标识（用于判断是否需要跨主体路由）
-LOCAL_NODE_IDS = {"localhost", "host.docker.internal", "127.0.0.1"}
+def _agent_is_local(agent: dict | None) -> bool:
+    """仅根据 agent_registry.json 中的 is_local 字段判断是否本地。"""
+    return bool(agent and agent.get("is_local", False))
+
+
+def _local_aoe_endpoint() -> tuple[str, int]:
+    """解析当前本地 AOE 地址，用于区分本地/远端子工作流。"""
+    import urllib.parse
+
+    local_url = os.getenv("LOCAL_AOE_URL", "http://localhost:8000")
+    parsed = urllib.parse.urlparse(local_url)
+    return parsed.hostname or "localhost", parsed.port or 8000
 
 # Demo 模式：Agent ID → 车辆名称映射（用于可视化事件）
 _AGENT_TO_VEHICLE: dict[str, str] = {
@@ -214,9 +224,9 @@ def find_alternative_remote_aoe(
     remote_port = int(os.getenv("REMOTE_AOE_PORT", "9000"))
 
     for agent in candidates:
-        ip = agent.get("ip", "")
-        if ip in LOCAL_NODE_IDS:
+        if _agent_is_local(agent):
             continue  # 跳过本机节点
+        ip = agent.get("ip", "")
         if ip in tried_hosts:
             continue  # 跳过已失败的节点
         alt_url = f"http://{ip}:{remote_port}"
@@ -253,8 +263,9 @@ def identify_cross_host_tasks(
     Returns:
         cross_host_sessions: {subtask_key: remote_aoe_url}
     """
-    # 构建 agent_id → ip 映射
-    agent_ip_map = {a["id"]: a.get("ip", "localhost") for a in available_agents}
+    # 构建 agent_id → agent 映射
+    agent_map = {a["id"]: a for a in available_agents if a.get("id")}
+    local_aoe_host, local_aoe_port = _local_aoe_endpoint()
 
     cross_host = {}
     for task in execution_plan:
@@ -263,13 +274,16 @@ def identify_cross_host_tasks(
             # 子工作流任务：使用 target_ip（已由 Planner 填入 owner_ip）
             ip = task.get("target_ip", "localhost")
             port = task.get("target_port", 0)
+            is_local = ip == local_aoe_host and int(port or 0) == int(local_aoe_port)
         else:
             # 普通 agent 任务
             agent_id = task.get("assigned_agent_id", "")
-            ip = agent_ip_map.get(agent_id, "localhost")
+            agent = agent_map.get(agent_id)
+            ip = agent.get("ip", "localhost") if agent else "localhost"
             port = 0
+            is_local = _agent_is_local(agent)
 
-        if ip not in LOCAL_NODE_IDS:
+        if not is_local:
             if port:
                 cross_host[task["task_id"]] = f"http://{ip}:{port}"
             else:
@@ -782,6 +796,92 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     current_task = execution_plan[current_index]
     logger.info(f"执行任务 {current_index + 1}/{len(execution_plan)}: {current_task['task_title']}")
 
+    # --- 状态流转保护：如果当前任务尚未被标记为 running（仍为 pending），
+    # 先把任务（或并行组内的所有任务）标为 running 并返回更新，以便上层
+    # 的 state 发布逻辑把这一变化推到可视化层。再次进入本节点时会执行实际任务。
+    cur_status = current_task.get("status", "pending")
+    if cur_status not in ("running", "completed", "failed"):
+        # 并行组：把从 current_index 开始的同组任务都标成 running（若尚未完成）
+        if current_task.get("parallel_group"):
+            # 通过 UnifiedExecutor 预判本次任务将使用的协议/工具，便于可视化展示
+            try:
+                ue_for_meta = UnifiedExecutor()
+            except Exception:
+                ue_for_meta = None
+
+            updated_plan = [dict(t) for t in state.get("execution_plan", [])]
+            idx = current_index
+            pg = current_task.get("parallel_group")
+            while idx < len(updated_plan) and updated_plan[idx].get("parallel_group") == pg:
+                if updated_plan[idx].get("status") not in ("running", "completed", "failed"):
+                    updated_plan[idx]["status"] = "running"
+                    # 预填 metadata（如果尚未存在）
+                    if ue_for_meta and not updated_plan[idx].get("metadata"):
+                        try:
+                            task_meta = updated_plan[idx]
+                            tool_conf = ue_for_meta._try_match_builtin_tool(task_meta) or ue_for_meta._try_match_mcp_tool(task_meta)
+                            if tool_conf:
+                                proto = "builtin" if tool_conf.get("name") and tool_conf.get("capability") else "mcp"
+                                updated_plan[idx]["metadata"] = {
+                                    "protocol": proto,
+                                    "executor": f"{tool_conf.get('capability','')}.{tool_conf.get('name','')}".strip(".")
+                                }
+                            else:
+                                updated_plan[idx]["metadata"] = {
+                                    "protocol": "UNKNOWN",
+                                    "executor": updated_plan[idx].get("assigned_agent_id", "unknown")
+                                }
+                        except Exception:
+                            updated_plan[idx]["metadata"] = {
+                                "protocol": "UNKNOWN",
+                                "executor": updated_plan[idx].get("assigned_agent_id", "unknown")
+                            }
+                idx += 1
+            return Command(
+                update={
+                    "execution_plan": updated_plan,
+                    "current_task_index": current_index,
+                },
+                goto="executor"
+            )
+        else:
+            # 串行单任务：标记为 running 并返回，同时预填执行方式 metadata 以便前端显示
+            try:
+                ue_for_meta = UnifiedExecutor()
+            except Exception:
+                ue_for_meta = None
+
+            updated_plan = [dict(t) for t in state.get("execution_plan", [])]
+            if updated_plan and current_index < len(updated_plan):
+                updated_plan[current_index]["status"] = "running"
+                if ue_for_meta and not updated_plan[current_index].get("metadata"):
+                    try:
+                        task_meta = updated_plan[current_index]
+                        tool_conf = ue_for_meta._try_match_builtin_tool(task_meta) or ue_for_meta._try_match_mcp_tool(task_meta)
+                        if tool_conf:
+                            proto = "builtin" if tool_conf.get("name") and tool_conf.get("capability") else "mcp"
+                            updated_plan[current_index]["metadata"] = {
+                                "protocol": proto,
+                                "executor": f"{tool_conf.get('capability','')}.{tool_conf.get('name','')}".strip(".")
+                            }
+                        else:
+                            updated_plan[current_index]["metadata"] = {
+                                "protocol": "UNKNOWN",
+                                "executor": updated_plan[current_index].get("assigned_agent_id", "unknown")
+                            }
+                    except Exception:
+                        updated_plan[current_index]["metadata"] = {
+                            "protocol": "UNKNOWN",
+                            "executor": updated_plan[current_index].get("assigned_agent_id", "unknown")
+                        }
+            return Command(
+                update={
+                    "execution_plan": updated_plan,
+                    "current_task_index": current_index,
+                },
+                goto="executor"
+            )
+
     # ⚡ 并行组：收集同组任务，并发执行
     parallel_group = current_task.get("parallel_group", "")
     if parallel_group:
@@ -795,10 +895,33 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
         logger.info(f"⚡ 并行执行 {len(group_tasks)} 个任务（组: {parallel_group}）")
         _par_executor = UnifiedExecutor()
 
-        async def _exec_one(task: dict) -> dict:
+        async def _exec_one(task_idx_and_task: tuple[int, dict]) -> dict:
+            task_idx, task = task_idx_and_task
             _t0 = time.monotonic()
             try:
-                _res = await _par_executor.execute_task(task)
+                # 回调：在决策后立即更新 VizBus（写入 execution_plan 的 metadata）
+                def _on_decision(predicted: dict):
+                    try:
+                        from src.service.viz_bus import get_viz_bus
+                        bus = get_viz_bus()
+                        entry = bus.latest_running()
+                        if not entry:
+                            return
+                        wid = entry.id
+                        snap = dict(state or {}) if 'state' in locals() else {}
+                        snap = snap or {}
+                        snap['execution_plan'] = [dict(t) for t in state.get('execution_plan', [])]
+                        if 0 <= task_idx < len(snap['execution_plan']):
+                            snap['execution_plan'][task_idx].setdefault('metadata', {})
+                            snap['execution_plan'][task_idx]['metadata'].update({
+                                'protocol': predicted.get('protocol', 'UNKNOWN'),
+                                'executor': predicted.get('executor', snap['execution_plan'][task_idx].get('assigned_agent_id', 'unknown'))
+                            })
+                        bus.update_state(wid, snap, node_name='executor.decision')
+                    except Exception:
+                        pass
+
+                _res = await _par_executor.execute_task((task_idx, task)[1] if False else task, on_decision=_on_decision)
                 _latency = (time.monotonic() - _t0) * 1000
                 try:
                     from src.runtime.qos_monitor import get_qos_monitor
@@ -823,7 +946,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                     pass
                 return {"status": "error", "error_message": str(_e), "protocol": "error", "result": ""}
 
-        par_results = await asyncio.gather(*[_exec_one(t) for _, t in group_tasks])
+        par_results = await asyncio.gather(*[_exec_one((i, t)) for (i, t) in group_tasks])
 
         updated_plan = state["execution_plan"].copy()
         failed_tasks = state.get("failed_tasks", []).copy()
@@ -975,10 +1098,34 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 pass
 
         _task_start = time.monotonic()
+
+        # 回调：在决策后立即更新 VizBus（写入 execution_plan 的 metadata）
+        def _on_decision_serial(predicted: dict):
+            try:
+                from src.service.viz_bus import get_viz_bus
+                bus = get_viz_bus()
+                entry = bus.latest_running()
+                if not entry:
+                    return
+                wid = entry.id
+                snap = dict(state or {}) if 'state' in locals() else {}
+                snap = snap or {}
+                snap['execution_plan'] = [dict(t) for t in state.get('execution_plan', [])]
+                if 0 <= current_index < len(snap['execution_plan']):
+                    snap['execution_plan'][current_index].setdefault('metadata', {})
+                    snap['execution_plan'][current_index]['metadata'].update({
+                        'protocol': predicted.get('protocol', 'UNKNOWN'),
+                        'executor': predicted.get('executor', snap['execution_plan'][current_index].get('assigned_agent_id', 'unknown'))
+                    })
+                bus.update_state(wid, snap, node_name='executor.decision')
+            except Exception:
+                pass
+
         try:
             if _demo_vehicleB_inject_fail:
                 raise RuntimeError("VehicleB 感知节点连接中断（演示模式）")
-            result_data = await executor.execute_task(current_task)
+
+            result_data = await executor.execute_task(current_task, on_decision=_on_decision_serial)
             _task_latency = (time.monotonic() - _task_start) * 1000
             try:
                 from src.runtime.qos_monitor import get_qos_monitor

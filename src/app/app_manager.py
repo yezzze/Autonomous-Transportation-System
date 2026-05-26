@@ -385,11 +385,14 @@ class AppManager:
             app_id, int(interval), max_parallel, max_history
         )
         if success:
+            schedule_status = scheduler.get_schedule_status(app_id) or {}
+            app.workflow_handle = schedule_status.get("schedule_workflow_handle")
             app.update_status("scheduled")
             self._save_to_disk()
             logger.info(
                 f"[APPM] 周期调度已启动: app_id={app_id}, "
-                f"interval={interval}s"
+                f"interval={interval}s, "
+                f"workflow_handle={app.workflow_handle}"
             )
         return success
 
@@ -420,6 +423,7 @@ class AppManager:
         scheduler = self._get_scheduler()
         success = await scheduler.stop_schedule(app_id)
         if success:
+            app.workflow_handle = None
             app.update_status("stopped")
             self._save_to_disk()
             logger.info(f"[APPM] 周期调度已停止: app_id={app_id}")

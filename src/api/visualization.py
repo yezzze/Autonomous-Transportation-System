@@ -15,11 +15,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-LOCAL_HOSTS = {"127.0.0.1", "localhost", "host.docker.internal", "0.0.0.0"}
 
-
-def _is_local_ip(ip: str) -> bool:
-    return (ip or "").strip() in LOCAL_HOSTS
+def _is_local_agent(agent: Dict[str, Any]) -> bool:
+    return bool(agent.get("is_local", False))
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +58,7 @@ def extract_orchestration_data(state: Dict[str, Any]) -> Dict[str, Any]:
         ip = a.get("ip", "")
         port = a.get("port", 0)
         platform_key = f"{ip}:{port}"
-        is_local = _is_local_ip(ip)
+        is_local = _is_local_agent(a)
         item = {
             "id": a.get("id", ""),
             "capability": a.get("capability", ""),
@@ -70,6 +68,7 @@ def extract_orchestration_data(state: Dict[str, Any]) -> Dict[str, Any]:
             "description": a.get("description", ""),
             "platform": "local" if is_local else "remote",
             "platform_key": platform_key,
+            "is_local": is_local,
             "is_selected": a.get("id") in selected,
         }
         available.append(item)
@@ -121,12 +120,25 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
     failed_remote = state.get("failed_remote_aoe_urls", {}) or {}
     current_index = state.get("current_task_index", 0)
 
+    try:
+        from src.service.agent_registry import get_registry_client
+        registry = get_registry_client()
+        all_agents = registry.get_all_agents() or []
+    except Exception:
+        all_agents = state.get("agent_registry_cache", []) or []
+    agent_map = {a.get("id", ""): a for a in all_agents if a.get("id")}
+
     nodes: List[Dict[str, Any]] = []
     for i, t in enumerate(plan):
         task_id = t.get("task_id", f"task_{i}")
         ip = t.get("target_ip", "")
         is_cross = task_id in cross
         result = t.get("result", "") or ""
+        agent_id = t.get("assigned_agent_id", "")
+        agent_info = agent_map.get(agent_id)
+        is_local = bool(agent_info.get("is_local", False)) if agent_info else False
+        if not agent_info and not t.get("sub_workflow_id") and not is_cross:
+            is_local = False
         nodes.append({
             "id": task_id,
             "index": i,
@@ -134,7 +146,7 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
             "description": t.get("task_description", ""),
             "agent_id": t.get("assigned_agent_id", ""),
             "status": t.get("status", "pending"),
-            "platform": "remote" if is_cross else ("local" if _is_local_ip(ip) else "remote"),
+            "platform": "remote" if is_cross else ("local" if is_local or t.get("sub_workflow_id") else "remote"),
             "ip": ip,
             "port": t.get("target_port", 0),
             "parallel_group": t.get("parallel_group", "") or "",
@@ -149,6 +161,10 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
     edges = _build_edges(plan)
 
     counts = _count_status(plan)
+    # 调度相关聚合字段（若存在由调度器注入 state 中）
+    schedule_total = int(state.get("schedule_total_runs", 0) or 0)
+    schedule_failed = int(state.get("schedule_failed_runs", 0) or 0)
+
     return {
         "nodes": nodes,
         "edges": edges,
@@ -157,6 +173,8 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
         "counts": counts,
         "cross_host_count": len(cross),
         "platforms": _group_by_platform(nodes),
+        "schedule_total_runs": schedule_total,
+        "schedule_failed_runs": schedule_failed,
     }
 
 

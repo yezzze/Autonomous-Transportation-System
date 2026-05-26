@@ -325,7 +325,12 @@ class AppLogicEngine:
     # 供外部调度器调用的单次执行入口
     # ------------------------------------------------------------------
 
-    async def run_single_workflow(self, app_id: str, workflow_handle: str) -> Any:
+    async def run_single_workflow(
+        self,
+        app_id: str,
+        workflow_handle: str,
+        state_callback=None,
+    ) -> Any:
         """
         执行单次工作流（供 WorkflowScheduler 调用）。
 
@@ -348,7 +353,17 @@ class AppLogicEngine:
         guidance = self._guidance_files.get(app_id)
         if not guidance:
             raise ValueError(f"应用 {app_id} 未安装")
-        return await self._run_workflow(app_id, guidance, workflow_handle)
+        # 注意：调度器调用 run_single_workflow 时会把 viz_enabled 设为 False，
+        # 目的是避免为每次周期调度创建单独的可视化工作流（防止列表泛滥）。
+        # 同时，通过 state_callback 回传子运行的逐节点状态，调度器可将
+        # 这些状态合并到调度会话的聚合快照中，使调度页面仍能展示进度。
+        return await self._run_workflow(
+            app_id,
+            guidance,
+            workflow_handle,
+            viz_enabled=False,
+            state_callback=state_callback,
+        )
 
     # ------------------------------------------------------------------
     # 内部工作流执行
@@ -359,6 +374,8 @@ class AppLogicEngine:
         app_id: str,
         guidance: GuidanceFile,
         workflow_handle: str,
+        viz_enabled: bool = True,
+        state_callback=None,
     ):
         """
         实际调用编排层运行工作流
@@ -398,6 +415,13 @@ class AppLogicEngine:
                 timeout_seconds=timeout,
                 skills_content=guidance.skills_content or "",
                 pipeline_topology=pipeline_topology,
+                # 把 viz_enabled 及 state_callback 透传给编排层：
+                # - viz_enabled 控制是否在 VizBus 中注册/推送逐节点更新
+                # - state_callback 是一个可选回调（由上层传入），用于把逐节点
+                #   更新回传给调用方（例如 WorkflowScheduler），以便合并调度视图
+                viz_enabled=viz_enabled,
+                workflow_id=workflow_handle,
+                state_callback=state_callback,
             )
 
             logger.info(

@@ -5,6 +5,7 @@
 """
 import logging
 import asyncio
+from typing import Any, Callable, Dict, Optional
 from src.graph.distributed_builder import build_distributed_graph
 from src.graph.magentic_builder import build_magentic_graph
 from src.graph.adaptive_orchestrator import evaluate_task_complexity
@@ -34,6 +35,9 @@ async def run_distributed_workflow(
     adaptive_mode: bool = True,  # ← 新增：是否启用自适应编排
     skills_content: str = "",   # ← 应用 Skills 指引（注入 planner system_prompt）
     pipeline_topology: list = [],# ← 固定拓扑（非空时跳过 LLM Planner）
+    viz_enabled: bool = True,
+    workflow_id: Optional[str] = None,
+    state_callback: Optional[Callable[[Dict[str, Any], str], None]] = None,
 ):
     """
     运行分布式 Agent 调度工作流（支持自适应编排）
@@ -146,12 +150,19 @@ async def run_distributed_workflow(
     }
     
     # ========== 注册到可视化总线(支持联动可视化页面) ==========
-    bus = get_viz_bus()
-    title = (user_input[:60] + "...") if len(user_input) > 60 else user_input
-    workflow_id = bus.register(title=title)
-    # 把 orchestration_mode/complexity 提前写入,首屏就能展示
-    initial_state["orchestration_mode"] = orchestration_mode
-    bus.update_state(workflow_id, initial_state, node_name="__init__")
+    bus = None
+    if viz_enabled:
+        bus = get_viz_bus()
+        title = (user_input[:60] + "...") if len(user_input) > 60 else user_input
+        workflow_id = bus.register(title=title, workflow_id=workflow_id)
+        # 把 orchestration_mode/complexity 提前写入,首屏就能展示
+        initial_state["orchestration_mode"] = orchestration_mode
+        # 如果 viz_enabled 为 True，则将 initial_state 推送至 VizBus，供
+        # 前端首屏展示。当 viz_enabled=False（例如被调度器禁用独立可视化
+        # 时），则不在 VizBus 注册/推送，这样列表不会被频繁刷屏。
+        bus.update_state(workflow_id, initial_state, node_name="__init__")
+    if state_callback:
+        state_callback(dict(initial_state), "__init__")
 
     # 执行工作流(改为 astream,逐节点推送 state)
     try:
@@ -163,19 +174,42 @@ async def run_distributed_workflow(
                 if isinstance(node_state, dict):
                     # LangGraph 给的可能是节点返回的 partial,也可能是完整 state
                     last_state.update(node_state)
-                bus.update_state(workflow_id, last_state, node_name=node_name)
+                # 推送更新：
+                # - 当 viz_enabled=True 时，把逐节点的完整/部分 state 推给 VizBus，
+                #   前端即可实时收到 execution_plan / current_task_index 等信息。
+                # - 不论 viz_enabled, 如果调用方传入了 state_callback（例如
+                #   WorkflowScheduler），都会触发回调以便调度器能把子运行的
+                #  状态合并到 schedule 汇总视图中。
+                if bus and workflow_id:
+                    bus.update_state(workflow_id, last_state, node_name=node_name)
+                if state_callback:
+                    state_callback(dict(last_state), node_name)
 
         result = last_state
         result["orchestration_mode"] = orchestration_mode
         result["complexity_level"] = complexity if adaptive_mode else "unknown"
-        bus.finish(workflow_id, status="done", final_state=result)
+        if bus and workflow_id:
+            bus.finish(workflow_id, status="done", final_state=result)
+        if state_callback:
+            state_callback(dict(result), "__finish__")
 
-        logger.info(f"✅ 工作流执行完成 [wf_id={workflow_id}], 使用模式: {orchestration_mode.upper()}")
+        if workflow_id:
+            logger.info(f"✅ 工作流执行完成 [wf_id={workflow_id}], 使用模式: {orchestration_mode.upper()}")
+        else:
+            logger.info(f"✅ 工作流执行完成 [wf_id=disabled], 使用模式: {orchestration_mode.upper()}")
         logger.debug(f"最终状态：{result}")
         return result
     except Exception as e:
-        logger.error(f"工作流执行出错 [wf_id={workflow_id}]：{e}", exc_info=True)
-        bus.finish(workflow_id, status="failed", error=str(e))
+        if workflow_id:
+            logger.error(f"工作流执行出错 [wf_id={workflow_id}]：{e}", exc_info=True)
+        else:
+            logger.error(f"工作流执行出错 [wf_id=disabled]：{e}", exc_info=True)
+        if bus and workflow_id:
+            bus.finish(workflow_id, status="failed", error=str(e))
+        if state_callback:
+            snapshot = dict(last_state) if "last_state" in locals() else {}
+            snapshot["error"] = str(e)
+            state_callback(snapshot, "__error__")
         raise
 
 

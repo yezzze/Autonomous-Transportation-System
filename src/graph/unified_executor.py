@@ -33,7 +33,7 @@ class UnifiedExecutor:
         self.builtin_tools = get_builtin_tool_registry()
         self.mcp_enabled = False  # 新增：MCP 全局开关（默认禁用）
         
-    async def execute_task(self, task: dict) -> dict:
+    async def execute_task(self, task: dict, on_decision=None) -> dict:
         """
         执行任务，自动选择最佳协议
         
@@ -59,8 +59,41 @@ class UnifiedExecutor:
         # 策略：直接使用 A2A 协议调用远程 Agent（跳过内置工具和 MCP 检测）
         # 原因：内置工具和 MCP 检测会增加延迟，直接使用分布式 Agent 更高效
         
-        logger.info(f"🤖 使用 A2A 调用远程 Agent: {task['assigned_agent_id']}")
-        return await self._execute_with_a2a(task)
+        # 在实际发起调用前，如果提供了回调(on_decision)，先触发回调告知决策结果
+        try:
+            # 决策逻辑：优先尝试内置工具 / MCP，再使用 A2A
+            tool_conf = self._try_match_builtin_tool(task) or self._try_match_mcp_tool(task)
+            if tool_conf:
+                proto = "builtin" if tool_conf.get("name") and tool_conf.get("capability") else "mcp"
+                executor_name = f"{tool_conf.get('capability','')}.{tool_conf.get('name','')}".strip('.')
+            else:
+                proto = "a2a"
+                executor_name = task.get("assigned_agent_id", "unknown")
+        except Exception:
+            proto = "UNKNOWN"
+            executor_name = task.get("assigned_agent_id", "unknown")
+
+        if on_decision:
+            try:
+                on_decision({"protocol": proto, "executor": executor_name})
+            except Exception:
+                pass
+
+        logger.info(f"🤖 使用 {proto.upper()} 调用: {executor_name}")
+        if proto == "builtin":
+            # call builtin tool
+            try:
+                return await self._execute_with_builtin(task, tool_conf)
+            except Exception:
+                # fallback to A2A
+                return await self._execute_with_a2a(task)
+        elif proto == "mcp":
+            try:
+                return await self._execute_with_mcp(task, tool_conf)
+            except Exception:
+                return await self._execute_with_a2a(task)
+        else:
+            return await self._execute_with_a2a(task)
     
     def _try_match_mcp_tool(self, task: dict) -> Optional[dict]:
         """
