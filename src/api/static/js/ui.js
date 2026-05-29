@@ -26,14 +26,24 @@ const TAB_LOADERS = { apps: loadApps, instances: loadInstances, qos: loadQos, re
 let activeTab = 'apps';
 
 function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach((b,i) => {
-    b.classList.toggle('active', TAB_NAMES[i] === name);
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === name);
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
+  const panel = document.getElementById('tab-' + name);
+  if (panel) panel.classList.add('active');
   activeTab = name;
-  TAB_LOADERS[name]();
+  if (TAB_LOADERS[name]) TAB_LOADERS[name]();
 }
+
+// 初始化：统一为所有 tab 按钮绑定点击事件（避免使用 inline onclick）
+document.querySelectorAll('.tab-btn').forEach(b => {
+  // 如果存在内联 onclick，先删除以防重复
+  if (b.getAttribute('onclick')) b.removeAttribute('onclick');
+  const name = b.dataset.tab;
+  if (!name) return;
+  b.addEventListener('click', () => switchTab(name));
+});
 
 // ====================================================================
 // Collapse
@@ -54,6 +64,7 @@ const _panelInput = {};              // app_id → 查询输入框内容
 const _panelResult = {};             // app_id → 查询结果
 const _pendingQueries = new Set();   // app_id → 查询请求进行中
 const _openStartPanels = new Set();  // app_id → 启动面板 open
+const _openScheduleStartPanels = new Set(); // app_id → 定时启动面板 open
 // 编辑面板状态
 const _openEditPanels = new Set();   // app_id → 编辑面板 open
 const _editName = {};                // app_id → 名称输入内容
@@ -99,6 +110,12 @@ function _saveQueryState() {
     if (el.classList.contains('open')) _openStartPanels.add(appId);
     else _openStartPanels.delete(appId);
   });
+  // 保存定时启动面板状态
+  document.querySelectorAll('[id^="ssp-"]').forEach(el => {
+    const appId = el.id.slice(4);
+    if (el.classList.contains('open')) _openScheduleStartPanels.add(appId);
+    else _openScheduleStartPanels.delete(appId);
+  });
 }
 
 function _restoreQueryState() {
@@ -134,6 +151,10 @@ function _restoreQueryState() {
   });
   _openStartPanels.forEach(appId => {
     const panel = document.getElementById('sp-' + appId);
+    if (panel) panel.classList.add('open');
+  });
+  _openScheduleStartPanels.forEach(appId => {
+    const panel = document.getElementById('ssp-' + appId);
     if (panel) panel.classList.add('open');
   });
 }
@@ -239,8 +260,8 @@ function renderApps(apps) {
             ? `<button class="btn btn-success btn-sm" onclick="toggleStart('${a.app_id}')">▶ 启动</button>`
             // ? `<button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">▶ 启动</button>`
             : ''}
-          ${(a.status==='idle'||a.status==='stopped') && hasSched
-            ? `<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="startSchedule('${a.app_id}')">⏱ 定时启动</button>`
+          ${ (a.status==='idle'||a.status==='stopped') && hasSched
+            ? `<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="toggleScheduleStart('${a.app_id}')">⏱ 定时启动</button>`
             : ''}
           ${a.status==='scheduled'
             ? `<button class="btn btn-danger btn-sm" onclick="stopSchedule('${a.app_id}')">⏹ 停止调度</button>
@@ -285,6 +306,37 @@ function renderApps(apps) {
             <div style="display:flex;gap:8px;justify-content:flex-end">
               <button class="btn btn-ghost btn-sm" onclick="toggleStart('${a.app_id}')">取消</button>
               <button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">确认启动</button>
+            </div>
+          </div>
+        </div>
+        <!-- 定时启动面板（资源配置） -->
+        <div class="query-panel" id="ssp-${a.app_id}">
+          <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#445">
+              <input id="ssa-${a.app_id}" type="checkbox" checked>
+              自动分配资源
+            </label>
+            <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+              <div>
+                <label style="font-size:12px;color:#778">CPU</label>
+                <input id="ssc-${a.app_id}" type="number" min="0.1" step="0.1" placeholder="自动" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#778">内存 MB</label>
+                <input id="ssm-${a.app_id}" type="number" min="128" step="128" placeholder="自动" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#778">GPU</label>
+                <input id="ssg-${a.app_id}" type="number" min="0" step="1" placeholder="自动" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#778">节点</label>
+                <input id="ssn-${a.app_id}" type="text" placeholder="自动" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:13px">
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button class="btn btn-ghost btn-sm" onclick="toggleScheduleStart('${a.app_id}')">取消</button>
+              <button class="btn btn-success btn-sm" onclick="startScheduleWithResource('${a.app_id}')">确认定时启动</button>
             </div>
           </div>
         </div>
@@ -424,6 +476,43 @@ function toggleStart(appId) {
   panel.classList.toggle('open');
   if (panel.classList.contains('open')) _openStartPanels.add(appId);
   else _openStartPanels.delete(appId);
+}
+
+function toggleScheduleStart(appId) {
+  const panel = document.getElementById(`ssp-${appId}`);
+  if (!panel) return;
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) _openScheduleStartPanels.add(appId);
+  else _openScheduleStartPanels.delete(appId);
+}
+
+async function startScheduleWithResource(appId) {
+  try {
+    const auto = document.getElementById(`ssa-${appId}`)?.checked ?? true;
+    const rc = {};
+    if (!auto) {
+      const cpu = document.getElementById(`ssc-${appId}`)?.value.trim();
+      const memory = document.getElementById(`ssm-${appId}`)?.value.trim();
+      const gpu = document.getElementById(`ssg-${appId}`)?.value.trim();
+      const node = document.getElementById(`ssn-${appId}`)?.value.trim();
+      if (cpu) rc.cpu_cores = parseFloat(cpu);
+      if (memory) rc.memory_mb = parseInt(memory, 10);
+      if (gpu !== '') rc.gpu_count = parseInt(gpu, 10);
+      if (node) rc.node_id = node;
+    }
+    const body = Object.keys(rc).length ? { resource_config: rc } : {};
+    const res = await fetch(`${API}/api/apps/${appId}/schedule/start`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    showAlert('apps-alert','success','⏱ 定时启动已创建');
+    document.getElementById(`ssp-${appId}`)?.classList.remove('open');
+    _openScheduleStartPanels.delete(appId);
+    loadApps();
+  } catch(e) {
+    showAlert('apps-alert','error',`❌ 定时启动失败：${e.message}`);
+  }
 }
 
 async function stopApp(appId) {
@@ -751,7 +840,7 @@ async function loadResources() {
       </div>
       <div class="metric-card">
         <div class="metric-label">可用节点</div>
-        <div class="metric-value" style="color:#22c55e">${s.available_nodes??0}</div>
+        <div class="metric-value" style="color:#22c55e">${s.available_nodes ?? s.online_nodes ?? 0}</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">可用 CPU 核</div>
@@ -759,7 +848,7 @@ async function loadResources() {
       </div>
       <div class="metric-card">
         <div class="metric-label">可用内存 (MB)</div>
-        <div class="metric-value">${s.available_memory_mb??0}</div>
+        <div class="metric-value">${s.available_mem_mb??0}</div>
       </div>
     `;
     const nodes = data.nodes || [];
@@ -769,25 +858,37 @@ async function loadResources() {
       return;
     }
     tbody.innerHTML = nodes.map(n => {
-      const cpuUsed = (n.cpu_total - n.cpu_available)||0;
-      const memUsed = (n.memory_total_mb - n.memory_available_mb)||0;
+      const cpuTotal = n.cpu_total || 0;
+      const cpuAvailable = n.cpu_available || 0;
+      const memTotal = n.mem_total_mb || 0;
+      const memAvailable = n.mem_available_mb || 0;
+      // 显示为 可用 / 总，并据此计算进度条宽度
+      const cpuPct = cpuTotal ? (cpuAvailable / cpuTotal * 100) : 0;
+      const memPct = memTotal ? (memAvailable / memTotal * 100) : 0;
       return `<tr>
         <td><strong>${escHtml(n.node_id)}</strong></td>
         <td style="font-family:monospace;font-size:12px">${n.ip||'—'}</td>
         <td>${n.node_type||'—'}</td>
         <td>
-          <div>${cpuUsed.toFixed(1)} / ${(n.cpu_total||0).toFixed(1)}</div>
+          <div>${cpuAvailable.toFixed(1)} / ${(cpuTotal||0).toFixed(1)}</div>
           <div style="height:5px;background:#e8ecf2;border-radius:3px;margin-top:4px">
-            <div style="height:100%;width:${Math.min(100,(cpuUsed/(n.cpu_total||1)*100)).toFixed(0)}%;background:#4a6cf7;border-radius:3px"></div>
+            <div style="height:100%;width:${Math.min(100,cpuPct).toFixed(0)}%;background:#4a6cf7;border-radius:3px"></div>
           </div>
         </td>
         <td>
-          <div>${memUsed} / ${n.memory_total_mb||0}</div>
+          <div>${memAvailable} / ${memTotal}</div>
           <div style="height:5px;background:#e8ecf2;border-radius:3px;margin-top:4px">
-            <div style="height:100%;width:${Math.min(100,(memUsed/(n.memory_total_mb||1)*100)).toFixed(0)}%;background:#22c55e;border-radius:3px"></div>
+            <div style="height:100%;width:${Math.min(100,memPct).toFixed(0)}%;background:#22c55e;border-radius:3px"></div>
           </div>
         </td>
-        <td>${n.gpu_count||0}</td>
+        <td>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div>${n.gpu_available||0} / ${n.gpu_count||0}</div>
+            <div style="height:6px;width:96px;background:#e8ecf2;border-radius:3px;margin-top:2px">
+              <div style="height:100%;width:${Math.min(100, n.gpu_count? (n.gpu_available/n.gpu_count*100):0).toFixed(0)}%;background:#f59e0b;border-radius:3px"></div>
+            </div>
+          </div>
+        </td>
         <td>${statusBadge(n.status||'unknown')}</td>
       </tr>`;
     }).join('');

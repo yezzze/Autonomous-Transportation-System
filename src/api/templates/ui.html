@@ -1,15 +1,16 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LangManus 应用管理</title>
-<link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>自主式计算系统</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/icon/logo_white.png') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
 </head>
 <body>
 <header>
-  <span style="font-size:24px">🤖</span>
-  <h1>LangManus</h1>
+  <img src="{{ url_for('static', path='/icon/logo_white.png') }}" alt="logo" style="width:36px;height:36px;object-fit:contain">
+  <h1>自主式计算系统</h1>
   <span class="badge">应用管理控制台</span>
   <span id="server-status" style="margin-left:auto;font-size:13px;opacity:.8">● 连接中...</span>
 </header>
@@ -18,11 +19,11 @@
   <div id="global-alert" class="alert"></div>
 
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('apps')">📦 应用管理</button>
-    <button class="tab-btn" onclick="switchTab('instances')">🖥 Agent 实例</button>
-    <button class="tab-btn" onclick="switchTab('qos')">📊 QoS 监控</button>
-    <button class="tab-btn" onclick="switchTab('resources')">🗃 资源状态</button>
-    <button class="tab-btn" onclick="switchTab('nats')">🌐 NATS 云边</button>
+    <button class="tab-btn active" data-tab="apps">📦 应用管理</button>
+    <!-- <button class="tab-btn" data-tab="instances">🖥 Agent 实例</button> -->
+    <button class="tab-btn" data-tab="qos">📊 QoS 监控</button>
+    <button class="tab-btn" data-tab="resources">🗃 资源状态</button>
+    <button class="tab-btn" data-tab="nats">🌐 NATS 云边</button>
   </div>
 
   <div id="tab-apps" class="tab-panel active">
@@ -50,7 +51,7 @@
             <textarea id="f-task" placeholder="描述该应用要完成的任务，如：搜索并总结用户提供的主题"></textarea>
           </div>
           <div class="form-group">
-            <label>Agent 选择</label>
+            <!-- <label>Agent 选择</label>
             <div id="f-agent-choices" class="choice-grid">
               <label class="choice-item">
                 <input type="checkbox" value="agent-grpc">
@@ -65,7 +66,10 @@
                 <div><strong>Agent C</strong><span>NATS worker，处理消息并返回转换结果</span></div>
               </label>
             </div>
-            <small>从镜像仓库读取并去重展示，默认只显示 gRPC/B/C 三个选项</small>
+            <small>从镜像仓库读取并去重展示，默认只显示 gRPC/B/C 三个选项</small> -->
+            <label>所需 Agent 能力</label>
+            <input id="f-agents" type="text" placeholder="search, nlp, code（逗号分隔）">
+            <small>留空表示不限制</small>
           </div>
           <div class="form-group">
             <label>超时（秒）</label>
@@ -168,7 +172,7 @@
     <table>
       <thead><tr>
         <th>Node ID</th><th>IP</th><th>类型</th>
-        <th>CPU (已用/总)</th><th>内存 (已用/总 MB)</th><th>GPU</th><th>状态</th>
+        <th>CPU (可用/总)</th><th>内存 (可用/总 MB)</th><th>GPU (可用/总)</th><th>状态</th>
       </tr></thead>
       <tbody id="res-tbody">
         <tr class="empty-row"><td colspan="7">加载中...</td></tr>
