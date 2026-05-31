@@ -91,10 +91,9 @@ async def dispatch_subtask_to_remote_aoe(
     session_id = subtask.get("session_id", str(uuid.uuid4()))
 
     logger.info(
-        f"[\u8de8\u4e3b\u4f53] \u5206\u53d1\u5b50\u4efb\u52a1 task_id={task_id} \u2192 \u8fdc\u7aef AOE: {remote_aoe_url}"
+        f"[跨主体] 分发子任务 task_id={task_id} → 远端 AOE: {remote_aoe_url}"
     )
-
-    # \u6ce8\u518c\u5230\u6d3b\u8dc3\u4f1a\u8bdd\uff0c\u4f7f stop_app \u80fd\u901a\u77e5\u8fdc\u7aef\u53d6\u6d88
+    # 注册到活跃会话，使 stop_app 能通知远端取消
     _active_remote_sessions[session_id] = remote_aoe_url
     try:
         async with httpx.AsyncClient(timeout=float(session_timeout)) as client:
