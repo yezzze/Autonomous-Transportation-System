@@ -6,7 +6,7 @@ services:
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
         PIP_EXTRA_INDEX_URL: ${PIP_EXTRA_INDEX_URL:-https://download.pytorch.org/whl/cu128}
-    image: cooperativefeaturefusiondetectionviz-agent:0.1.1
+    image: cooperativefeaturefusiondetectionviz-agent:0.1.4
     container_name: cooperativefeaturefusiondetectionviz-agent
     ports:
       - "9002:9002"

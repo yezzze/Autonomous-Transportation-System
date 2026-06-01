@@ -75,12 +75,12 @@ def _encode_numpy_payload(payload: Any) -> Any:
 #     except Exception as exc:
 #         logger.error(f"Failed to post data to frontend: {exc}")
 
-async def _send_data(data: dict) -> None:
+async def _send_data(data: dict, nats_subject: str = NATS_SUBJECT) -> None:
     ack = await _nats_comm.send(
-        subject=NATS_SUBJECT,
+        subject=nats_subject,
         payload=data,
     )
-    print("sent:", ack)
+    logger.info(f"Data sent to NATS subject '{nats_subject}' with ack: {ack}")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -107,7 +107,7 @@ app = FastAPI(title="Perception to Feature Agent Demo API", lifespan=lifespan)
 
 # @app.get("/model/forward")
 @app.get("/model/forward")
-async def model_forward() -> dict:
+async def model_forward(nats_subject: str = NATS_SUBJECT) -> dict:
     try:
         resource_uri = _next_resource_uri()
         perception_info = await pointcloud_mcp_client.fetch_perception_info(resource_uri)
@@ -146,7 +146,7 @@ async def model_forward() -> dict:
     }
 
     # _temp_post_data(data)
-    await _send_data(data)
+    await _send_data(data, nats_subject=nats_subject)
 
     return {
         "status": "success",
@@ -159,8 +159,16 @@ async def model_forward_with_input(message: dict) -> dict:
 
     request_message = A2AMessage(**message)
     task_request = A2ATaskRequest(**request_message.payload)
+    
+    # 优先使用 metadata 中的 nats_subject/nats_durable
+    metadata = getattr(task_request, 'metadata', {}) or {}
+    if 'nats_subject' in metadata and metadata.get('nats_subject'):
+        nats_subject = metadata['nats_subject']
+    else:
+        # metadata 中没有指定 nats_subject，则回退到默认的 SUBJECT 和 DURABLE
+        nats_subject = NATS_SUBJECT
 
-    result = await model_forward()
+    result = await model_forward(nats_subject=nats_subject)
 
     task_response = A2ATaskResponse(
         task_id=task_request.task_id,

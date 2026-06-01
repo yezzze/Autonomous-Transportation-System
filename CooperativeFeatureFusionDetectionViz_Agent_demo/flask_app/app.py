@@ -159,17 +159,17 @@ class CooperativeFeatureFusionWebApp:
             logger.exception("Failed to load model during startup")
             raise RuntimeError(f"Startup model loading failed: {exc}") from exc
         
-    def _receive_data(self) -> dict:
+    def _receive_data(self, nats_subject=NATS_SUBJECT, nats_durable=NATS_DURABLE) -> dict:
         async def _receive_once() -> dict | None:
             try:
                 messages = await self.nats_comm.receive(
-                    subject=NATS_SUBJECT,
-                    durable=NATS_DURABLE,
+                    subject=nats_subject,
+                    durable=nats_durable,
                     batch=1,
                     timeout_sec=5,
                 )
                 for message in messages:
-                    print("received:", message.payload)
+                    logger.info(f"Received message on subject '{nats_subject}'")
                     await message.ack()
                     return message.payload
                 return None
@@ -185,10 +185,10 @@ class CooperativeFeatureFusionWebApp:
             return render_template('home_5.html')
 
         @self.app.route('/temp/forward', methods=['GET'])
-        def forward():
+        def forward(nats_subject=NATS_SUBJECT, nats_durable=NATS_DURABLE):
             # data = self.data_queue.popleft() if len(self.data_queue) > 0 else None
 
-            data = self._receive_data()
+            data = self._receive_data(nats_subject=nats_subject, nats_durable=nats_durable)
 
             if data is None:
                 return jsonify(status='error', message='No data available'), 404
@@ -243,7 +243,18 @@ class CooperativeFeatureFusionWebApp:
             request_message = A2AMessage(**message)
             task_request = A2ATaskRequest(**request_message.payload)
 
-            result = forward()
+            # 优先使用 metadata 中的 nats_subject/nats_durable
+            metadata = getattr(task_request, 'metadata', {}) or {}
+            if 'nats_subject' in metadata and metadata.get('nats_subject'):
+                nats_subject = metadata['nats_subject']
+                # 如果 metadata 中有 nats_durable 则使用，否则用 nats_subject 的 '.' 替换为 '-' 作为 durable
+                nats_durable = metadata.get('nats_durable') or nats_subject.replace('.', '-')
+            else:
+                # metadata 中没有指定 nats_subject，则回退到默认的 SUBJECT 和 DURABLE
+                nats_subject = NATS_SUBJECT
+                nats_durable = NATS_DURABLE
+
+            result = forward(nats_subject=nats_subject, nats_durable=nats_durable)
 
             task_response = A2ATaskResponse(
                 task_id=task_request.task_id,

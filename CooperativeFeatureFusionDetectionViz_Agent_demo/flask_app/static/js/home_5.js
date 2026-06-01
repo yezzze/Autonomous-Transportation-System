@@ -1,91 +1,91 @@
-const longitudeDisplay = document.getElementById('longitude');
-const latitudeDisplay = document.getElementById('latitude');
-const headingDisplay = document.getElementById('heading');
-const speedDisplay = document.getElementById('speed');
+// const longitudeDisplay = document.getElementById('longitude');
+// const latitudeDisplay = document.getElementById('latitude');
+// const headingDisplay = document.getElementById('heading');
+// const speedDisplay = document.getElementById('speed');
 
-const IdDisplay = document.getElementById('id');
+// const IdDisplay = document.getElementById('id');
 const communicationRateDisplay = document.getElementById('communication-rate');
 const logContainer = document.getElementById('logContainer')
 
-const commandInput = document.getElementById('commandInput');
+// const commandInput = document.getElementById('commandInput');
 
 
-commandInput.addEventListener('keypress', function(event) {
-    // 检查按下的键是否是回车键 (keyCode 13 或 key 'Enter')
-    if (event.key === 'Enter') {
-        // 阻止回车键的默认行为（例如提交表单，如果输入框在一个form中）
-        event.preventDefault();
+// commandInput.addEventListener('keypress', function(event) {
+//     // 检查按下的键是否是回车键 (keyCode 13 或 key 'Enter')
+//     if (event.key === 'Enter') {
+//         // 阻止回车键的默认行为（例如提交表单，如果输入框在一个form中）
+//         event.preventDefault();
 
-        // 调用要触发的函数
-        sendCommand();
-    }
-});
+//         // 调用要触发的函数
+//         sendCommand();
+//     }
+// });
 
-async function sendCommand(){
-    const inputValue = commandInput.value.trim();
-    if (inputValue === "") {
-        return;
-    }
+// async function sendCommand(){
+//     const inputValue = commandInput.value.trim();
+//     if (inputValue === "") {
+//         return;
+//     }
 
-//    console.info(inputValue)
+// //    console.info(inputValue)
 
-    // 使用 fetch API 发送 POST 请求
-    fetch('/send_command', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json', // 告诉服务器我们发送的是 JSON
-        },
-        body: JSON.stringify({ command: inputValue }), // 将数据转换为 JSON 字符串
-    })
-    .then(response => response.json()) // 解析 JSON 响应
-    .then(data => {
-        console.log('后端响应:', data);
-        if (data.status === 'success') {
-            console.success(`后端成功处理: ${data.message}`);
-        } else {
-            console.error(`后端错误: ${data.message}`);
-        }
-    })
-    .catch(error => {
-        console.error('发送请求失败:', error);
-    });
+//     // 使用 fetch API 发送 POST 请求
+//     fetch('/send_command', {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/json', // 告诉服务器我们发送的是 JSON
+//         },
+//         body: JSON.stringify({ command: inputValue }), // 将数据转换为 JSON 字符串
+//     })
+//     .then(response => response.json()) // 解析 JSON 响应
+//     .then(data => {
+//         console.log('后端响应:', data);
+//         if (data.status === 'success') {
+//             console.success(`后端成功处理: ${data.message}`);
+//         } else {
+//             console.error(`后端错误: ${data.message}`);
+//         }
+//     })
+//     .catch(error => {
+//         console.error('发送请求失败:', error);
+//     });
 
-    commandInput.value = ''; // 清空输入框
-}
+//     commandInput.value = ''; // 清空输入框
+// }
 
 
 // 定义一个函数来获取并更新车辆状态
-function updateState() {
-    fetch('/get_state') // 向后端API发起请求
-        .then(response => response.json()) // 将响应解析为JSON
-        .then(data => {
-            longitudeDisplay.textContent = data.longitude;
-            latitudeDisplay.textContent = data.latitude;
-            headingDisplay.textContent = data.heading;
-            speedDisplay.textContent = data.speed;
-            communicationRateDisplay.textContent = data.communication_rate
-        })
-        .catch(error => {
-            console.error('获取车辆状态失败:', error);
-            longitudeDisplay.textContent = 'N/A';
-            latitudeDisplay.textContent = 'N/A';
-            headingDisplay.textContent = 'N/A';
-            speedDisplay.textContent = 'N/A';
-            communicationRateDisplay.textContent = 'N/A'
-        });
-}
+// function updateState() {
+//     fetch('/get_state') // 向后端API发起请求
+//         .then(response => response.json()) // 将响应解析为JSON
+//         .then(data => {
+//             longitudeDisplay.textContent = data.longitude;
+//             latitudeDisplay.textContent = data.latitude;
+//             headingDisplay.textContent = data.heading;
+//             speedDisplay.textContent = data.speed;
+//             communicationRateDisplay.textContent = data.communication_rate
+//         })
+//         .catch(error => {
+//             console.error('获取车辆状态失败:', error);
+//             longitudeDisplay.textContent = 'N/A';
+//             latitudeDisplay.textContent = 'N/A';
+//             headingDisplay.textContent = 'N/A';
+//             speedDisplay.textContent = 'N/A';
+//             communicationRateDisplay.textContent = 'N/A'
+//         });
+// }
 
-function updateId() {
-    fetch('/get_id') // 向后端API发起请求
-        .then(response => response.json()) // 将响应解析为JSON
-        .then(data => {
-            IdDisplay.textContent = data.id;
-        })
-        .catch(error => {
-            console.error('获取车辆ID失败:', error);
-            IdDisplay.textContent = 'N/A';
-        });
-}
+// function updateId() {
+//     fetch('/get_id') // 向后端API发起请求
+//         .then(response => response.json()) // 将响应解析为JSON
+//         .then(data => {
+//             IdDisplay.textContent = data.id;
+//         })
+//         .catch(error => {
+//             console.error('获取车辆ID失败:', error);
+//             IdDisplay.textContent = 'N/A';
+//         });
+// }
 
 async function fetchNewLog() {
     fetch('/get_log') // 向后端API发起请求
@@ -168,13 +168,13 @@ socket.on('update_frames', function(data) {
         updateImageWithTimeout('pcd-img', data.pcd_img);
     }
 
-    if (data.request_map_img) {
-        updateImageWithTimeout('request-map-img', data.request_map_img);
-    }
+    // if (data.request_map_img) {
+    //     updateImageWithTimeout('request-map-img', data.request_map_img);
+    // }
 
-    if (data.others_comm_mask_img) {
-        updateImageWithTimeout('others-comm-mask-img', data.others_comm_mask_img);
-    }
+    // if (data.others_comm_mask_img) {
+    //     updateImageWithTimeout('others-comm-mask-img', data.others_comm_mask_img);
+    // }
 
     if (data.ego_feature_img) {
         updateImageWithTimeout('ego-feature-img', data.ego_feature_img);
@@ -184,13 +184,13 @@ socket.on('update_frames', function(data) {
         updateImageWithTimeout('fused-feature-img', data.fused_feature_img);
     }
 
-    if (data.pred_img_0) {
-        updateImageWithTimeout('pred-img-0', data.pred_img_0);
-    }
+    // if (data.pred_img_0) {
+    //     updateImageWithTimeout('pred-img-0', data.pred_img_0);
+    // }
 
-    if (data.pred_img_3) {
-        updateImageWithTimeout('pred-img-3', data.pred_img_3);
-    }
+    // if (data.pred_img_3) {
+    //     updateImageWithTimeout('pred-img-3', data.pred_img_3);
+    // }
 });
 
 socket.on('connect', function() {
@@ -199,11 +199,11 @@ socket.on('connect', function() {
 
 // 每秒更新一次
 // setInterval(updateState, 1000); // 1000 毫秒 = 1 秒
-setInterval(updateId, 10 * 1000); // 10000 毫秒 = 10 秒
+// setInterval(updateId, 10 * 1000); // 10000 毫秒 = 10 秒
 //setInterval(updateCommunicationRate, 1000); // 1000 毫秒 = 1 秒
 
 // 第一次加载时，希望立即更新（覆盖初始值），调用一次
 // updateState();
-updateId();
+// updateId();
 // fetchNewLog();
 //updateCommunicationRate();

@@ -57,12 +57,14 @@ class NatsComm:
     def __init__(
         self,
         servers: Optional[List[str]] = None,
-        stream: str = "WORKFLOW",
+        stream: Optional[str] = None,
         stream_subjects: Optional[List[str]] = None,
+        jetstream_domain: Optional[str] = None,
     ):
         self.servers = servers or self._servers_from_env()
-        self.stream = stream
-        self.stream_subjects = stream_subjects or ["workflow.demo.>"]
+        self.stream = stream or os.environ.get("NATS_STREAM", "WORKFLOW")
+        self.stream_subjects = stream_subjects or self._stream_subjects_from_env()
+        self.jetstream_domain = jetstream_domain or os.environ.get("NATS_JETSTREAM_DOMAIN", "hub")
         self._nc = NATS()
         self._js = None
 
@@ -71,10 +73,20 @@ class NatsComm:
         raw = os.environ.get("NATS_SERVERS", "nats://nats:4222")
         return [item.strip() for item in raw.split(",") if item.strip()]
 
+    @staticmethod
+    def _stream_subjects_from_env() -> List[str]:
+        raw = os.environ.get("NATS_STREAM_SUBJECTS", "workflow.>")
+        return [item.strip() for item in raw.split(",") if item.strip()]
+
+    def _jetstream(self):
+        if self.jetstream_domain:
+            return self._nc.jetstream(domain=self.jetstream_domain)
+        return self._nc.jetstream()
+
     async def connect(self, ensure_stream: bool = True) -> None:
         if self._nc.is_connected:
             if ensure_stream and self._js is None:
-                self._js = self._nc.jetstream()
+                self._js = self._jetstream()
                 await self._ensure_stream()
             return
 
@@ -85,7 +97,7 @@ class NatsComm:
             max_reconnect_attempts=10,
         )
         if ensure_stream:
-            self._js = self._nc.jetstream()
+            self._js = self._jetstream()
             await self._ensure_stream()
 
     async def close(self) -> None:
