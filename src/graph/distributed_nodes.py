@@ -399,21 +399,6 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
         if cross_host:
             logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
 
-        # ── DEMO 事件：任务图生成完成 ──────────────────────────────────────
-        if os.getenv("DEMO_MODE") == "1":
-            try:
-                from src.service.demo_bus import get_demo_bus
-                _n_agents = len(registry_client.get_all_agents())
-                get_demo_bus().publish("demo:plan_ready", {
-                    "tasks": [
-                        {"id": t["task_id"], "title": t["task_title"], "agent": t["assigned_agent_id"]}
-                        for t in execution_plan
-                    ],
-                    "agent_count": _n_agents,
-                })
-            except Exception:
-                pass
-
         return Command(
             update={
                 "messages": [HumanMessage(content=plan_summary, name="planner")],
@@ -1077,25 +1062,6 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     if not remote_aoe_url and not _local_swf_id:
         # ─── 本地 Agent 执行路径 ──────────────────────────
 
-        # ── DEMO 事件：开始分发任务 ──────────────────────────────────────
-        _demo_vehicleB_inject_fail = False
-        if os.getenv("DEMO_MODE") == "1":
-            try:
-                from src.service.demo_bus import get_demo_bus, is_vehicleB_failed
-                _vehicle_name = _AGENT_TO_VEHICLE.get(current_task.get("assigned_agent_id", ""))
-                if _vehicle_name:
-                    get_demo_bus().publish("demo:dispatch_start", {
-                        "vehicle": _vehicle_name,
-                        "task": current_task.get("task_title", ""),
-                    })
-                # VehicleB 故障注入：若故障标志开启，跳过真实执行直接返回失败
-                if (current_task.get("assigned_agent_id") == "perception_vehicleB_001"
-                        and is_vehicleB_failed()):
-                    _demo_vehicleB_inject_fail = True
-                    logger.info("[DEMO] 注入 VehicleB 故障")
-            except Exception:
-                pass
-
         _task_start = time.monotonic()
 
         # 回调：在决策后立即更新 VizBus（写入 execution_plan 的 metadata）
@@ -1210,20 +1176,6 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     updated_plan[current_index]["status"] = task_status
     updated_plan[current_index]["result"] = result_message
     updated_plan[current_index]["retry_count"] += 1
-
-    # ── DEMO 事件：任务执行完成 ──────────────────────────────────────
-    if os.getenv("DEMO_MODE") == "1":
-        try:
-            from src.service.demo_bus import get_demo_bus
-            _vehicle_name = _AGENT_TO_VEHICLE.get(current_task.get("assigned_agent_id", ""))
-            if _vehicle_name:
-                get_demo_bus().publish("demo:dispatch_done", {
-                    "vehicle": _vehicle_name,
-                    "success": task_status == "completed",
-                    "result": result_message[:300] if task_status == "completed" else "",
-                })
-        except Exception:
-            pass
     
     # 记录使用的协议信息
     if 'result_data' in locals() and result_data:
@@ -1415,38 +1367,6 @@ def apply_failure_rules(state: DistributedState, failed_tasks_list: list) -> dic
         logger.warning(
             f"规则 0：任务 {task['task_id']} 无可用替代节点，降级至 LLM 重规划"
         )
-
-    # ── DEMO 规则：VehicleB 失效 → 直接切换到 VehicleC（§2.3 演示）────────
-    if os.getenv("DEMO_MODE") == "1":
-        try:
-            from src.service.demo_bus import get_demo_bus
-            for task in failed_tasks_list:
-                if task.get("assigned_agent_id") == "perception_vehicleB_001":
-                    vehicleC = next(
-                        (a for a in registry_client.get_all_agents()
-                         if a.get("id") == "perception_vehicleC_001"
-                         and a.get("status") == "online"),
-                        None,
-                    )
-                    if vehicleC:
-                        task["assigned_agent_id"] = "perception_vehicleC_001"
-                        task["target_ip"] = vehicleC["ip"]
-                        task["target_port"] = vehicleC["port"]
-                        task["status"] = "pending"
-                        task["retry_count"] = 0
-                        get_demo_bus().publish("demo:failover", {
-                            "from": "vehicleB",
-                            "to": "vehicleC",
-                            "reason": "VehicleB 感知节点连接中断，已切换至备援节点 VehicleC",
-                        })
-                        logger.info("[DEMO §2.3] VehicleB → VehicleC failover 触发")
-                        return {
-                            "handled": True,
-                            "action": "Demo §2.3: VehicleB→VehicleC failover",
-                            "state_update": {"execution_plan": execution_plan},
-                        }
-        except Exception as _demo_ex:
-            logger.debug(f"[DEMO] failover rule error: {_demo_ex}")
 
     # ── 规则 1：简单重试（仅限非跨主体失败任务，避免在失败节点上无效重试）─
     for task in failed_tasks_list:
