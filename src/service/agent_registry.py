@@ -16,6 +16,7 @@ import time
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from src.graph.distributed_types import AgentInfo, SubWorkflowInfo
 
@@ -316,6 +317,14 @@ class AgentRegistryClient:
         Returns:
             合并后 peer agents 数量
         """
+        agents = [
+            {
+                **agent,
+                "is_local": False,
+            }
+            for agent in agents
+        ]
+
         self._peer_agents[peer_url] = agents
         self._peer_last_seen[peer_url] = time.time()
         if sub_workflows is not None:
@@ -348,6 +357,25 @@ class AgentRegistryClient:
             self._peer_sub_workflows.pop(url, None)
             logger.info(f"[ARDC Gossip] 清理过期 peer: {url}")
 
+    def _build_gossip_agents(self, local_url: str) -> List[AgentInfo]:
+        """
+        构造用于 Gossip 推送的本地 agent 列表。
+
+        注意：仅修改推送 payload 的 ip/port，不修改本地注册表中的原始记录。
+        """
+        parsed = urlparse(local_url if "://" in local_url else f"http://{local_url}")
+        local_ip = parsed.hostname or "127.0.0.1"
+        local_port = parsed.port or 8000
+
+        payload_agents: List[AgentInfo] = []
+        for agent in self.get_local_agents():
+            payload_agent = dict(agent)
+            payload_agent["ip"] = local_ip
+            payload_agent["port"] = local_port
+            payload_agent["is_local"] = False
+            payload_agents.append(payload_agent)
+        return payload_agents
+
     async def push_to_peer(self, peer_url: str, local_url: str) -> bool:
         """
         向指定 peer 推送本地 agent 列表（HTTP Push Gossip）。
@@ -361,13 +389,14 @@ class AgentRegistryClient:
             True 表示推送成功
         """
         import httpx
+        gossip_agents = self._build_gossip_agents(local_url)
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(
                     f"{peer_url}/registry/sync",
                     json={
                         "source_url": local_url,
-                        "agents": self.get_local_agents(),
+                        "agents": gossip_agents,
                         "sub_workflows": self.get_local_sub_workflows(),
                     },
                 )
