@@ -35,6 +35,8 @@
 
 ## 已完成（本 Sprint）
 
+- [x] **跨主体编排路由迁移到 app.py（2026-06-01）**：在 `src/api/app.py` 新增 `POST /orchestration/register_subworkflow`（编排期注册）与 `POST /orchestration/execute/{sub_workflow_id}`（运行期执行），并将 `POST /orchestration/dispatch` 改为兼容层（先注册再执行），避免实际系统依赖 `agent_server.py` 的临时测试路由。
+- [x] **ARDC Gossip 推送/接收地址与来源标记对齐（2026-06-01）**：`src/service/agent_registry.py` 的 `push_to_peer()` 发送前会将本地 agents payload 的 `ip/port` 覆盖为 `local_url` 解析结果并标记 `is_local=false`；`sync_from_peer()` 接收侧也会将入站 agents 归一化为 `is_local=false` 后写入 peer 缓存，确保跨节点视图一致且不误判本地来源。
 - [x] **工作流标识透传对齐（2026-05-25）**：`run_distributed_workflow()` 新增 `workflow_id` 参数并在 VizBus 注册阶段优先使用；`AppLogicEngine._run_workflow()` 调用时已传入 `workflow_handle`，统一应用层句柄与可视化工作流 ID。
 - [x] **应用详情页 Tab 重构（2026-05-25）**：`src/api/templates/app_details.html` 已移除“运行状态”tab，并接入 `visualization.html` 的“编排过程/拓扑结果/执行监控”三 tab，最终顺序为“逻辑文件 → 编排过程 → 拓扑结果 → 执行监控 → 智能体视图”；`src/api/static/js/app_details.js` 已改为通过 `/api/viz/*` 与 `/ws/viz/*` 渲染实时可视化数据。
 - [x] **Agent 本地/远端判定统一**（2026-05-22）：`agent_registry.json` 新增 `is_local` 字段，`src/api/visualization.py`、`src/graph/distributed_nodes.py`、`src/service/agent_startup.py` 改为只读注册表字段判断 local/remote，移除前端/调度层硬编码本地集合。
