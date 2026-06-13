@@ -1,9 +1,11 @@
 # agent_server.py - Agent 节点服务（支持 A2A 协议 + 跨主体编排端点）
 
 import asyncio
+import hashlib
+import json
 import logging
 import uuid as _uuid
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -54,6 +56,80 @@ class _SessionRegistry:
 
 _session_registry = _SessionRegistry()
 
+
+class _WorkflowRegistry:
+    """远端 AWM 的内存工作流注册表。
+
+    这里模拟“远端工作流管理层”应该承担的职责：
+    1. 编排期接收子任务图并做校验；
+    2. 为通过校验的任务图生成子工作流 ID；
+    3. 运行期根据子工作流 ID 找回对应的拓扑并执行。
+
+    由于当前工程里还没有独立的 AWM 服务，这里先用内存表模拟生命周期。
+    """
+
+    def __init__(self):
+        self._workflows: dict[str, dict[str, Any]] = {}
+        self._signature_index: dict[str, str] = {}
+
+    @staticmethod
+    def _signature(subtask: dict) -> str:
+        # 使用任务图的稳定签名做去重，避免同一子任务图被重复注册成多个工作流。
+        payload = json.dumps(subtask, ensure_ascii=False, sort_keys=True, default=str)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def get(self, sub_workflow_id: str) -> Optional[dict[str, Any]]:
+        return self._workflows.get(sub_workflow_id)
+
+    def register(
+        self,
+        *,
+        source_url: str,
+        subtask: dict,
+        pipeline_topology: list,
+        workflow_handle: str,
+        validation_message: str,
+        timeout_seconds: int,
+    ) -> dict[str, Any]:
+        # 如果同一张子任务图已经注册过，则只增加引用计数，不重复创建工作流。
+        signature = self._signature(subtask)
+        existing_id = self._signature_index.get(signature)
+        if existing_id and existing_id in self._workflows:
+            workflow = self._workflows[existing_id]
+            # 引用计数用于模拟“工作流被多个上层任务复用”的场景。
+            workflow["reference_count"] = workflow.get("reference_count", 0) + 1
+            workflow["status"] = "exists"
+            workflow["validation_message"] = validation_message
+            workflow["last_source_url"] = source_url
+            return workflow
+
+        # 新注册时生成一个全局唯一的子工作流 ID，后续运行期只认这个 ID。
+        sub_workflow_id = f"swf_{subtask.get('task_id', _uuid.uuid4().hex[:8])}_{_uuid.uuid4().hex[:6]}"
+        workflow = {
+            # 基础标识：运行期和日志里主要依赖这两个字段定位工作流。
+            "sub_workflow_id": sub_workflow_id,
+            "workflow_handle": workflow_handle,
+            # 来源地址与原始子任务图一起保存，便于调试和审计。
+            "source_url": source_url,
+            "subtask": subtask,
+            # 远端校验后真正保存的是“可执行拓扑”，而不是原始输入文本。
+            "task_description": subtask.get("task_description", ""),
+            "pipeline_topology": pipeline_topology,
+            "timeout_seconds": timeout_seconds,
+            "validation_message": validation_message,
+            # ready 表示已成功注册，后续可以被运行期调用。
+            "status": "ready",
+            "reference_count": 1,
+            "created_at": _uuid.uuid4().hex,
+            "last_source_url": source_url,
+        }
+        self._workflows[sub_workflow_id] = workflow
+        self._signature_index[signature] = sub_workflow_id
+        return workflow
+
+
+_workflow_registry = _WorkflowRegistry()
+
 class A2AMessage(BaseModel):
     message_id: str
     sender_id: str
@@ -67,6 +143,20 @@ class DispatchRequest(BaseModel):
     subtask: dict
     session_id: str
     source_aoe_url: str = ""
+
+
+class RegisterSubWorkflowRequest(BaseModel):
+    """编排期子工作流注册请求。"""
+    subtask: dict
+    session_id: str
+    source_aoe_url: str = ""
+
+
+class ExecuteSubWorkflowRequest(BaseModel):
+    """运行期子工作流执行请求。"""
+    session_id: str
+    source_aoe_url: str = ""
+    timeout_seconds: int = 60
 
 def tavily_search(query: str, max_results: int = 5) -> str:
     """使用 Tavily API 进行搜索"""
@@ -201,6 +291,200 @@ async def registry_sync(req: RegistrySyncRequest):
         "received_sub_workflows": len(req.sub_workflows),
         "merged_count": merged_count,
     }
+
+
+def _validate_and_build_workflow(subtask: dict) -> tuple[bool, str, list]:
+    """验证子任务图并构造可执行的固定拓扑。
+
+    这一步对应设计图中的“远端校验子任务图”：
+    - 先检查任务描述和目标 Agent 是否存在；
+    - 再把输入压缩成远端真正执行时需要的 pipeline_topology；
+    - 最终返回给注册接口，由注册接口决定是否生成子工作流。
+    """
+    task_description = (subtask.get("task_description") or "").strip()
+    if not task_description:
+        return False, "task_description 不能为空", []
+
+    agent_id = (subtask.get("assigned_agent_id") or "").strip()
+    if not agent_id:
+        return False, "assigned_agent_id 不能为空", []
+
+    from src.service.agent_registry import get_registry_client
+
+    registry = get_registry_client()
+    agent = registry.get_agent_by_id(agent_id)
+    if not agent:
+        return False, f"Agent {agent_id} 不存在", []
+    if agent.get("status") != "online":
+        return False, f"Agent {agent_id} 当前不可用: {agent.get('status')}", []
+
+    pipeline_topology = subtask.get("pipeline_topology") or [{
+        # 如果上层没有显式给出拓扑，就用单节点拓扑兜底，保证最小可执行性。
+        "capability": subtask.get("capability_required") or agent.get("capability", ""),
+        "agent_id": agent_id,
+        "description": task_description,
+        "target_ip": agent.get("ip", "127.0.0.1"),
+        "target_port": agent.get("port", 8000),
+    }]
+    return True, "子任务图校验通过", pipeline_topology
+
+
+@app.post("/orchestration/register_subworkflow")
+async def register_subworkflow(req: RegisterSubWorkflowRequest):
+    """
+    编排期：接收子任务图，校验后注册为远端子工作流。
+
+    返回 sub_workflow_id / workflow_handle / execute_url，供本地运行期调用。
+    """
+    task_id = req.subtask.get("task_id", _uuid.uuid4().hex[:8])
+    local_aoe_url = os.getenv("LOCAL_AOE_URL", "http://localhost:8000")
+    workflow_handle = f"remote_wf_{task_id}_{_uuid.uuid4().hex[:6]}"
+
+    # 先在远端做输入校验，确保“编排期注册”阶段就把不可执行的图挡掉。
+    is_valid, validation_message, pipeline_topology = _validate_and_build_workflow(req.subtask)
+    if not is_valid:
+        logger.warning(f"[E_AOE] 子任务图校验失败: task_id={task_id}, reason={validation_message}")
+        return {
+            "status": "rejected",
+            "task_id": task_id,
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": "",
+            "execute_url": "",
+            "validation_message": validation_message,
+            "source_aoe_url": req.source_aoe_url,
+        }
+
+    timeout_seconds = int(req.subtask.get("timeout_seconds", 60))
+    workflow = _workflow_registry.register(
+        source_url=req.source_aoe_url,
+        subtask=req.subtask,
+        pipeline_topology=pipeline_topology,
+        workflow_handle=workflow_handle,
+        validation_message=validation_message,
+        timeout_seconds=timeout_seconds,
+    )
+    execute_url = f"{local_aoe_url}/orchestration/execute/{workflow['sub_workflow_id']}"
+    workflow["execute_url"] = execute_url
+
+    logger.info(
+        f"[E_AOE] 子工作流注册成功: task_id={task_id}, swf={workflow['sub_workflow_id']}, "
+        f"status={workflow['status']}"
+    )
+    return {
+        # 远端返回给本地的最小执行信息：ID、句柄、执行入口和校验结果。
+        "status": workflow.get("status", "ready"),
+        "task_id": task_id,
+        "workflow_handle": workflow["workflow_handle"],
+        "sub_workflow_id": workflow["sub_workflow_id"],
+        "execute_url": execute_url,
+        "validation_message": workflow["validation_message"],
+        "source_aoe_url": req.source_aoe_url,
+    }
+
+
+@app.post("/orchestration/execute/{sub_workflow_id}")
+async def execute_subworkflow(sub_workflow_id: str, req: ExecuteSubWorkflowRequest):
+    """
+    运行期：按已注册的子工作流 ID 执行。
+    """
+    # 运行期执行只接受子工作流 ID，不再接受完整子任务图；
+    # 这样就能保证“编排期建图”和“运行期执行”两阶段解耦。
+    # 运行期只根据子工作流 ID 找回远端注册表中的拓扑，不再接收完整子任务图。
+    workflow = _workflow_registry.get(sub_workflow_id)
+    if not workflow:
+        return {
+            "status": "not_found",
+            "sub_workflow_id": sub_workflow_id,
+            "session_id": req.session_id,
+            "result": "未找到已注册的子工作流",
+        }
+
+    workflow_handle = workflow["workflow_handle"]
+    # 会话超时优先采用本次调用的参数，其次回退到注册期保存的默认超时。
+    timeout = int(req.timeout_seconds or workflow.get("timeout_seconds", 60))
+
+    from src.distributed_workflow import run_distributed_workflow
+
+    workflow_task = asyncio.create_task(
+        run_distributed_workflow(
+            user_input=workflow.get("task_description", ""),
+            pipeline_topology=workflow.get("pipeline_topology", []),
+            adaptive_mode=False,
+            timeout_seconds=timeout,
+            workflow_id=workflow_handle,
+        )
+    )
+    # 这里把运行中的 asyncio.Task 记录到会话表，
+    # 这样后续的 /orchestration/session/{id} 就可以中断这个远端执行。
+    # 注册到会话表，便于停止/取消接口在运行中中断对应任务。
+    _session_registry.register(req.session_id, workflow_handle, task=workflow_task)
+
+    try:
+        result = await asyncio.wait_for(asyncio.shield(workflow_task), timeout=float(timeout))
+        logger.info(f"[E_AOE] 子工作流执行完成: swf={sub_workflow_id}, session_id={req.session_id}")
+        return {
+            "status": "completed",
+            "session_id": req.session_id,
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": sub_workflow_id,
+            "result": str(result)[:3000],
+        }
+
+    except asyncio.TimeoutError:
+        workflow_task.cancel()
+        logger.warning(f"[E_AOE] 子工作流执行超时: swf={sub_workflow_id}, session_id={req.session_id}")
+        return {
+            "status": "timeout",
+            "session_id": req.session_id,
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": sub_workflow_id,
+            "result": f"子工作流执行超时（{timeout}s）",
+        }
+
+    except asyncio.CancelledError:
+        logger.info(f"[E_AOE] 子工作流被取消: swf={sub_workflow_id}, session_id={req.session_id}")
+        return {
+            "status": "cancelled",
+            "session_id": req.session_id,
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": sub_workflow_id,
+            "result": "子工作流已取消",
+        }
+
+    except Exception as e:
+        logger.error(f"[E_AOE] 子工作流执行失败: swf={sub_workflow_id}, error={e}")
+        return {
+            "status": "error",
+            "session_id": req.session_id,
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": sub_workflow_id,
+            "result": f"子工作流执行失败: {str(e)}",
+        }
+
+
+@app.post("/orchestration/dispatch")
+async def dispatch_subtask(req: DispatchRequest):
+    """
+    兼容旧接口：编排期先注册，再运行期执行。
+    """
+    register_result = await register_subworkflow(
+        RegisterSubWorkflowRequest(
+            subtask=req.subtask,
+            session_id=req.session_id,
+            source_aoe_url=req.source_aoe_url,
+        )
+    )
+    if register_result.get("status") == "rejected":
+        return register_result
+
+    return await execute_subworkflow(
+        register_result["sub_workflow_id"],
+        ExecuteSubWorkflowRequest(
+            session_id=req.session_id,
+            source_aoe_url=req.source_aoe_url,
+            timeout_seconds=int(req.subtask.get("timeout_seconds", 60)),
+        ),
+    )
 
 
 # ============================================================

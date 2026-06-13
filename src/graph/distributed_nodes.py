@@ -6,7 +6,7 @@ import logging
 import json
 import time
 import uuid
-from typing import Literal
+from typing import Any, Dict, Literal
 from datetime import datetime
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import Command
@@ -57,17 +57,37 @@ def get_active_remote_sessions() -> dict[str, str]:
     return dict(_active_remote_sessions)
 
 
+def _normalize_cross_host_session_info(info: Any) -> Dict[str, Any]:
+    """兼容旧版 str 结构与新版 dict 结构的跨主体会话信息。
+
+    旧实现里 cross_host_sessions 只保存了一个远端 URL；
+    新实现则保存完整的注册结果对象。为了不打断旧状态、旧可视化和
+    旧故障切换逻辑，这里先统一把输入归一成 dict，再由后续逻辑读取。
+    """
+    if isinstance(info, dict):
+        return dict(info)
+    if isinstance(info, str):
+        return {"remote_aoe_url": info}
+    return {}
+
+
 # ============================================================
 # 跨主体工作流：子任务分发骨架
 # ============================================================
 
-async def dispatch_subtask_to_remote_aoe(
+async def register_subtask_graph_to_remote_aoe(
     subtask: dict,
     remote_aoe_url: str,
     session_timeout: int = 30,
 ) -> dict:
     """
-    将子任务图分发到远端 AOE（智能体编排引擎）
+    编排期：将子任务图分发到远端 AOE 并完成注册。
+
+    这一步只负责“创建/校验子工作流”，不触发实际运行：
+    - 本地把子任务图发给远端；
+    - 远端检查图中智能体是否可用、任务描述是否完整；
+    - 远端在自己的工作流管理层创建子工作流并返回标识。
+    这样运行期就可以直接按 sub_workflow_id 调用，而不用再次下发整图。
 
     接口文档参考：智能体编排层接口流程 §2.2 跨主体工作流编排
 
@@ -78,11 +98,13 @@ async def dispatch_subtask_to_remote_aoe(
 
     Returns:
         {
-            "status": "completed"|"timeout"|"error",
+            "status": "ready"|"exists"|"rejected"|"timeout"|"error",
+            "sub_workflow_id": str,
             "workflow_handle": str,
-            "result": str,
-            "session_id": str,
             "remote_aoe_url": str,
+            "execute_url": str,
+            "validation_message": str,
+            "source_task": dict,
         }
     """
     import httpx
@@ -90,18 +112,20 @@ async def dispatch_subtask_to_remote_aoe(
     task_id = subtask.get("task_id", "unknown")
     session_id = subtask.get("session_id", str(uuid.uuid4()))
 
+    # 这里的日志专门标记“编排期注册”，方便和后面的“运行期执行”区分。
     logger.info(
-        f"[跨主体] 分发子任务 task_id={task_id} → 远端 AOE: {remote_aoe_url}"
+        f"[跨主体] 编排期注册子任务 task_id={task_id} → 远端 AOE: {remote_aoe_url}"
     )
-    # 注册到活跃会话，使 stop_app 能通知远端取消
-    _active_remote_sessions[session_id] = remote_aoe_url
     try:
         async with httpx.AsyncClient(timeout=float(session_timeout)) as client:
             response = await client.post(
-                f"{remote_aoe_url}/orchestration/dispatch",
+                f"{remote_aoe_url}/orchestration/register_subworkflow",
                 json={
+                    # 子任务本体：远端会基于这份图做校验与子工作流构建。
                     "subtask": subtask,
+                    # 会话 ID 用于远端创建引用记录，以及后续的取消/清理。
                     "session_id": session_id,
+                    # 告诉远端“是谁发起了这次注册”，便于日志与追踪。
                     "source_aoe_url": os.getenv("LOCAL_AOE_URL", "http://localhost:8000"),
                 },
             )
@@ -109,21 +133,25 @@ async def dispatch_subtask_to_remote_aoe(
             data = response.json()
 
         logger.info(
-            f"[跨主体] 子任务完成: task_id={task_id}, "
-            f"status={data.get('status')}"
-        )
-
-        # 异步清理：通知远端 AOE 退订引用（非阻塞，忽略失败）
-        asyncio.create_task(
-            _cleanup_remote_session(remote_aoe_url, session_id, session_timeout)
+            f"[跨主体] 子任务注册完成: task_id={task_id}, "
+            f"status={data.get('status')}, swf={data.get('sub_workflow_id', '')}"
         )
 
         return {
-            "status": data.get("status", "completed"),
+            # ready / exists / rejected 等状态由远端工作流管理层决定。
+            "status": data.get("status", "ready"),
+            # 远端工作流句柄，用于运行时定位这次注册产生的工作流实例。
             "workflow_handle": data.get("workflow_handle", ""),
-            "result": data.get("result", ""),
-            "session_id": session_id,
+            # 运行期真正需要的 ID：后续不再重新发送完整子任务图。
+            "sub_workflow_id": data.get("sub_workflow_id", ""),
+            # 远端给出的执行入口，运行期直接用它触发。
+            "execute_url": data.get("execute_url", ""),
+            # 编排期的校验结果，供 Planner/日志/UI 展示。
+            "validation_message": data.get("validation_message", ""),
             "remote_aoe_url": remote_aoe_url,
+            "session_id": session_id,
+            # 保存原始任务快照，便于后续排障或可视化回溯。
+            "source_task": subtask,
         }
 
     except httpx.TimeoutException:
@@ -132,12 +160,14 @@ async def dispatch_subtask_to_remote_aoe(
             f"url={remote_aoe_url}, timeout={session_timeout}s"
         )
         return {
-            "status": "timeout",
+            "status": "registration_timeout",
             "workflow_handle": "",
-            "result": f"远端 AOE 超时（{session_timeout}s）",
+            "sub_workflow_id": "",
+            "execute_url": "",
+            "validation_message": f"远端 AOE 超时（{session_timeout}s）",
             "session_id": session_id,
             "remote_aoe_url": remote_aoe_url,
-            "task_id": task_id,
+            "source_task": subtask,
         }
 
     except Exception as e:
@@ -146,17 +176,147 @@ async def dispatch_subtask_to_remote_aoe(
             f"url={remote_aoe_url}, error={e}"
         )
         return {
-            "status": "error",
+            "status": "registration_error",
             "workflow_handle": "",
-            "result": f"远端 AOE 调用失败: {str(e)}",
+            "sub_workflow_id": "",
+            "execute_url": "",
+            "validation_message": f"远端 AOE 调用失败: {str(e)}",
+            "session_id": session_id,
+            "remote_aoe_url": remote_aoe_url,
+            "source_task": subtask,
+        }
+
+
+async def execute_registered_subworkflow(
+    subtask: dict,
+    workflow_info: dict,
+    session_timeout: int = 30,
+) -> dict:
+    """运行期：按已注册的子工作流 ID 调用远端执行接口。
+
+    这里不再传整张子任务图，只使用编排期返回的 sub_workflow_id / execute_url。
+    这对应设计里的“编排期建图，运行期调图”。
+    """
+    import httpx
+
+    # 兼容不同来源的 workflow_info：新版本是结构化 dict，旧版本可能只给 URL。
+    workflow_info = _normalize_cross_host_session_info(workflow_info)
+    remote_aoe_url = workflow_info.get("remote_aoe_url", "")
+    sub_workflow_id = workflow_info.get("sub_workflow_id", "")
+    workflow_handle = workflow_info.get("workflow_handle", "")
+    task_id = subtask.get("task_id", "unknown")
+    session_id = workflow_info.get("session_id") or subtask.get("session_id", str(uuid.uuid4()))
+
+    # 没有远端地址或子工作流 ID，就无法进入运行期调用。
+    if not remote_aoe_url or not sub_workflow_id:
+        return {
+            "status": "error",
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": sub_workflow_id,
+            "result": "缺少远端子工作流信息，无法执行",
             "session_id": session_id,
             "remote_aoe_url": remote_aoe_url,
             "task_id": task_id,
         }
 
+    # 优先使用远端在注册期返回的 execute_url，避免调用方自己拼接错误。
+    execute_url = workflow_info.get("execute_url") or f"{remote_aoe_url}/orchestration/execute/{sub_workflow_id}"
+    logger.info(
+        f"[跨主体] 运行期调用子工作流 task_id={task_id}, swf={sub_workflow_id} → {execute_url}"
+    )
+    # 记录会话活跃状态，便于 stop_app 或故障处理时反向取消远端任务。
+    _active_remote_sessions[session_id] = remote_aoe_url
+    try:
+        async with httpx.AsyncClient(timeout=float(session_timeout)) as client:
+            response = await client.post(
+                execute_url,
+                json={
+                    # 运行期只传会话信息，不再传完整子任务图。
+                    "session_id": session_id,
+                    # 告诉远端本次调用来源于哪个 AOE，便于远端做审计与清理。
+                    "source_aoe_url": os.getenv("LOCAL_AOE_URL", "http://localhost:8000"),
+                    # 会话超时沿用编排期配置，避免远端长期挂起。
+                    "timeout_seconds": session_timeout,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        logger.info(
+            f"[跨主体] 子工作流执行完成: task_id={task_id}, swf={sub_workflow_id}, status={data.get('status')}"
+        )
+        asyncio.create_task(
+            _cleanup_remote_session(remote_aoe_url, session_id, session_timeout)
+        )
+        return {
+            "status": data.get("status", "completed"),
+            "workflow_handle": data.get("workflow_handle", workflow_handle),
+            "sub_workflow_id": data.get("sub_workflow_id", sub_workflow_id),
+            "result": data.get("result", ""),
+            "session_id": session_id,
+            "remote_aoe_url": remote_aoe_url,
+            "execute_url": execute_url,
+        }
+
+    except httpx.TimeoutException:
+        logger.warning(
+            f"[跨主体] 子工作流执行超时: task_id={task_id}, swf={sub_workflow_id}, timeout={session_timeout}s"
+        )
+        return {
+            "status": "timeout",
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": sub_workflow_id,
+            "result": f"远端子工作流超时（{session_timeout}s）",
+            "session_id": session_id,
+            "remote_aoe_url": remote_aoe_url,
+            "execute_url": execute_url,
+            "task_id": task_id,
+        }
+
+    except Exception as e:
+        logger.error(
+            f"[跨主体] 子工作流执行失败: task_id={task_id}, swf={sub_workflow_id}, error={e}"
+        )
+        return {
+            "status": "error",
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": sub_workflow_id,
+            "result": f"远端子工作流执行失败: {str(e)}",
+            "session_id": session_id,
+            "remote_aoe_url": remote_aoe_url,
+            "execute_url": execute_url,
+            "task_id": task_id,
+        }
+
     finally:
-        # 任务结束（无论成功/失败/超时）后从活跃会话中移除
+        # 任务结束（无论注册成功/失败/超时）后从活跃会话中移除
         _active_remote_sessions.pop(session_id, None)
+
+
+async def dispatch_subtask_to_remote_aoe(
+    subtask: dict,
+    remote_aoe_url: str,
+    session_timeout: int = 30,
+) -> dict:
+    """兼容旧调用：先注册，再执行已注册的远端子工作流。
+
+    这是过渡层，目的是让旧调用方无需一次性重构：
+    - 先走编排期注册，拿到远端生成的 sub_workflow_id；
+    - 再走运行期执行，实际触发远端子工作流；
+    - 如果注册失败，则直接把失败原因回传给上层。
+    """
+    workflow_info = await register_subtask_graph_to_remote_aoe(
+        subtask=subtask,
+        remote_aoe_url=remote_aoe_url,
+        session_timeout=session_timeout,
+    )
+    if workflow_info.get("status") not in {"ready", "exists"} or not workflow_info.get("sub_workflow_id"):
+        return workflow_info
+    return await execute_registered_subworkflow(
+        subtask=subtask,
+        workflow_info=workflow_info,
+        session_timeout=session_timeout,
+    )
 
 
 async def _cleanup_remote_session(
@@ -281,14 +441,43 @@ def identify_cross_host_tasks(
             ip = agent.get("ip", "localhost") if agent else "localhost"
             port = 0
             is_local = _agent_is_local(agent)
+            # TODO: 特例：Perception2IntermediateFeature_agent_001 实际部署在本地，但 registry 中标记为 is_local=false
+            # is_local = agent_id == "Perception2IntermediateFeature_agent_001" or _agent_is_local(agent)
 
         if not is_local:
             if port:
                 cross_host[task["task_id"]] = f"http://{ip}:{port}"
             else:
-                remote_port = int(os.getenv("REMOTE_AOE_PORT", "9000"))
+                remote_port = int(os.getenv("REMOTE_AOE_PORT", "8000"))
                 cross_host[task["task_id"]] = f"http://{ip}:{remote_port}"
     return cross_host
+
+
+async def register_cross_host_workflows(
+    execution_plan: list,
+    cross_host: dict,
+    session_timeout: int,
+) -> dict[str, Dict[str, Any]]:
+    """编排期批量向远端注册跨主体子工作流。
+
+    Planner 在这一步已经把“哪些任务要跨主体”算出来了；
+    这里负责把这些任务图逐个送到远端，拿到可在运行期直接调用的工作流元数据。
+    """
+    cross_host_sessions: dict[str, Dict[str, Any]] = {}
+    for task in execution_plan:
+        task_id = task.get("task_id")
+        remote_aoe_url = cross_host.get(task_id)
+        if not remote_aoe_url:
+            continue
+        workflow_info = await register_subtask_graph_to_remote_aoe(
+            subtask=task,
+            remote_aoe_url=remote_aoe_url,
+            session_timeout=session_timeout,
+        )
+        # 把源任务一并保存下来，方便后续在 UI / 日志里对照“注册前后的变化”。
+        workflow_info["source_task"] = dict(task)
+        cross_host_sessions[task_id] = workflow_info
+    return cross_host_sessions
 
 
 def _build_sub_workflow_prompt_section(sub_workflows: list) -> str:
@@ -394,10 +583,18 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
         plan_summary = f"⚡ Pipeline 模式：{len(execution_plan)} 步固定拓扑（无 LLM Planner）"
 
         # ── §2.2 跨主体识别：根据 Agent IP 预填 cross_host_sessions ────────
+        # 这一步仍然处于编排阶段：先确定哪些任务需要发往远端，
+        # 再把这些任务对应的远端注册结果保存到 state 中，供运行期直接读取。
         all_agents = registry_client.get_all_agents()
         cross_host = identify_cross_host_tasks(execution_plan, all_agents)
+        cross_host_sessions: dict[str, Dict[str, Any]] = {}
         if cross_host:
             logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
+            cross_host_sessions = await register_cross_host_workflows(
+                execution_plan=execution_plan,
+                cross_host=cross_host,
+                session_timeout=state.get("session_timeout_seconds", state.get("timeout_seconds", 60)),
+            )
 
         return Command(
             update={
@@ -406,7 +603,7 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                 "current_task_index": 0,
                 "plan_generated": True,
                 "all_tasks_completed": False,
-                "cross_host_sessions": cross_host,
+                "cross_host_sessions": cross_host_sessions,
                 "agent_registry_cache": all_agents,
             },
             goto="executor"
@@ -668,10 +865,18 @@ interface ExecutionPlan {{
                 goto="__end__"
             )
         
-        # 8. §2.2 跨主体识别：根据 Agent IP 预填 cross_host_sessions
+        # 8. §2.2 跨主体识别：根据 Agent IP 预填 cross_host_sessions 并完成远端注册
+        # LLM 规划路径与 Pipeline 快速路径保持一致：Planner 先决定“是否跨主体”，
+        # 这里再把这些跨主体任务注册到远端，运行期就不再重复下发整张子任务图。
         cross_host = identify_cross_host_tasks(execution_plan, available_agents)
+        cross_host_sessions: dict[str, Dict[str, Any]] = {}
         if cross_host:
             logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
+            cross_host_sessions = await register_cross_host_workflows(
+                execution_plan=execution_plan,
+                cross_host=cross_host,
+                session_timeout=state.get("session_timeout_seconds", state.get("timeout_seconds", 60)),
+            )
 
         # 9. 正常情况：更新状态并跳转到执行器
         plan_summary = f"""
@@ -695,7 +900,7 @@ interface ExecutionPlan {{
                 "all_tasks_completed": False,
                 "agent_registry_cache": available_agents,
                 "registry_last_update": datetime.now().isoformat(),
-                "cross_host_sessions": cross_host,
+                "cross_host_sessions": cross_host_sessions,
             },
             goto="executor"
         )
@@ -966,32 +1171,66 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     executor = UnifiedExecutor()
 
     # ─── 跨主体路由检查 ───────────────────────────────────────────────
-    cross_host_sessions = state.get("cross_host_sessions", {})
-    remote_aoe_url = cross_host_sessions.get(current_task["task_id"])
+    cross_host_sessions = dict(state.get("cross_host_sessions", {}))
+    remote_info = _normalize_cross_host_session_info(cross_host_sessions.get(current_task["task_id"]))
+    remote_aoe_url = remote_info.get("remote_aoe_url", "")
     failed_cross_host_tasks = list(state.get("failed_cross_host_tasks", []))
     failed_remote_aoe_urls: dict[str, list[str]] = dict(state.get("failed_remote_aoe_urls", {}))
 
     if remote_aoe_url:
+        # 运行期优先使用编排期留下的远端注册结果；如果信息缺失，再补做一次注册。
+        # 这样既满足新设计，也兼容旧状态或中断恢复场景。
         logger.info(
-            f"[跨主体] 任务 {current_task['task_id']} 路由到远端 AOE: {remote_aoe_url}"
+            f"[跨主体] 任务 {current_task['task_id']} 路由到远端 AOE: {remote_info.get('remote_aoe_url')}"
         )
         session_timeout = state.get("session_timeout_seconds", 60)
-        xh_result = await dispatch_subtask_to_remote_aoe(
-            subtask={
-                **current_task,
-                "timeout_seconds": session_timeout,
-            },
-            remote_aoe_url=remote_aoe_url,
-            session_timeout=session_timeout,
-        )
+        # 如果编排期返回的结果里还没有子工作流 ID，说明远端只是收到了任务但还没真正建图。
+        # 这时需要在运行期兜底注册一次，避免任务卡住。
+        if not remote_info.get("sub_workflow_id") or remote_info.get("status") not in {"ready", "exists"}:
+            remote_info = await register_subtask_graph_to_remote_aoe(
+                subtask={
+                    **current_task,
+                    "timeout_seconds": session_timeout,
+                },
+                remote_aoe_url=remote_info.get("remote_aoe_url", ""),
+                session_timeout=session_timeout,
+            )
+            remote_info["source_task"] = dict(current_task)
+            cross_host_sessions[current_task["task_id"]] = remote_info
+
+        if remote_info.get("sub_workflow_id"):
+            xh_result = await execute_registered_subworkflow(
+                subtask={
+                    **current_task,
+                    "timeout_seconds": session_timeout,
+                },
+                workflow_info=remote_info,
+                session_timeout=session_timeout,
+            )
+        else:
+            xh_result = {
+                "status": remote_info.get("status", "registration_error"),
+                "workflow_handle": remote_info.get("workflow_handle", ""),
+                "sub_workflow_id": "",
+                "result": remote_info.get("validation_message", "远端子工作流注册失败"),
+                "session_id": remote_info.get("session_id", ""),
+                "remote_aoe_url": remote_info.get("remote_aoe_url", ""),
+            }
         _task_latency = 0.0  # 远端执行，延迟由远端负责
         if xh_result.get("status") == "completed":
+            # 远端执行成功后，本地只保留结果摘要、子工作流 ID 和执行句柄。
+            # 这样后续可视化、回放和故障切换都能引用同一个远端工作流。
             task_status = "completed"
             result_message = xh_result.get("result", "")
-            result_data = {"status": "success", "protocol": "cross_host", "agent_used": remote_aoe_url}
+            result_data = {
+                "status": "success",
+                "protocol": "cross_host",
+                "agent_used": remote_info.get("sub_workflow_id", remote_info.get("remote_aoe_url", "")),
+            }
             logger.info(f"[跨主体] ✅ 子任务完成: {current_task['task_id']}")
         else:
-            # 超时或错误 → 降级为本地 LLM 规划
+            # 远端执行失败时，记录失败信息并进入重规划/故障切换；
+            # 不回退成“重新下发整图”，因为远端工作流应在编排期已创建。
             task_status = "failed"
             err_status = xh_result.get("status", "error")
             result_message = xh_result.get("result", f"跨主体执行失败({err_status})")
@@ -1017,12 +1256,11 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
         except Exception:
             pass
 
-    # 初始化 Demo 故障注入标志（跨所有执行路径共用）
-    _demo_vehicleB_inject_fail = False
-
     # ─── 本地子工作流执行路径 ──────────────────────────────────────────
     _local_swf_id = current_task.get("sub_workflow_id", "")
     if not remote_aoe_url and _local_swf_id:
+        # 本地子工作流与远端子工作流的语义一致：都是“复用已存在的 pipeline_topology”。
+        # 区别只是本地子工作流不需要跨主体注册和远端执行接口。
         logger.info(f"[子工作流] 本地执行子工作流: {_local_swf_id}")
         _task_start = time.monotonic()
         try:
@@ -1059,8 +1297,9 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
         except Exception:
             pass
 
-    if not remote_aoe_url and not _local_swf_id:
+    if not remote_info.get("remote_aoe_url") and not _local_swf_id:
         # ─── 本地 Agent 执行路径 ──────────────────────────
+        # 只有既不属于远端已注册子工作流、也不属于本地子工作流时，才回到普通 Agent 执行。
 
         _task_start = time.monotonic()
 
@@ -1087,9 +1326,6 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 pass
 
         try:
-            if _demo_vehicleB_inject_fail:
-                raise RuntimeError("VehicleB 感知节点连接中断（演示模式）")
-
             result_data = await executor.execute_task(current_task, on_decision=_on_decision_serial)
             _task_latency = (time.monotonic() - _task_start) * 1000
             try:
@@ -1127,8 +1363,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
             }
     
     # 4. 兼容性处理：如果统一执行层不可用，降级到 LLM 模拟器
-    # Demo VehicleB 故障不允许 LLM 模拟器救活
-    if task_status == "failed" and USE_LLM_SIMULATOR and not _demo_vehicleB_inject_fail:
+    if task_status == "failed" and USE_LLM_SIMULATOR:
         logger.info(f"🤖 降级到 LLM 智能体模拟器（模型: {LLM_SIMULATOR_MODEL}）")
         
         try:
@@ -1345,7 +1580,15 @@ def apply_failure_rules(state: DistributedState, failed_tasks_list: list) -> dic
                 f"规则 0（§2.3 重编排）：跨主体故障切换 "
                 f"{task['task_id']} → {alt_url}"
             )
-            cross_host_sessions[task["task_id"]] = alt_url
+            cross_host_sessions[task["task_id"]] = {
+                "remote_aoe_url": alt_url,
+                "sub_workflow_id": "",
+                "workflow_handle": "",
+                "execute_url": "",
+                "status": "needs_registration",
+                "validation_message": "已切换远端，等待重新注册",
+                "source_task": dict(task),
+            }
             task["status"] = "pending"
             # 找到此 task 在 execution_plan 中的索引，重置 current_task_index
             task_idx = next(

@@ -27,6 +27,32 @@ class SubWorkflowInfo(TypedDict):
     status: str       # "online" | "offline"
 
 
+class CrossHostWorkflowInfo(TypedDict, total=False):
+    """跨主体工作流在远端注册后的元数据。
+
+    这份结构用于把“编排期注册”和“运行期执行”拆开：
+    - 编排期只需要拿到远端返回的工作流标识与校验结果；
+    - 运行期则直接读取这里保存的 execute_url / sub_workflow_id 去触发执行。
+
+    这样本地 Planner 不必保存整张远端执行图，只保留可复用的远端工作流句柄。
+    """
+    # 远端 AOE 的基础地址，运行期执行时以此拼接调用路径。
+    remote_aoe_url: str
+    # 远端为该子任务图生成的工作流 ID，用于运行期精确调用。
+    sub_workflow_id: str
+    # 远端工作流管理层返回的句柄，可用于日志、追踪和引用计数。
+    workflow_handle: str
+    # 运行期真正触发该子工作流的 HTTP 地址，避免调用方重复拼接。
+    execute_url: str
+    # 远端校验/注册结果，用于编排阶段反馈给上层。
+    status: str
+    validation_message: str
+    # 保留本次注册关联的会话 ID，便于后续清理与取消。
+    session_id: str
+    # 保存编排期提交的原始任务快照，便于调试和状态回放。
+    source_task: Dict[str, Any]
+
+
 class TaskAssignment(TypedDict):
     """单个任务分配"""
     task_id: str  # 任务唯一标识符
@@ -84,8 +110,9 @@ class DistributedState(MessagesState):
     complexity_level: str  # 任务复杂度: simple/medium/complex
     
     # ========== 跨主体编排 ==========
-    # key: 子任务图标识 (str)，value: 远端 AOE URL (str)
-    cross_host_sessions: Dict[str, str]
+    # key: task_id；value: 远端注册后的子工作流信息。
+    # 这里不再只保存一个 URL，而是保存完整元数据，便于运行期直接调用。
+    cross_host_sessions: Dict[str, CrossHostWorkflowInfo]
     # 跨主体会话超时（秒），由其他主体创建的工作流需要超时机制
     session_timeout_seconds: int
     # 跨主体调用失败的任务 ID 列表（用于 Phase 4 故障切换后触发重规划）
