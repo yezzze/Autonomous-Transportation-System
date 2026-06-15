@@ -13,6 +13,12 @@ cat <<EOF
   value: "hub"
 - name: NATS_STREAM_SUBJECTS
   value: "workflow.>"
+- name: NATS_STREAM
+  value: "WORKFLOW"
+- name: NATS_STREAM_MAX_BYTES
+  value: "${NATS_STREAM_MAX_BYTES:-5GB}"
+- name: NATS_STREAM_DISCARD
+  value: "${NATS_STREAM_DISCARD:-old}"
 - name: CLUSTER_ID
   value: "${EDGE_CLUSTER_ID}"
 

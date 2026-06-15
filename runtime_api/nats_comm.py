@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from nats.aio.client import Client as NATS
 from nats.errors import TimeoutError as NatsTimeoutError
-from nats.js.errors import NotFoundError
+from runtime_api.jetstream_stream import ensure_jetstream_stream
 
 logger = logging.getLogger(__name__)
 
@@ -106,10 +106,11 @@ class NatsComm:
 
     async def _ensure_stream(self) -> None:
         try:
-            await self._js.stream_info(self.stream)
-        except NotFoundError:
-            await self._js.add_stream(name=self.stream, subjects=self.stream_subjects)
-            logger.info("created JetStream stream %s with subjects=%s", self.stream, self.stream_subjects)
+            await ensure_jetstream_stream(
+                self._js,
+                name=self.stream,
+                subjects=self.stream_subjects,
+            )
         except Exception as exc:
             logger.warning("failed to ensure JetStream stream %s exists: %s", self.stream, exc)
             raise

@@ -11,9 +11,12 @@ config:
     fileStore:
       pvc:
         enabled: true
+        # Must be >= per-stream NATS_STREAM_MAX_BYTES (default 5GB for WORKFLOW)
         size: 10Gi
     merge:
       domain: hub
+      # Optional server-wide cap (all streams); stream limits are set in app/CLI, not Helm
+      # max_file: << 20GB >>
 
   leafnodes:
     enabled: true

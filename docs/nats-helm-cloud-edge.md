@@ -189,7 +189,7 @@ kubectl exec deploy/nats-box -- \
   --js-domain hub
 ```
 
-如果还没有 stream，可以创建：
+如果还没有 stream，可以创建（**Helm 不能设置 stream 的 max-bytes/discard，需 CLI 或应用自动建流**）：
 
 ```bash
 kubectl exec deploy/nats-box -- \
@@ -197,9 +197,42 @@ kubectl exec deploy/nats-box -- \
   --subjects 'workflow.>' \
   --storage file \
   --retention limits \
-  --defaults \
+  --max-bytes 5GB \
+  --discard old \
   --server nats://nats:4222 \
   --js-domain hub
+```
+
+应用侧（`runtime_api.NatsComm`、`/api/comm/nats/publish`）在首次 JetStream 调用时会自动 `ensure` 同名 stream，并读取环境变量：
+
+```text
+NATS_STREAM=WORKFLOW
+NATS_STREAM_SUBJECTS=workflow.>
+NATS_STREAM_MAX_BYTES=5GB
+NATS_STREAM_DISCARD=old
+NATS_STREAM_RETENTION=limits
+NATS_STREAM_STORAGE=file
+```
+
+若 `WORKFLOW` 已存在且未带限制，需一次性迁移：
+
+```bash
+kubectl exec deploy/nats-box -- \
+  nats stream edit WORKFLOW \
+  --max-bytes 5GB \
+  --discard old \
+  --retention limits \
+  --server nats://nats:4222 \
+  --js-domain hub
+```
+
+验证：
+
+```bash
+kubectl exec deploy/nats-box -- \
+  nats stream info WORKFLOW --json \
+  --server nats://nats:4222 \
+  --js-domain hub | jq '.config.max_bytes, .config.discard'
 ```
 
 ## 验证跨集群消息
@@ -230,6 +263,8 @@ kubectl exec deploy/nats-box -- \
 NATS_SERVERS=nats://nats:4222
 NATS_JETSTREAM_DOMAIN=hub
 NATS_STREAM_SUBJECTS=workflow.>
+NATS_STREAM_MAX_BYTES=5GB
+NATS_STREAM_DISCARD=old
 CLUSTER_ID=<edge-cluster-id>
 ```
 

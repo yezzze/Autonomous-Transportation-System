@@ -12,6 +12,16 @@ config:
   monitor:
     enabled: true
 
+  jetstream:
+    enabled: true
+    fileStore:
+      enabled: false
+      pvc:
+        enabled: false
+    memoryStore:
+      enabled: true
+      maxSize: 1Gi
+
 service:
   merge:
     spec:
