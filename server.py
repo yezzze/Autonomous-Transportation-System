@@ -26,10 +26,10 @@ if __name__ == "__main__":
     logger.info(f"[LLM] vision    : {VL_MODEL}")
     if os.environ.get("AGENT_DEPLOY_BACKEND", "").strip().lower() == "kubernetes":
         from src.service.agent_startup import AgentStartupConfig
-        from src.service.nats_startup import NatsStartupConfig
 
         agent_config = AgentStartupConfig.from_env()
-        nats_config = NatsStartupConfig.from_env()
+        nats_service = os.getenv("NATS_SERVICE_NAME", "nats")
+        nats_port = os.getenv("NATS_CLIENT_PORT", "4222")
         logger.info(
             "[AgentStartup] backend=%s namespace=%s http_port=%s grpc_port=%s "
             "image_pull_policy=%s health_probe=%s",
@@ -41,17 +41,17 @@ if __name__ == "__main__":
             agent_config.enable_health_probe,
         )
         logger.info(
-            "[NATS] deployment=%s service=%s image=%s servers=%s args=%s",
-            nats_config.deployment_name,
-            nats_config.service_name,
-            nats_config.image,
-            nats_config.servers,
-            nats_config.server_args(),
+            "[NATS] service=%s servers=%s agent_servers=%s domain=%s subjects=%s",
+            nats_service,
+            os.getenv("NATS_SERVERS", f"nats://127.0.0.1:{nats_port}"),
+            os.getenv("AGENT_NATS_SERVERS", f"nats://{nats_service}:{nats_port}"),
+            os.getenv("NATS_JETSTREAM_DOMAIN", "hub"),
+            os.getenv("NATS_STREAM_SUBJECTS", "workflow.>"),
         )
     uvicorn.run(
         "src.api.app:app",
         host="0.0.0.0",
-        port=int(os.environ.get("PORT", "8001")),
+        port=int(os.environ.get("PORT", "8000")),
         reload=False,
         log_level="info",
     )

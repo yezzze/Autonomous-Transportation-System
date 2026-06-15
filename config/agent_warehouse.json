@@ -7,7 +7,21 @@
       "capability": "agent-grpc",
       "description": "gRPC entrypoint that publishes work to NATS and returns replies",
       "exposed_external": false,
-      "metadata": {},
+      "metadata": {
+        "opensandbox": {
+          "entrypoint": ["python", "server.py"],
+          "nats": {
+            "jetstreamDomain": "local"
+          },
+          "network": {
+            "defaultAction": "deny",
+            "allowedEgress": [
+              "nats.default.svc.cluster.local",
+              "host.minikube.internal"
+            ]
+          }
+        }
+      },
       "created_at": "2026-04-24T00:00:00",
       "registered": true
     },
@@ -18,7 +32,21 @@
       "capability": "agent-b",
       "description": "NATS worker that forwards work to agent-c and replies to agent_gRPC",
       "exposed_external": false,
-      "metadata": {},
+      "metadata": {
+        "opensandbox": {
+          "entrypoint": ["python", "worker.py"],
+          "nats": {
+            "jetstreamDomain": "cloud"
+          },
+          "network": {
+            "defaultAction": "deny",
+            "allowedEgress": [
+              "nats.default.svc.cluster.local",
+              "host.minikube.internal"
+            ]
+          }
+        }
+      },
       "created_at": "2026-04-24T00:00:00",
       "registered": true
     },
@@ -29,7 +57,21 @@
       "capability": "agent-c",
       "description": "NATS worker that processes requests from agent-b",
       "exposed_external": false,
-      "metadata": {},
+      "metadata": {
+        "opensandbox": {
+          "entrypoint": ["python", "worker.py"],
+          "nats": {
+            "jetstreamDomain": "cloud"
+          },
+          "network": {
+            "defaultAction": "deny",
+            "allowedEgress": [
+              "nats.default.svc.cluster.local",
+              "host.minikube.internal"
+            ]
+          }
+        }
+      },
       "created_at": "2026-04-24T00:00:00",
       "registered": true
     },

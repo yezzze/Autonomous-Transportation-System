@@ -72,13 +72,13 @@ class _DispatchRequest(BaseModel):
 
 
 class _NatsPublishRequest(BaseModel):
-    """由 AOE 代发 NATS 消息，默认投递到本 AOE 管理集群的 NATS。"""
+    """由编排服务代发 NATS 消息，默认投递到本集群 NATS。"""
     subject: str = Field(..., description="要发布的 NATS subject")
     payload: Dict[str, Any] = Field(default_factory=dict, description="JSON payload")
     reply_subject: Optional[str] = Field(None, description="需要等待的 reply subject")
     servers: Optional[List[str]] = Field(
         None,
-        description="可选 NATS servers；默认使用当前 AOE 的 NATS_SERVERS",
+        description="可选 NATS servers；默认使用 NATS_SERVERS",
     )
     stream: str = Field("WORKFLOW", description="JetStream stream 名称")
     jetstream_domain: str = Field(
@@ -93,11 +93,11 @@ class _NatsPublishRequest(BaseModel):
 
 
 class _NatsReceiveRequest(BaseModel):
-    """从当前 AOE 管理集群的 NATS/JetStream 拉取消息，用于 UI 简单验证。"""
+    """从本集群 NATS/JetStream 拉取消息，用于 UI 简单验证。"""
     subject: str = Field(..., description="要接收的 NATS subject")
     servers: Optional[List[str]] = Field(
         None,
-        description="可选 NATS servers；默认使用当前 AOE 的 NATS_SERVERS",
+        description="可选 NATS servers；默认使用 NATS_SERVERS",
     )
     stream: str = Field("WORKFLOW", description="JetStream stream 名称")
     jetstream_domain: str = Field(
@@ -186,40 +186,10 @@ def _required_stream_subjects(req: _NatsPublishRequest) -> List[str]:
 
 
 async def _ensure_jetstream_stream(js, req: _NatsPublishRequest) -> Dict[str, Any]:
+    from src.service.jetstream_stream import ensure_jetstream_stream
+
     required_subjects = _required_stream_subjects(req)
-    try:
-        info = await js.stream_info(req.stream)
-    except Exception as exc:
-        if exc.__class__.__name__ != "NotFoundError":
-            raise
-        await js.add_stream(name=req.stream, subjects=required_subjects)
-        return {"created": True, "subjects": required_subjects}
-
-    config = getattr(info, "config", None)
-    current_subjects = list(getattr(config, "subjects", None) or [])
-    if not current_subjects:
-        current_subjects = required_subjects
-
-    missing = [
-        subject
-        for subject in [req.subject, req.reply_subject]
-        if subject and not _covered_by_subjects(subject, current_subjects)
-    ]
-    if not missing:
-        return {"created": False, "subjects": current_subjects}
-
-    merged_subjects = current_subjects[:]
-    for subject in required_subjects:
-        if subject not in merged_subjects:
-            merged_subjects.append(subject)
-
-    try:
-        await js.update_stream(name=req.stream, subjects=merged_subjects)
-    except TypeError:
-        from nats.js.api import StreamConfig
-
-        await js.update_stream(StreamConfig(name=req.stream, subjects=merged_subjects))
-    return {"created": False, "updated": True, "subjects": merged_subjects, "added_subjects": missing}
+    return await ensure_jetstream_stream(js, name=req.stream, subjects=required_subjects)
 
 
 AOE_CLUSTER_CONFIG_PATH = os.path.abspath(

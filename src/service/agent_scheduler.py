@@ -14,17 +14,18 @@
 import logging
 import os
 import re
+import json
+import shlex
 import socket
 import subprocess
 import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from src.service.agent_startup import AgentStartupConfig
-from src.service.nats_startup import NatsStartupConfig
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class DeploymentRecord:
         backend: str = "subprocess",
         namespace: Optional[str] = None,
         k8s_deployment_name: Optional[str] = None,
+        opensandbox_sandbox_id: Optional[str] = None,
         status: str = "deploying",
     ):
         """初始化一条部署记录，记录调度输入、运行状态和 Kubernetes 资源名。"""
@@ -59,6 +61,7 @@ class DeploymentRecord:
         self.backend = backend
         self.namespace = namespace
         self.k8s_deployment_name = k8s_deployment_name
+        self.opensandbox_sandbox_id = opensandbox_sandbox_id
         self.status = status  # deploying | running | stopping | stopped | failed
         self.created_at = datetime.utcnow().isoformat()
         self.updated_at = self.created_at
@@ -77,6 +80,7 @@ class DeploymentRecord:
             "backend": self.backend,
             "namespace": self.namespace,
             "k8s_deployment_name": self.k8s_deployment_name,
+            "opensandbox_sandbox_id": self.opensandbox_sandbox_id,
             "status": self.status,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -99,6 +103,7 @@ class AgentScheduler:
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     )
     _K8S_MANIFEST_DIR = Path(_PROJECT_ROOT) / "k8s"
+    _AGENT_WAREHOUSE_FILE = Path(_PROJECT_ROOT) / "config" / "agent_warehouse.json"
 
     def __init__(self):
         """初始化调度器状态，并从 server 启动环境读取 Agent/NATS 启动配置。"""
@@ -113,21 +118,36 @@ class AgentScheduler:
         self.startup_config = AgentStartupConfig.from_env()
         self.deploy_backend = self.startup_config.deploy_backend
         self.k8s_namespace = self.startup_config.k8s_namespace
-        self.nats_config = NatsStartupConfig.from_env()
-        self.nats_servers = self.nats_config.servers
+        nats_service = os.getenv("NATS_SERVICE_NAME", "nats")
+        nats_port = int(os.getenv("NATS_CLIENT_PORT", "4222"))
+        self.nats_servers = os.getenv("NATS_SERVERS", f"nats://127.0.0.1:{nats_port}")
         self.agent_nats_servers = os.getenv(
             "AGENT_NATS_SERVERS",
-            f"nats://{self.nats_config.service_name}:{self.nats_config.client_port}"
-            if self.deploy_backend == "kubernetes"
+            f"nats://{nats_service}:{nats_port}"
+            if self.deploy_backend == "kubernetes" or self._is_opensandbox_backend(self.deploy_backend)
             else self.nats_servers,
         )
-        self.ensure_nats = self.startup_config.ensure_nats
+        self.nats_jetstream_domain = os.getenv("NATS_JETSTREAM_DOMAIN", "hub")
+        self.nats_cloud_jetstream_domain = os.getenv("NATS_CLOUD_JETSTREAM_DOMAIN", "hub")
+        self.agent_nats_jetstream_domain = os.getenv(
+            "AGENT_NATS_JETSTREAM_DOMAIN",
+            self.nats_jetstream_domain,
+        )
+        self.nats_stream_subjects = os.getenv("NATS_STREAM_SUBJECTS", "workflow.>")
+        self.opensandbox_base_url = os.getenv(
+            "OPENSANDBOX_SERVER_URL",
+            "http://opensandbox-server.opensandbox-system.svc.cluster.local",
+        ).rstrip("/")
+        self.opensandbox_api_key = os.getenv("OPENSANDBOX_API_KEY", "")
+        self.opensandbox_request_timeout = float(os.getenv("OPENSANDBOX_REQUEST_TIMEOUT", "30"))
+        self.opensandbox_sandbox_timeout = int(os.getenv("OPENSANDBOX_SANDBOX_TIMEOUT_SECONDS", "3600"))
         logger.info(
-            "AgentScheduler (ASD) 初始化完成: backend=%s, nats_servers=%s, agent_nats_servers=%s, ensure_nats=%s",
+            "AgentScheduler (ASD) 初始化完成: backend=%s, nats_servers=%s, "
+            "agent_nats_servers=%s, agent_js_domain=%s",
             self.deploy_backend,
             self.nats_servers,
             self.agent_nats_servers,
-            self.ensure_nats,
+            self.agent_nats_jetstream_domain or "<local>",
         )
 
     # ------------------------------------------------------------------
@@ -205,6 +225,22 @@ class AgentScheduler:
         return resources
 
     @staticmethod
+    def _sandbox_resource_limits(cpu_cores: float, memory_mb: int, gpu_count: int = 0) -> Dict[str, str]:
+        """生成 OpenSandbox resourceLimits，沿用 Kubernetes quantity 表达。"""
+        limits = {
+            "cpu": AgentScheduler._cpu_quantity(cpu_cores),
+            "memory": f"{memory_mb}Mi",
+        }
+        if gpu_count > 0:
+            limits["nvidia.com/gpu"] = str(gpu_count)
+        return limits
+
+    @staticmethod
+    def _is_opensandbox_backend(backend: str) -> bool:
+        """判断当前部署后端是否走 OpenSandbox。"""
+        return backend in {"opensandbox", "sandbox"}
+
+    @staticmethod
     def _load_kube_config() -> None:
         """加载 Kubernetes 配置，优先使用集群内配置，失败后回退本机 kubeconfig。"""
         try:
@@ -228,6 +264,209 @@ class AgentScheduler:
                 item["value"] = value
                 return
         env_list.append({"name": name, "value": value})
+
+    def _resolve_jetstream_domain(self, value: Optional[str]) -> str:
+        """解析 Agent 配置里的 JetStream domain 别名。"""
+        if value is None:
+            return self.agent_nats_jetstream_domain
+        normalized = str(value).strip().lower()
+        if normalized in {"", "local", "edge"}:
+            return ""
+        if normalized in {"cloud", "hub"}:
+            return self.nats_cloud_jetstream_domain
+        return str(value)
+
+    def _upsert_agent_nats_env(
+        self,
+        env_list: List[Dict],
+        sandbox_config: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """注入 Agent NATS 环境变量；沙盒 Agent 可按镜像覆盖数据面。"""
+        nats_config = {}
+        if sandbox_config:
+            raw_config = sandbox_config.get("nats") or {}
+            if isinstance(raw_config, dict):
+                nats_config = raw_config
+
+        servers = str(nats_config.get("servers") or self.agent_nats_servers)
+        stream_subjects = str(nats_config.get("streamSubjects") or self.nats_stream_subjects)
+        jetstream_domain = self._resolve_jetstream_domain(nats_config.get("jetstreamDomain"))
+
+        self._upsert_env_var(env_list, "NATS_SERVERS", servers)
+        self._upsert_env_var(env_list, "NATS_SERVER_URL", servers)
+        self._upsert_env_var(env_list, "NATS_JETSTREAM_DOMAIN", jetstream_domain)
+        self._upsert_env_var(env_list, "NATS_STREAM_SUBJECTS", stream_subjects)
+
+    @staticmethod
+    def _env_list_to_map(env_list: List[Dict]) -> Dict[str, str]:
+        """把 Kubernetes env 列表转换成 OpenSandbox env 字典，仅保留静态 value。"""
+        env_map: Dict[str, str] = {}
+        for item in env_list:
+            name = item.get("name")
+            if not name:
+                continue
+            if "value" in item:
+                env_map[name] = str(item.get("value", ""))
+            elif "valueFrom" in item:
+                logger.warning("[ASD] OpenSandbox 暂不转换 valueFrom 环境变量: %s", name)
+        return env_map
+
+    @staticmethod
+    def _first_container_from_deployment(deployment_body: Optional[Dict]) -> Dict:
+        """从 Deployment manifest 中取第一个容器配置。"""
+        try:
+            containers = deployment_body["spec"]["template"]["spec"]["containers"]
+            if containers:
+                return containers[0]
+        except Exception:
+            pass
+        return {}
+
+    def _opensandbox_config_for_agent(
+        self,
+        image_uri: str,
+        agent_id: str,
+        capability: str,
+    ) -> Dict[str, Any]:
+        """从 Agent 仓库读取单个镜像的 OpenSandbox 配置。"""
+        try:
+            data = json.loads(self._AGENT_WAREHOUSE_FILE.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.warning("[ASD] 读取 Agent 仓库失败，跳过 OpenSandbox 单镜像配置: %s", exc)
+            return {}
+
+        candidates = {
+            image_uri,
+            agent_id,
+            capability,
+            image_uri.rsplit("/", 1)[-1],
+        }
+        for image in data.get("images") or []:
+            identifiers = {
+                str(image.get("image_id") or ""),
+                str(image.get("name") or ""),
+                str(image.get("capability") or ""),
+            }
+            if not candidates.intersection(identifiers):
+                continue
+            metadata = image.get("metadata") or {}
+            config = metadata.get("opensandbox") or metadata.get("sandbox") or {}
+            return config if isinstance(config, dict) else {}
+        return {}
+
+    def _image_default_entrypoint(self, image_uri: str) -> List[str]:
+        """读取本地 Docker 镜像默认 Entrypoint/Cmd，作为 OpenSandbox entrypoint 回退。"""
+        try:
+            output = subprocess.check_output(
+                ["docker", "image", "inspect", image_uri, "--format", "{{json .Config}}"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            config = json.loads(output.strip())
+        except Exception as exc:
+            logger.warning("[ASD] 读取镜像默认命令失败: image=%s, error=%s", image_uri, exc)
+            return []
+
+        entrypoint = config.get("Entrypoint") or []
+        cmd = config.get("Cmd") or []
+        if isinstance(entrypoint, str):
+            entrypoint = shlex.split(entrypoint)
+        if isinstance(cmd, str):
+            cmd = shlex.split(cmd)
+        return [str(part) for part in entrypoint + cmd]
+
+    def _opensandbox_entrypoint(
+        self,
+        container: Dict,
+        image_uri: str,
+        sandbox_config: Dict[str, Any],
+    ) -> List[str]:
+        """确定 OpenSandbox entrypoint：YAML > 镜像配置 > 环境变量 > 镜像默认命令。"""
+        command = container.get("command") or []
+        args = container.get("args") or []
+        if command:
+            return [str(part) for part in command + args]
+
+        configured = sandbox_config.get("entrypoint")
+        if isinstance(configured, list) and configured:
+            return [str(part) for part in configured]
+        if isinstance(configured, str) and configured.strip():
+            return shlex.split(configured)
+
+        raw = os.getenv("OPENSANDBOX_ENTRYPOINT") or os.getenv("AGENT_SANDBOX_ENTRYPOINT")
+        if raw:
+            return shlex.split(raw)
+
+        image_entrypoint = self._image_default_entrypoint(image_uri)
+        if image_entrypoint:
+            return image_entrypoint
+
+        raise RuntimeError(
+            "OpenSandbox requires an entrypoint. Set OPENSANDBOX_ENTRYPOINT "
+            "or make the image available locally so Docker can inspect its default Cmd."
+        )
+
+    @staticmethod
+    def _comma_list_env(name: str) -> List[str]:
+        """读取逗号分隔环境变量。"""
+        return [item.strip() for item in os.getenv(name, "").split(",") if item.strip()]
+
+    def _opensandbox_network_policy(self, sandbox_config: Dict[str, Any]) -> Optional[Dict]:
+        """按镜像配置或环境变量生成 OpenSandbox networkPolicy。"""
+        configured_policy = sandbox_config.get("networkPolicy")
+        if isinstance(configured_policy, dict):
+            return configured_policy
+
+        configured_network = sandbox_config.get("network") or {}
+        if not isinstance(configured_network, dict):
+            configured_network = {}
+
+        default_action = str(
+            configured_network.get("defaultAction")
+            or os.getenv("OPENSANDBOX_NETWORK_DEFAULT_ACTION", "")
+        ).strip().lower()
+        allowed_targets = configured_network.get("allowedEgress")
+        if allowed_targets is None:
+            allowed_targets = self._comma_list_env("OPENSANDBOX_ALLOWED_EGRESS")
+        denied_targets = configured_network.get("deniedEgress")
+        if denied_targets is None:
+            denied_targets = self._comma_list_env("OPENSANDBOX_DENIED_EGRESS")
+
+        allowed_targets = [str(item).strip() for item in allowed_targets if str(item).strip()]
+        denied_targets = [str(item).strip() for item in denied_targets if str(item).strip()]
+        if not default_action and not allowed_targets and not denied_targets:
+            return None
+
+        policy: Dict[str, object] = {"egress": []}
+        if default_action:
+            policy["defaultAction"] = default_action
+        for target in allowed_targets:
+            policy["egress"].append({"action": "allow", "target": target})
+        for target in denied_targets:
+            policy["egress"].append({"action": "deny", "target": target})
+        return policy
+
+    def _opensandbox_request(self, method: str, path: str, payload: Optional[Dict] = None) -> Dict:
+        """调用 OpenSandbox Server REST API。"""
+        import urllib.error
+        import urllib.request
+
+        url = f"{self.opensandbox_base_url}{path}"
+        data = json.dumps(payload).encode("utf-8") if payload is not None else None
+        headers = {"Content-Type": "application/json"}
+        if self.opensandbox_api_key:
+            headers["OPEN-SANDBOX-API-KEY"] = self.opensandbox_api_key
+
+        request = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(request, timeout=self.opensandbox_request_timeout) as response:
+                body = response.read()
+                if not body:
+                    return {}
+                return json.loads(body.decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"OpenSandbox API {method} {path} failed: {exc.code} {detail}") from exc
 
     def _kubernetes_manifest_path(self, deployment_name: str) -> Path:
         """返回 k8s/ 根目录下对应 Deployment 名称的 YAML 路径。"""
@@ -362,8 +601,7 @@ class AgentScheduler:
         env = container.setdefault("env", [])
         self._upsert_env_var(env, "AGENT_ID", record.agent_id)
         self._upsert_env_var(env, "AGENT_CAPABILITY", capability)
-        self._upsert_env_var(env, "NATS_SERVERS", self.agent_nats_servers)
-        self._upsert_env_var(env, "NATS_SERVER_URL", self.agent_nats_servers)
+        self._upsert_agent_nats_env(env)
 
         container["resources"] = self._resource_requirements(
             record.cpu_cores,
@@ -437,8 +675,6 @@ class AgentScheduler:
                                 "env": [
                                     {"name": "AGENT_ID", "value": record.agent_id},
                                     {"name": "AGENT_CAPABILITY", "value": capability},
-                                    {"name": "NATS_SERVERS", "value": self.agent_nats_servers},
-                                    {"name": "NATS_SERVER_URL", "value": self.agent_nats_servers},
                                 ],
                                 "resources": self._resource_requirements(
                                     record.cpu_cores,
@@ -456,6 +692,9 @@ class AgentScheduler:
         )
         if node_selector:
             deployment_body["spec"]["template"]["spec"]["nodeSelector"] = node_selector
+        self._upsert_agent_nats_env(
+            deployment_body["spec"]["template"]["spec"]["containers"][0]["env"]
+        )
 
         service_body = {
             "apiVersion": "v1",
@@ -507,8 +746,6 @@ class AgentScheduler:
         core = client.CoreV1Api()
 
         namespace = record.namespace or self.k8s_namespace
-        if self.ensure_nats:
-            self._ensure_kubernetes_nats(namespace, apps, core)
 
         deployment_name = record.k8s_deployment_name or self._safe_k8s_name(record.agent_id)
         record.namespace = namespace
@@ -588,55 +825,79 @@ class AgentScheduler:
         self._register_to_ardc(record.agent_id, record.node_id, port=service_port, capability=capability)
         return record
 
-    def _ensure_kubernetes_nats(self, namespace: str, apps, core) -> None:
-        """确保集群内 NATS Deployment/Service 存在；已存在时按启动配置 patch 更新。"""
-        from kubernetes.client.rest import ApiException
+    def _deploy_opensandbox(self, record: DeploymentRecord, capability: str) -> DeploymentRecord:
+        """通过 OpenSandbox Server 创建受控沙盒，而不是直接创建普通 Deployment。"""
+        deployment_name = record.k8s_deployment_name or self._safe_k8s_name(record.agent_id)
+        record.k8s_deployment_name = deployment_name
+        record.namespace = os.getenv("OPENSANDBOX_WORKLOAD_NAMESPACE", self.k8s_namespace)
 
-        config_map_body = self.nats_config.config_map_body()
-        deployment_body = self.nats_config.deployment_body()
-        service_body = self.nats_config.service_body()
+        manifest_bodies = self._load_kubernetes_manifest_from_yaml(deployment_name)
+        container = self._first_container_from_deployment(
+            manifest_bodies.get("deployment") if manifest_bodies else None
+        )
+        image_uri = container.get("image") or record.image_id
+        sandbox_config = self._opensandbox_config_for_agent(
+            image_uri,
+            record.agent_id,
+            capability,
+        )
+        entrypoint = self._opensandbox_entrypoint(container, image_uri, sandbox_config)
 
-        try:
-            core.create_namespaced_config_map(namespace=namespace, body=config_map_body)
-        except ApiException as exc:
-            if exc.status != 409:
-                raise
-            core.patch_namespaced_config_map(
-                name=config_map_body["metadata"]["name"],
-                namespace=namespace,
-                body=config_map_body,
-            )
+        env_list = list(container.get("env") or [])
+        self._upsert_env_var(env_list, "AGENT_ID", record.agent_id)
+        self._upsert_env_var(env_list, "AGENT_CAPABILITY", capability)
+        self._upsert_agent_nats_env(env_list, sandbox_config)
+        env = self._env_list_to_map(env_list)
+        configured_env = sandbox_config.get("env") or {}
+        if isinstance(configured_env, dict):
+            env.update({str(key): str(value) for key, value in configured_env.items()})
 
-        try:
-            apps.create_namespaced_deployment(namespace=namespace, body=deployment_body)
-        except ApiException as exc:
-            if exc.status != 409:
-                raise
-            apps.patch_namespaced_deployment(
-                name=self.nats_config.deployment_name,
-                namespace=namespace,
-                body=deployment_body,
-            )
+        request_body = {
+            "image": {"uri": image_uri},
+            "entrypoint": entrypoint,
+            "timeout": int(sandbox_config.get("timeout", self.opensandbox_sandbox_timeout)),
+            "resourceLimits": self._sandbox_resource_limits(
+                record.cpu_cores,
+                record.memory_mb,
+                record.gpu_count,
+            ),
+            "env": env,
+            "metadata": {
+                "agent": deployment_name,
+                "deployment": record.deployment_id,
+                "capability": capability,
+                "managed": "ats",
+            },
+        }
 
-        try:
-            core.create_namespaced_service(namespace=namespace, body=service_body)
-        except ApiException as exc:
-            if exc.status != 409:
-                raise
-            core.patch_namespaced_service(
-                name=self.nats_config.service_name,
-                namespace=namespace,
-                body=service_body,
-            )
+        network_policy = self._opensandbox_network_policy(sandbox_config)
+        if network_policy:
+            request_body["networkPolicy"] = network_policy
 
         logger.info(
-            "[ASD] NATS ensured: namespace=%s, deployment=%s, service=%s, image=%s, args=%s",
-            namespace,
-            self.nats_config.deployment_name,
-            self.nats_config.service_name,
-            self.nats_config.image,
-            self.nats_config.server_args(),
+            "[ASD] OpenSandbox 创建请求: agent_id=%s, image=%s, entrypoint=%s, "
+            "nats=%s, js_domain=%s",
+            record.agent_id,
+            image_uri,
+            entrypoint,
+            env.get("NATS_SERVERS"),
+            env.get("NATS_JETSTREAM_DOMAIN") or "<local>",
         )
+        response = self._opensandbox_request("POST", "/v1/sandboxes", request_body)
+        sandbox_id = response.get("id")
+        if not sandbox_id:
+            raise RuntimeError(f"OpenSandbox create response missing id: {response}")
+
+        record.opensandbox_sandbox_id = sandbox_id
+        record.status = "running"
+        record.updated_at = datetime.utcnow().isoformat()
+        self._register_to_ardc(record.agent_id, record.node_id)
+        logger.info(
+            "[ASD] ✅ OpenSandbox 部署成功: deployment_id=%s, sandbox_id=%s",
+            record.deployment_id,
+            sandbox_id,
+        )
+        return record
 
     # ------------------------------------------------------------------
     # 核心部署接口
@@ -687,7 +948,9 @@ class AgentScheduler:
             gpu_count=gpu_count,
             replicas=replicas,
             backend=self.deploy_backend,
-            namespace=self.k8s_namespace if self.deploy_backend == "kubernetes" else None,
+            namespace=self.k8s_namespace
+            if self.deploy_backend == "kubernetes" or self._is_opensandbox_backend(self.deploy_backend)
+            else None,
             status="deploying",
         )
 
@@ -709,6 +972,16 @@ class AgentScheduler:
                 record.status = "failed"
                 record.updated_at = datetime.utcnow().isoformat()
                 logger.error(f"[ASD] Kubernetes 部署失败: agent_id={agent_id}, error={exc}")
+                return record
+
+        if self._is_opensandbox_backend(self.deploy_backend):
+            capability = self._capability_from_image(image_id)
+            try:
+                return self._deploy_opensandbox(record, capability)
+            except Exception as exc:
+                record.status = "failed"
+                record.updated_at = datetime.utcnow().isoformat()
+                logger.error(f"[ASD] OpenSandbox 部署失败: agent_id={agent_id}, error={exc}")
                 return record
 
         # 跨节点时降级 mock（本机以外的节点通过跨主机 HTTP dispatch 处理）
@@ -819,6 +1092,11 @@ class AgentScheduler:
                 namespace=record.namespace or self.k8s_namespace,
                 body=patch,
             )
+        elif self._is_opensandbox_backend(record.backend):
+            logger.warning(
+                "[ASD] OpenSandbox 后端暂不支持原地扩缩容/资源 patch；"
+                "请通过 shutdown_agent + deploy_agent 重新创建沙盒"
+            )
 
         record.updated_at = datetime.utcnow().isoformat()
         logger.info(
@@ -859,6 +1137,8 @@ class AgentScheduler:
                 rec.updated_at = datetime.utcnow().isoformat()
                 if rec.backend == "kubernetes" and rec.k8s_deployment_name:
                     self._delete_kubernetes_workload(rec)
+                elif self._is_opensandbox_backend(rec.backend) and rec.opensandbox_sandbox_id:
+                    self._delete_opensandbox_sandbox(rec)
 
         # 终止 subprocess 进程（若存在）
         proc = self._processes.pop(agent_id, None)
@@ -900,6 +1180,17 @@ class AgentScheduler:
                     raise
         except Exception as exc:
             logger.warning(f"[ASD] Kubernetes 清理失败（非关键）: {exc}")
+
+    def _delete_opensandbox_sandbox(self, record: DeploymentRecord) -> None:
+        """删除 OpenSandbox 后端创建的沙盒；清理失败只记录警告。"""
+        sandbox_id = record.opensandbox_sandbox_id
+        if not sandbox_id:
+            return
+        try:
+            self._opensandbox_request("DELETE", f"/v1/sandboxes/{sandbox_id}")
+            logger.info("[ASD] OpenSandbox 沙盒已删除: sandbox_id=%s", sandbox_id)
+        except Exception as exc:
+            logger.warning(f"[ASD] OpenSandbox 清理失败（非关键）: sandbox_id={sandbox_id}, error={exc}")
 
     def health_check(self, agent_id: str) -> Dict:
         """

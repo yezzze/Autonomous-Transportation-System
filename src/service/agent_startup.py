@@ -56,7 +56,6 @@ class AgentStartupConfig:
         readiness_period_seconds: int = 5,
         liveness_initial_delay_seconds: int = 20,
         liveness_period_seconds: int = 10,
-        ensure_nats: bool = True,
         local_node_ids: Optional[List[str]] = None,
         subprocess_host: str = "127.0.0.1",
         subprocess_script: str = "agent_server.py",
@@ -83,7 +82,6 @@ class AgentStartupConfig:
         self.readiness_period_seconds = readiness_period_seconds
         self.liveness_initial_delay_seconds = liveness_initial_delay_seconds
         self.liveness_period_seconds = liveness_period_seconds
-        self.ensure_nats = ensure_nats
         self.local_node_ids = local_node_ids or [
             "localhost",
             "127.0.0.1",
@@ -123,7 +121,6 @@ class AgentStartupConfig:
             readiness_period_seconds=_env_int("AGENT_READINESS_PERIOD_SECONDS", 5),
             liveness_initial_delay_seconds=_env_int("AGENT_LIVENESS_INITIAL_DELAY_SECONDS", 20),
             liveness_period_seconds=_env_int("AGENT_LIVENESS_PERIOD_SECONDS", 10),
-            ensure_nats=_env_bool("AGENT_ENSURE_NATS", True),
             local_node_ids=_env_list(
                 "AGENT_LOCAL_NODE_IDS",
                 ["localhost", "127.0.0.1", "host.docker.internal", "node_localhost"],

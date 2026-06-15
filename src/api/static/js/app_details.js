@@ -293,13 +293,10 @@ async function loadAgentViews(appId) {
     capability: 'cooperativefeaturefusiondetectionviz',
     agent_id: 'cooperativefeaturefusiondetectionviz_agent_001',
     image_id: 'cooperativefeaturefusiondetectionviz',
-    ip: '127.0.0.1',
-    // ip: '192.168.49.2',
-    // port: 9002,
+    ip: '10.112.136.44',
     port: 30092,
     status: 'running',
-    frontend_url: 'http://127.0.0.1:30092',
-    // frontend_url: 'http://192.168.49.2:9002',
+    frontend_url: 'http://10.112.136.44:30092',
   };
 
   const agentsHost = document.getElementById('agents-host');

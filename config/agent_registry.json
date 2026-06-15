@@ -89,7 +89,7 @@
     },
     {
       "id": "CooperativeFeatureFusionDetectionViz_agent_001",
-      "ip": "127.0.0.1",
+      "ip": "192.168.49.2",
       "port": 30092,
       "capability": "CooperativeFeatureFusionDetectionViz",
       "status": "online",
