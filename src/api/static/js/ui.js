@@ -21,8 +21,8 @@ function fmtTime() {
 // ====================================================================
 // Tab switching
 // ====================================================================
-const TAB_NAMES = ['apps','instances','qos','resources','nats'];
-const TAB_LOADERS = { apps: loadApps, instances: loadInstances, qos: loadQos, resources: loadResources, nats: loadNatsTab };
+const TAB_NAMES = ['apps','instances','qos','resources','nats','agentfactory'];
+const TAB_LOADERS = { apps: loadApps, instances: loadInstances, qos: loadQos, resources: loadResources, nats: loadNatsTab, agentfactory: loadAgentFactory };
 let activeTab = 'apps';
 
 function switchTab(name) {
@@ -221,6 +221,7 @@ function dedupeWarehouseImages(images) {
 
 function renderAgentChoices(images) {
   const host = document.getElementById('f-agent-choices');
+  if (!host) return;
   const fallback = [
     { capability: 'agent-grpc', name: 'agent_gRPC', description: 'gRPC 入口，接收远程请求并发布到 NATS' },
     { capability: 'agent-b', name: 'agent-b', description: 'NATS worker，转发到 Agent C 并回传结果' },
@@ -1264,9 +1265,115 @@ async function checkServer() {
   }
 }
 
+// ====================================================================
+// Tab: Agent Factory (Auto-Agent Integration)
+// ====================================================================
+
+function loadAgentFactory() {
+  loadAgentList();
+}
+
+async function loadAgentList() {
+  try {
+    var res = await fetch('/api/agent-builder/list');
+    var data = await res.json();
+    var agents = data.agents || [];
+    var tbody = document.getElementById('af-list-tbody');
+    if (!agents.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="5">暂无已生成的智能体<br><small>在上方编写 agent.md 并点击「生成智能体」</small></td></tr>';
+      return;
+    }
+    tbody.innerHTML = agents.map(function(a) {
+      return '<tr>' +
+        '<td style="font-family:monospace;font-size:12px">' + escHtml(a.agent_id) + '</td>' +
+        '<td>' + escHtml(a.filename) + '</td>' +
+        '<td>' + (a.size / 1024).toFixed(1) + ' KB</td>' +
+        '<td>' + (a.created_at ? new Date(a.created_at).toLocaleString() : '-') + '</td>' +
+        '<td><a href="/api/agent-builder/download/' + a.agent_id + '" class="btn btn-sm btn-primary" download>📥 下载</a></td>' +
+        '</tr>';
+    }).join('');
+  } catch(e) {
+    document.getElementById('af-list-tbody').innerHTML = '<tr class="empty-row"><td colspan="5">Error: ' + e.message + '</td></tr>';
+  }
+}
+
+async function generateAgent() {
+  var btn = document.getElementById('af-generate-btn');
+  var status = document.getElementById('af-status');
+  var name = document.getElementById('af-name').value.trim() || 'custom-agent';
+  var capability = document.getElementById('af-capability').value;
+  var agentMd = document.getElementById('af-agent-md').value.trim();
+  var workflowMd = document.getElementById('af-workflow-md').value.trim();
+
+  if (!agentMd) {
+    status.textContent = '请填写 agent.md 内容';
+    status.style.color = '#ef4444';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 生成中...';
+  status.textContent = '';
+  var afRes2 = document.getElementById('af-result'); afRes2.style.display = 'none'; afRes2.classList.remove('show');
+
+  try {
+    var res = await fetch('/api/agent-builder/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        agent_md_content: agentMd,
+        workflow_md_content: workflowMd || null,
+        agent_name: name,
+        capability: capability
+      })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '生成失败');
+
+    document.getElementById('af-result').innerHTML = '<strong style="color:#166534">\u2705 \u751f\u6210\u6210\u529f</strong>' +
+      '<div style="font-size:13px;margin-bottom:10px">' +
+      '<strong>Agent ID：</strong> <code>' + escHtml(data.agent_id) + '</code> | ' +
+      '<strong>镜像：</strong> <code>' + escHtml(data.image_id) + '</code> | ' +
+      '<strong>能力：</strong> ' + escHtml(data.capability) +
+      '</div>' +
+      '<pre style="background:#1e1e2e;color:#cdd6f4;padding:12px;border-radius:6px;font-size:12px">' +
+      'unzip ' + data.agent_id + '.zip -d my-agent && cd my-agent\n' +
+      'export DEEPSEEK_API_KEY=sk-your-key\n' +
+      'docker-compose up -d\n' +
+      '# Service: http://localhost:9001</pre>' +
+      '<div style="margin-top:10px">' +
+      '<a href="/api/agent-builder/download/' + data.agent_id + '" class="btn btn-success btn-sm" download>📥 下载 ZIP</a> ' +
+      '<button class="btn btn-ghost btn-sm" onclick="var r=document.getElementById(\'af-result\');r.style.display=\'none\';r.classList.remove(\'show\')">关闭</button></div>';
+    var afRes = document.getElementById('af-result'); afRes.style.display = 'block'; afRes.classList.add('show');
+    status.textContent = '✅ 生成成功！';
+    status.style.color = '#16a34a';
+    loadAgentList();
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = '#ef4444';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🚀 生成智能体';
+    setTimeout(function() { status.textContent = ''; }, 5000);
+  }
+}
+
+async function loadAgentTemplate(type) {
+  try {
+    var res = await fetch('/api/agent-builder/templates');
+    var data = await res.json();
+    var content = type === 'agent' ? data.agent_template : data.workflow_template;
+    var targetId = type === 'agent' ? 'af-agent-md' : 'af-workflow-md';
+    document.getElementById(targetId).value = content;
+  } catch(e) {
+    alert('加载模板失败：' + e.message);
+  }
+}
+
 // Load initial tab and start auto-refresh
 loadWarehouseImages();
 loadApps();
 checkServer();
+loadAgentFactory();
 setInterval(() => TAB_LOADERS[activeTab](), 5000);
 setInterval(checkServer, 10000);

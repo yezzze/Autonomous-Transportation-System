@@ -1,0 +1,6 @@
+﻿fastapi==0.115.6
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+pydantic==2.10.4
+nats-py>=0.9.0
+numpy>=1.24.0

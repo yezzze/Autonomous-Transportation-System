@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -1778,6 +1778,91 @@ async def scale_agent_deployment(deployment_id: str, request: ScaleDeploymentReq
 
 
 # ======================================================================
+
+# ======================================================================
+# ? Agent Builder API (Auto-Agent Integration)
+# ======================================================================
+
+class AgentGenerateRequest(BaseModel):
+    """Agent generation request from Markdown configuration"""
+    agent_md_content: str = Field(..., description="agent.md content (role definition)")
+    workflow_md_content: Optional[str] = Field(None, description="workflow.md content (optional)")
+    agent_name: str = Field("custom-agent", description="Agent name")
+    capability: str = Field("chat", description="Capability type: chat/nlp/search/compute/vision")
+    version: str = Field("1.0.0", description="Version string")
+    install: bool = Field(True, description="Auto-install to warehouse")
+
+
+@app.get("/api/agent-builder/templates", summary="Get Agent templates")
+async def get_agent_templates():
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+        warehouse = get_agent_warehouse()
+        return warehouse.get_agent_templates()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/agent-builder/generate", summary="Generate Agent package")
+async def generate_agent_package(request: AgentGenerateRequest):
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+        warehouse = get_agent_warehouse()
+        result = warehouse.generate_agent(
+            agent_md_content=request.agent_md_content,
+            workflow_md_content=request.workflow_md_content,
+            agent_name=request.agent_name,
+            capability=request.capability,
+            version=request.version,
+            install=request.install,
+        )
+        return {
+            "success": True,
+            **result,
+            "deploy_instructions": {
+                "unzip": f"unzip {result['agent_id']}.zip -d my-agent && cd my-agent",
+                "env": "export DEEPSEEK_API_KEY=sk-your-key",
+                "start": "docker-compose up -d",
+                "port": 9001,
+                "a2a_endpoint": "POST /a2a/execute",
+            },
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Agent generation failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agent-builder/list", summary="List generated Agents")
+async def list_generated_agents():
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+        warehouse = get_agent_warehouse()
+        return {"agents": warehouse.list_generated_agents()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agent-builder/download/{agent_id}", summary="Download Agent package")
+async def download_agent_package(agent_id: str):
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+        warehouse = get_agent_warehouse()
+        zip_path = warehouse.download_agent(agent_id)
+        if not zip_path:
+            raise HTTPException(status_code=404, detail="Agent package not found")
+        return FileResponse(
+            path=str(zip_path),
+            filename=f"{agent_id}.zip",
+            media_type="application/zip",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Web UI
 # ======================================================================
 

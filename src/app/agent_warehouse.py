@@ -530,6 +530,55 @@ class AgentWarehouse:
 
         docker_images = _collect(["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"])
         return minikube_images | docker_images
+    # ------------------------------------------------------------------
+    # ? Auto-Agent Integration: Agent Generation Methods
+    # ------------------------------------------------------------------
+
+    def generate_agent(
+        self,
+        agent_md_content: str,
+        workflow_md_content: "Optional[str]" = None,
+        agent_name: str = "custom-agent",
+        capability: str = "chat",
+        version: str = "1.0.0",
+        install: bool = True,
+    ) -> dict:
+        """? Generate Agent package from Markdown configuration ?"""
+        from src.app.agent_generator import get_agent_generator
+
+        generator = get_agent_generator()
+        result = generator.build_and_register(
+            agent_md_content=agent_md_content,
+            workflow_md_content=workflow_md_content,
+            agent_name=agent_name,
+            capability=capability,
+            version=version,
+        )
+        logger.info(
+            f"[AW->AG] Agent generated: {result['agent_id']}, cap={capability}"
+        )
+        return {**result, "installed": result["registered"]}
+
+    def get_agent_templates(self) -> dict:
+        """Get agent.md and workflow.md sample templates"""
+        from src.app.agent_generator import get_agent_generator
+        generator = get_agent_generator()
+        return {
+            "agent_template": generator.get_agent_template(),
+            "workflow_template": generator.get_workflow_template(),
+        }
+
+    def list_generated_agents(self) -> list:
+        """List all generated Agent packages"""
+        from src.app.agent_generator import get_agent_generator
+        return get_agent_generator().list_generated()
+
+    def download_agent(self, agent_id: str) -> "Optional[Path]":
+        """Get generated Agent ZIP package path"""
+        from src.app.agent_generator import get_agent_generator
+        return get_agent_generator().get_agent_package(agent_id)
+
+
 
 
 # ======================================================================
