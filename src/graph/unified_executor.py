@@ -304,21 +304,28 @@ class UnifiedExecutor:
             response = await self.a2a_client.send_task_request(agent_url, request)
 
             return {
-                "status": response.status,
+                # UnifiedExecutor 对外仍返回 status，保持 UI/编排层现有契约；
+                # A2ATaskResponse 内部字段已改为 state，以贴近 A2A TaskStatus.state。
+                "status": response.state,
                 "result": response.result,
                 "error_message": response.error_message,
                 "protocol": "a2a",
-                "agent_used": task["assigned_agent_id"]
+                "agent_used": task["assigned_agent_id"],
+                # 透传 A2AClient 生成的 transport/QoS/A2A task metadata，
+                # 上层可据此区分 a2a-python 与 legacy fallback，并查看耗时。
+                "metadata": response.metadata,
             }
 
         except Exception as e:
             logger.error(f"❌ A2A 执行失败: {e}")
             return {
+                # 异常路径也返回 metadata，避免调用方在成功/失败分支处理不同结构。
                 "status": "error",
                 "result": None,
                 "error_message": str(e),
                 "protocol": "a2a",
-                "agent_used": task.get("assigned_agent_id", "unknown")
+                "agent_used": task.get("assigned_agent_id", "unknown"),
+                "metadata": {},
             }
 
     def _resolve_agent_url(self, task: dict) -> str:

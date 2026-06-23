@@ -8,6 +8,7 @@ langchain-deepseek>=0.1.2
 langchain-core>=0.1.0
 
 # HTTP and async support
+a2a-sdk>=1.0.3,<2.0.0
 httpx>=0.28.1
 nats-py>=2.9.0
 

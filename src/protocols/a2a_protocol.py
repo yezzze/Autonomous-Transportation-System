@@ -1,10 +1,19 @@
 """
-A2A (Agent-to-Agent) 协议定义
+A2A (Agent-to-Agent) 内部适配 DTO
 
-标准化 Agent 间通信的消息格式，用于 L2 ↔ L3 和 L3 ↔ L3 通信
+项目主调用链已迁移到 a2a-python(a2a-sdk) 的标准 Agent Card + JSON-RPC。
+本模块保留两类结构：
+1. A2ATaskRequest/A2ATaskResponse：UnifiedExecutor 与 A2AClient 之间的内部 DTO。
+2. A2AMessage：旧 /a2a/execute wire protocol 的兼容包装，待旧 Agent 迁移后删除。
 """
 
-from pydantic import BaseModel, Field
+try:
+    # pydantic v2 使用 ConfigDict；项目部分环境仍可能是 v1。
+    # 这里做条件导入，保证 DTO 在两类运行环境下都能用字段名和 alias 初始化。
+    from pydantic import BaseModel, ConfigDict, Field
+except ImportError:
+    from pydantic import BaseModel, Field
+    ConfigDict = None
 from typing import Literal, Any, Optional
 from datetime import datetime
 import uuid
@@ -12,9 +21,11 @@ import uuid
 
 class A2AMessage(BaseModel):
     """
-    A2A 标准消息格式
-    
-    所有 Agent 间通信都使用此消息包装
+    旧版自研 /a2a/execute wire protocol 的兼容消息格式。
+
+    新版 Agent 间通信不再使用该包装；标准 A2A 调用由 a2a-python 负责。
+    保留该结构只用于 legacy fallback，便于未升级 Agent 继续被调度。
+    所有 Agent 迁移完成后，可以与 _LegacyA2AClient 一起删除。
     """
     message_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     sender_id: str  # 发送方 Agent ID
@@ -27,9 +38,10 @@ class A2AMessage(BaseModel):
 
 class A2ATaskRequest(BaseModel):
     """
-    A2A 任务请求 Payload
-    
-    L2 Scheduler 发送给 L3 Agent 的任务请求格式
+    项目内部任务请求 DTO。
+
+    A2AClient 会将它转换为标准 A2A text message，或在 legacy fallback
+    中作为旧 /a2a/execute payload 发送。
     """
     task_id: str
     task_type: str  # "search", "nlp", "compute", "vision", "code", "web"
@@ -43,15 +55,27 @@ class A2ATaskRequest(BaseModel):
 
 class A2ATaskResponse(BaseModel):
     """
-    A2A 任务响应 Payload
-    
-    L3 Agent 返回给 L2 Scheduler 的任务执行结果
+    项目内部任务响应 DTO。
+
+    标准 A2A 的 Task/Message 响应和旧协议响应都会被归一化为该结构。
+    字段名使用 state，与 A2A 规范里的 TaskStatus.state 保持一致；
+    对业务层仍只表达本项目需要的四类结果状态。
     """
     task_id: str
-    status: Literal["success", "error", "timeout", "cancelled"]
+    # alias="status" 仅用于接收旧 /a2a/execute payload 中的 status 字段。
+    # 新代码应统一读写 response.state，避免继续扩散旧协议命名。
+    state: Literal["success", "error", "timeout", "cancelled"] = Field(alias="status")
     result: Any
     error_message: Optional[str] = None
     metadata: dict = Field(default_factory=dict)  # 执行时间、成本等信息
+
+    if ConfigDict is not None:
+        # pydantic v2：允许 A2ATaskResponse(state="success", ...) 使用真实字段名初始化。
+        model_config = ConfigDict(populate_by_name=True)
+    else:
+        # pydantic v1：同等语义，允许通过字段名而不只是 alias 初始化。
+        class Config:
+            allow_population_by_field_name = True
 
 
 class A2ACapabilityDeclaration(BaseModel):
@@ -106,7 +130,7 @@ def create_success_response(
     """快速创建成功响应"""
     return A2ATaskResponse(
         task_id=task_id,
-        status="success",
+        state="success",
         result=result,
         **kwargs
     )
@@ -120,7 +144,7 @@ def create_error_response(
     """快速创建错误响应"""
     return A2ATaskResponse(
         task_id=task_id,
-        status="error",
+        state="error",
         result=None,
         error_message=error_message,
         **kwargs
