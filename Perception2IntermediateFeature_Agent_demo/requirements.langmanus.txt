@@ -1,4 +1,4 @@
-a2a-sdk==1.0.0a0
+a2a-sdk[fastapi]>=1.1.0,<2.0.0
 actionlib==1.14.3
 addict==2.4.0
 aiofiles==25.1.0
@@ -373,4 +373,3 @@ yarl==1.23.0
 yfinance==1.2.0
 zipp==3.23.0
 zstandard==0.25.0
-

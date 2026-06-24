@@ -8,7 +8,7 @@ def main():
     logger.info("Starting Perception2IntermediateFeature Agent demo...")
 
     try:
-        uvicorn.run("fast_api.app:app", host="0.0.0.0", port=9001)
+        uvicorn.run("fast_api.app:app", host="0.0.0.0", port=9031)
     except Exception:
         logger.exception("Perception2IntermediateFeature Agent demo exited unexpectedly")
         raise

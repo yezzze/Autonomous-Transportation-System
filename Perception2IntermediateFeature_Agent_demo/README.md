@@ -39,10 +39,11 @@ docker build -t perception2intermediatefeature-agent:latest .
 ```bash
 docker run --rm \
   --gpus all \
-  -p 9001:9001 \
+  -p 9031:9031 \
   --add-host host.docker.internal:host-gateway \
   -e MCP_SERVER_HOST=host.docker.internal \
   -e MCP_SERVER_PORT=8123 \
+  -e A2A_AGENT_URL=http://localhost:9031 \
   -e MODEL_CHECKPOINT_PATH=/app/checkpoints/point_pillar_where2comm/ \
   -e FRONTEND_CALLBACK_URL=http://host.docker.internal:9002/temp/post_data \
   -v $(pwd)/models/point_pillar_where2comm:/app/checkpoints/point_pillar_where2comm:ro \
@@ -58,15 +59,28 @@ docker compose up --build
 
 ## 7. 健康检查与调用
 
-服务默认监听 `9001`：
+服务默认监听 `9031`：
 
 - 推理接口：`GET /model/forward`
-- A2A 接口：`POST /a2a/execute`
+- Agent Card：`GET /.well-known/agent-card.json`
+- A2A JSON-RPC：`POST /`
 
 示例：
 
 ```bash
-curl http://127.0.0.1:9001/model/forward
+curl http://127.0.0.1:9031/model/forward
+curl http://127.0.0.1:9031/.well-known/agent-card.json
+```
+
+A2A 调用应使用 a2a-sdk 客户端发送标准 text message。普通文本会触发推理并将结果发布到 `NATS_SUBJECT`；如需覆盖输出 subject，可发送 JSON 文本：
+
+```json
+{
+  "task_description": "Generate intermediate feature",
+  "metadata": {
+    "nats_subject": "workflow.demo.perception2feature.result"
+  }
+}
 ```
 
 ## 8. 常见问题

@@ -16,25 +16,35 @@ spec:
     spec:
       containers:
         - name: perception2intermediatefeature-agent
-          image: perception2intermediatefeature-agent:0.1.1
+          image: perception2intermediatefeature-agent:0.1.5
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 9001
+            - containerPort: 9031
               name: http
           env:
+            - name: A2A_AGENT_URL
+              value: http://192.168.49.2:30391
             - name: MCP_SERVER_HOST
-              value: host.minikube.internal
+              value: 10.112.136.44
             - name: MCP_SERVER_PORT
               value: "8123"
             - name: MODEL_CHECKPOINT_PATH
               value: /app/checkpoints/point_pillar_where2comm/
             - name: FRONTEND_CALLBACK_URL
               value: http://host.minikube.internal:9002/temp/post_data
+            - name: NATS_SERVERS
+              value: nats://nats:4222
             - name: NATS_SERVER_URL
               value: nats://nats:4222
+            - name: NATS_JETSTREAM_DOMAIN
+              value: hub
+            - name: NATS_STREAM_SUBJECTS
+              value: workflow.>
             - name: NATS_SUBJECT
-              value: workflow.demo.perception2feature.result
+              value: workflow.demo.perception2feature.result.dx86.0601
           resources:
+            requests:
+              nvidia.com/gpu: "1"
             limits:
               nvidia.com/gpu: "1"
 ---
@@ -50,6 +60,7 @@ spec:
   ports:
     - name: http
       protocol: TCP
-      port: 9001
-      targetPort: 9001
+      port: 9031
+      nodePort: 30391
+      targetPort: 9031
   type: NodePort
