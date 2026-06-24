@@ -16,12 +16,14 @@ spec:
     spec:
       containers:
         - name: agent-template
-          image: agent-template:0.1.0
+          image: agent-template:0.1.1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9001
               name: http
           env:
+            - name: A2A_AGENT_URL
+              value: http://192.168.49.2:30091
             - name: NATS_SERVER_URL
               value: nats://nats:4222
             - name: NATS_IN_SUBJECT
