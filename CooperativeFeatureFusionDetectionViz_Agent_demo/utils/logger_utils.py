@@ -2,7 +2,7 @@ import logging
 import os
 from typing import Optional, Union
 
-APP_LOGGER_NAME = "perception2feature_agent_demo"
+APP_LOGGER_NAME = "cooperativefeaturefusiondetectionviz_agent_demo"
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
@@ -12,7 +12,7 @@ def _resolve_log_level(level: Optional[Union[str, int]] = None) -> int:
     if isinstance(level, int):
         return level
 
-    raw_level = level or os.getenv("PERCEPTION2FEATURE_AGENT_DEMO_LOG_LEVEL", DEFAULT_LOG_LEVEL)
+    raw_level = level or os.getenv("COOPERATIVEFEATUREFUSIONDETECTIONVIZ_AGENT_DEMO_LOG_LEVEL", DEFAULT_LOG_LEVEL)
     numeric_level = logging.getLevelName(str(raw_level).upper())
     if isinstance(numeric_level, int):
         return numeric_level

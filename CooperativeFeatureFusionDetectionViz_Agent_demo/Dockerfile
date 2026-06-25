@@ -53,11 +53,12 @@ RUN cd /app/opencood/utils && python setup.py build_ext --inplace
 # RUN cd /app/opencood/pcdet_utils && python setup.py build_ext --inplace
 
 ENV PYTHONPATH=/app \
+    A2A_AGENT_URL=http://localhost:9032 \
     LIBGL_ALWAYS_SOFTWARE=1 \
     QT_X11_NO_MITSHM=1 \
     QT_GRAPHICSSYSTEM=native \
     MODEL_CHECKPOINT_PATH=/app/checkpoints/point_pillar_where2comm/
 
-EXPOSE 9002
+EXPOSE 9032
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
