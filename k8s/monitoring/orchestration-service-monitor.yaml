@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestration-api-external
+  namespace: default
+  labels:
+    app.kubernetes.io/name: orchestration-api
+spec:
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: orchestration-api-external
+  namespace: default
+subsets:
+  - addresses:
+      - ip: 192.168.49.1
+    ports:
+      - name: http
+        port: 8000
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: orchestration-api-external
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orchestration-api
+  endpoints:
+    - port: http
+      path: /metrics/
+      interval: 15s
+      scrapeTimeout: 10s

@@ -36,6 +36,8 @@ dependencies = [
     "pydantic>=2.7.4",
     "pydantic-settings>=2.0.0",
     "kubernetes>=29.0.0",
+    # 暴露 Prometheus Counter、Histogram 和 ASGI /metrics 端点。
+    "prometheus-client>=0.20.0",
 ]
 
 [project.optional-dependencies]

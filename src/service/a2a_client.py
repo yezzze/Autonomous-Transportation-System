@@ -18,9 +18,9 @@ import httpx
 
 from ..protocols.a2a_protocol import (
     A2AMessage,
+    A2AProgressNotification,
     A2ATaskRequest,
     A2ATaskResponse,
-    A2AProgressNotification
 )
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ class _LegacyA2AClient:
     async def send_task_request(
         self,
         agent_url: str,
-        request: A2ATaskRequest
+        request: A2ATaskRequest,
     ) -> A2ATaskResponse:
         """
         使用旧 /a2a/execute endpoint 发送任务请求。
@@ -84,7 +84,7 @@ class _LegacyA2AClient:
             sender_id=self.sender_id,
             receiver_id=self._extract_agent_id(agent_url),
             message_type="request",
-            payload=_model_dump(request)
+            payload=_model_dump(request),
         )
 
         logger.info(f"📤 发送旧版 A2A 请求 [{message.message_id[:8]}]: {request.task_description[:50]}...")
@@ -94,7 +94,7 @@ class _LegacyA2AClient:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
                     f"{agent_url}/a2a/execute",
-                    json=_model_dump(message)
+                    json=_model_dump(message),
                 )
                 response.raise_for_status()
 
@@ -110,7 +110,7 @@ class _LegacyA2AClient:
                 task_id=request.task_id,
                 state="timeout",
                 result=None,
-                error_message=f"Request timeout after {self.timeout.read}s"
+                error_message=f"Request timeout after {self.timeout.read}s",
             )
 
         except httpx.HTTPStatusError as e:
@@ -119,7 +119,7 @@ class _LegacyA2AClient:
                 task_id=request.task_id,
                 state="error",
                 result=None,
-                error_message=f"HTTP {e.response.status_code}: {e.response.text}"
+                error_message=f"HTTP {e.response.status_code}: {e.response.text}",
             )
 
         except Exception as e:
@@ -128,7 +128,7 @@ class _LegacyA2AClient:
                 task_id=request.task_id,
                 state="error",
                 result=None,
-                error_message=str(e)
+                error_message=str(e),
             )
 
     def _extract_agent_id(self, url: str) -> str:
@@ -157,7 +157,7 @@ class A2AClient:
     async def send_task_request(
         self,
         agent_url: str,
-        request: A2ATaskRequest
+        request: A2ATaskRequest,
     ) -> A2ATaskResponse:
         """
         发送 A2A 任务请求。
@@ -242,10 +242,8 @@ class A2AClient:
                 ),
             )
             try:
-                # 当前项目只把 task_description 作为标准 A2A text message 发送。
-                # task_id/task_type/context 仍保留在本地 DTO 与 legacy payload 中。
                 message = new_text_message(
-                    request.task_description,
+                    self._standard_message_text(request),
                     role=Role.ROLE_USER,
                 )
                 send_request = SendMessageRequest(message=message)
@@ -258,6 +256,24 @@ class A2AClient:
             finally:
                 if client and hasattr(client, "close"):
                     await client.close()
+
+    def _standard_message_text(self, request: A2ATaskRequest) -> str:
+        """
+        构造标准 A2A text message。
+
+        Agent Template 通过 text/plain 中的 JSON metadata 覆盖 NATS subject；
+        metadata 为空时继续发送纯任务描述，保持最小标准 A2A 输入。
+        """
+        if not request.metadata:
+            return request.task_description
+        return json.dumps(
+            {
+                "task_description": request.task_description,
+                "metadata": request.metadata,
+            },
+            ensure_ascii=False,
+            default=str,
+        )
 
     def _response_from_a2a_python_event(
         self,
@@ -289,6 +305,7 @@ class A2AClient:
                 state="error",
                 result=None,
                 error_message=str(error),
+                metadata=self._a2a_event_metadata(event, state="error"),
             )
 
         if hasattr(event, "parts") and not hasattr(event, "status"):
@@ -307,6 +324,7 @@ class A2AClient:
                 state="error",
                 result=None,
                 error_message=f"无法识别的标准 A2A 响应: {type(event).__name__}",
+                metadata=self._a2a_event_metadata(event, state="unknown"),
             )
 
         state = self._normalize_task_state(getattr(status_obj, "state", None))
@@ -376,7 +394,7 @@ class A2AClient:
         - (event, metadata) tuple；
         - pydantic RootModel / JSON-RPC result wrapper；
         - protobuf StreamResponse(task/message/status_update/artifact_update)。
-        后续转换逻辑只关心最终的 Task 或 Message，因此这里集中处理包装差异。
+        后续转换逻辑只关心最终的 Task、Message 或 update event，因此这里集中处理包装差异。
         """
         if isinstance(event, tuple) and event:
             return self._unwrap_a2a_event(event[0])
@@ -496,10 +514,12 @@ class A2AClient:
 
             file_part = getattr(root, "file", None)
             if file_part is not None:
-                results.append({
-                    "file": getattr(file_part, "name", None) or "unnamed",
-                    "mime_type": getattr(file_part, "mime_type", None),
-                })
+                results.append(
+                    {
+                        "file": getattr(file_part, "name", None) or "unnamed",
+                        "mime_type": getattr(file_part, "mime_type", None),
+                    }
+                )
         return self._merge_result_parts(results)
 
     def _merge_result_parts(self, parts: list[Any]) -> Any:
@@ -521,14 +541,76 @@ class A2AClient:
         return result if isinstance(result, str) else str(result)
 
     def _a2a_event_metadata(self, event: Any, state: str) -> dict:
-        """保留标准 A2A task/context/state 信息，供上层排查和 UI 展示。"""
-        return {
+        """保留标准 A2A task/context/state 和远端 QoS metadata。"""
+        metadata = {
             "a2a": {
                 "task_id": getattr(event, "id", None) or getattr(event, "task_id", None),
                 "context_id": getattr(event, "context_id", None),
                 "state": state,
             }
         }
+        for key, value in self._collect_a2a_metadata(event).items():
+            if key != "a2a":
+                metadata[key] = value
+        return metadata
+
+    def _collect_a2a_metadata(self, event: Any) -> dict:
+        """从 Task、Artifact、Message 或 update event 中收集 metadata。"""
+        collected: dict[str, Any] = {}
+
+        def merge(source: Any) -> None:
+            data = self._metadata_to_dict(source)
+            for key, value in data.items():
+                collected[key] = value
+
+        merge(getattr(event, "metadata", None))
+
+        message = getattr(event, "message", None)
+        if message is not None:
+            merge(getattr(message, "metadata", None))
+
+        status = getattr(event, "status", None)
+        status_message = getattr(status, "message", None) if status is not None else None
+        if status_message is not None:
+            merge(getattr(status_message, "metadata", None))
+
+        artifact = getattr(event, "artifact", None)
+        if artifact is not None:
+            merge(getattr(artifact, "metadata", None))
+
+        for item in getattr(event, "artifacts", []) or []:
+            merge(getattr(item, "metadata", None))
+
+        return collected
+
+    def _metadata_to_dict(self, metadata: Any) -> dict:
+        """把 protobuf Struct、pydantic model 或普通 dict metadata 转为 dict。"""
+        if metadata is None:
+            return {}
+        if isinstance(metadata, dict):
+            return dict(metadata)
+
+        if hasattr(metadata, "DESCRIPTOR"):
+            try:
+                from google.protobuf.json_format import MessageToDict
+
+                return MessageToDict(metadata, preserving_proto_field_name=True)
+            except Exception:
+                return {}
+
+        if hasattr(metadata, "model_dump"):
+            try:
+                return metadata.model_dump()
+            except Exception:
+                return {}
+
+        if hasattr(metadata, "dict"):
+            try:
+                return metadata.dict()
+            except Exception:
+                return {}
+
+        return {}
 
     def _with_qos_metadata(
         self,
@@ -539,7 +621,7 @@ class A2AClient:
         transport: str,
     ) -> A2ATaskResponse:
         """
-        补充一次 A2A 调用的传输与 QoS metadata。
+        补充一次 A2A 调用的传输与 QoS metadata，并写入 Prometheus。
 
         total_latency_ms 是客户端观测到的端到端耗时；如果远端或旧协议已返回
         server_total_ms，则估算 network_ms = total - server_total。
@@ -554,16 +636,35 @@ class A2AClient:
         if server_total_ms is not None:
             network_ms = max(total_latency_ms - server_total_ms, 0.0)
 
+        agent_id = qos.get("agent_id") or self._extract_agent_id(agent_url)
+        instance_id = qos.get("instance_id") or "unknown"
         qos.update(
             {
                 "task_id": request.task_id,
+                "agent_id": agent_id,
+                "instance_id": instance_id,
                 "agent_url": agent_url,
-                "total_latency_ms": total_latency_ms,
-                "network_ms": network_ms,
+                "status": response.state,
+                "total_latency_ms": round(total_latency_ms, 3),
+                "network_ms": round(network_ms, 3) if network_ms is not None else None,
                 "transport": transport,
             }
         )
         metadata["qos"] = qos
+
+        from src.runtime.prometheus_metrics import observe_a2a_call
+
+        observe_a2a_call(
+            agent_id=agent_id,
+            instance_id=instance_id,
+            status=response.state,
+            total_latency_ms=total_latency_ms,
+            network_ms=network_ms,
+        )
+        logger.info(
+            "[A2A QoS] %s",
+            json.dumps(qos, ensure_ascii=False, sort_keys=True),
+        )
         return _copy_response(response, metadata)
 
     def _safe_float(self, value: Any) -> Optional[float]:
@@ -578,39 +679,39 @@ class A2AClient:
     async def stream_task_execution(
         self,
         agent_url: str,
-        request: A2ATaskRequest
+        request: A2ATaskRequest,
     ) -> AsyncIterator[A2AProgressNotification]:
         """
         旧版流式接收 A2A 执行进度。
 
         当前主调用链不使用该方法；待所有 Agent 迁移到 a2a-python streaming 后替换。
-        
+
         Args:
             agent_url: Agent 服务地址
             request: 任务请求对象
-            
+
         Yields:
             任务进度通知
         """
-        
+
         message = A2AMessage(
             sender_id=self.sender_id,
             receiver_id=self._extract_agent_id(agent_url),
             message_type="request",
-            payload=_model_dump(request)
+            payload=_model_dump(request),
         )
-        
+
         logger.info(f"📤 启动流式 A2A 请求 [{message.message_id[:8]}]")
-        
+
         try:
             async with httpx.AsyncClient() as client:
                 async with client.stream(
                     "POST",
                     f"{agent_url}/a2a/execute/stream",
-                    json=_model_dump(message)
+                    json=_model_dump(message),
                 ) as response:
                     response.raise_for_status()
-                    
+
                     async for line in response.aiter_lines():
                         if line:
                             try:
@@ -618,56 +719,55 @@ class A2AClient:
                                 yield A2AProgressNotification(**progress_data)
                             except json.JSONDecodeError:
                                 logger.warning(f"⚠️ 无法解析进度数据: {line}")
-                                
+
         except Exception as e:
             logger.error(f"❌ 流式 A2A 请求失败: {e}")
-    
+
     async def send_notification(
         self,
         agent_url: str,
         notification_type: str,
-        payload: dict
+        payload: dict,
     ):
         """
         旧版发送通知消息（不需要响应）。
 
         当前主调用链不使用该方法；待旧协议下线时删除。
-        
+
         Args:
             agent_url: Agent 服务地址
             notification_type: 通知类型
             payload: 通知内容
         """
-        
+
         message = A2AMessage(
             sender_id=self.sender_id,
             receiver_id=self._extract_agent_id(agent_url),
             message_type="notification",
-            payload={"type": notification_type, "data": payload}
+            payload={"type": notification_type, "data": payload},
         )
-        
+
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 await client.post(
                     f"{agent_url}/a2a/notify",
-                    json=_model_dump(message)
+                    json=_model_dump(message),
                 )
                 logger.info(f"📣 通知已发送: {notification_type}")
         except Exception as e:
             logger.warning(f"⚠️ 通知发送失败: {e}")
-    
+
     def _extract_agent_id(self, url: str) -> str:
         """
         从 URL 提取 Agent ID
-        
+
         Args:
             url: Agent URL（如 http://192.168.1.10:8080）
-            
+
         Returns:
             Agent ID（如 agent_192_168_1_10）
         """
         try:
-            # 提取 IP 和端口
             parts = url.split("//")[1].split(":")
             ip = parts[0].replace(".", "_")
             port = parts[1] if len(parts) > 1 else "80"
@@ -679,63 +779,66 @@ class A2AClient:
 class A2AHealthChecker:
     """
     A2A Agent 健康检查器
-    
+
     定期检查 Agent 是否在线
     """
-    
+
     def __init__(self, check_interval: int = 30):
         self.check_interval = check_interval
         self.agent_status: dict[str, dict] = {}
-        
+
     async def check_agent_health(self, agent_url: str) -> bool:
         """
         检查单个 Agent 健康状态
-        
+
         Args:
             agent_url: Agent 服务地址
-            
+
         Returns:
             是否健康
         """
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{agent_url}/health")
-                
+
                 if response.status_code == 200:
                     data = response.json()
                     self.agent_status[agent_url] = {
                         "status": "online",
                         "load": data.get("load", 0.0),
-                        "tasks": data.get("active_tasks", 0)
+                        "tasks": data.get("active_tasks", 0),
                     }
                     return True
-                    
+
         except Exception as e:
             logger.warning(f"⚠️ Agent 健康检查失败 [{agent_url}]: {e}")
-            
+
         self.agent_status[agent_url] = {"status": "offline"}
         return False
-    
+
     async def check_all_agents(self, agent_urls: list[str]):
         """批量检查所有 Agent"""
         tasks = [self.check_agent_health(url) for url in agent_urls]
         await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     def get_healthy_agents(self) -> list[str]:
         """获取所有健康的 Agent"""
         return [
             url for url, status in self.agent_status.items()
             if status.get("status") == "online"
         ]
-    
+
     def get_best_agent(self, agent_urls: list[str]) -> Optional[str]:
         """根据负载选择最佳 Agent"""
-        healthy = [url for url in agent_urls if self.agent_status.get(url, {}).get("status") == "online"]
-        
+        healthy = [
+            url
+            for url in agent_urls
+            if self.agent_status.get(url, {}).get("status") == "online"
+        ]
+
         if not healthy:
             return None
-        
-        # 选择负载最低的 Agent
+
         return min(healthy, key=lambda url: self.agent_status[url].get("load", 1.0))
 
 

@@ -17,6 +17,8 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
+# 将 prometheus_client 的 ASGI 应用挂载到主 FastAPI 服务。
+from prometheus_client import make_asgi_app
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 from typing import AsyncGenerator, Dict, List, Any
@@ -44,6 +46,8 @@ app = FastAPI(
 )
 
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+# Prometheus 通过 ServiceMonitor 定期抓取此端点；实际抓取路径为 /metrics/。
+app.mount("/metrics", make_asgi_app())
 
 # Initialize Jinja2 templates (singleton, only created once at startup)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -1525,6 +1529,36 @@ async def get_agent_qos_metrics(agent_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/orchestration/alerts", summary="接收 Alertmanager 告警")
+async def receive_alertmanager_webhook(payload: Dict[str, Any]):
+    """
+    接收 Alertmanager webhook。
+
+    此接口只负责可靠接收与记录告警状态。扩缩容、迁移等动作应由编排层策略
+    控制器消费告警后执行，不能在 webhook 请求路径中直接操作 Kubernetes。
+    """
+    try:
+        from src.service.alertmanager_receiver import get_alertmanager_receiver
+
+        # 接收器使用 fingerprint 幂等保存告警，避免 Alertmanager 重试造成重复动作。
+        result = get_alertmanager_receiver().receive(payload)
+        return {"status": "accepted", **result}
+    except Exception as e:
+        logger.error(f"receive_alertmanager_webhook error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/orchestration/alerts", summary="查询编排层收到的告警")
+async def list_orchestration_alerts(active_only: bool = False):
+    """供自动扩缩容控制器或运维界面查询编排层当前保存的告警。"""
+    from src.service.alertmanager_receiver import get_alertmanager_receiver
+
+    return {
+        # active_only=true 时过滤掉已经由 Alertmanager 通知恢复的告警。
+        "alerts": get_alertmanager_receiver().list_alerts(active_only=active_only),
+    }
+
+
 # ======================================================================
 # 资源层 API (RRDC / ASD)
 # ======================================================================
@@ -1869,10 +1903,10 @@ async def download_agent_package(agent_id: str):
 @app.get("/ui",response_class=HTMLResponse, include_in_schema=False)
 async def web_ui(request: Request):
     """应用管理层 Web UI 控制台 - 直接使用 Jinja2Templates 渲染"""
-    return templates.TemplateResponse("ui.html", {"request": request})
+    return templates.TemplateResponse(request, "ui.html")
 
 
 @app.get("/ui/apps/{app_id}", response_class=HTMLResponse, include_in_schema=False)
 async def app_details_page(request: Request, app_id: str):
     """应用详情页（前端模板）。显示应用逻辑、运行状态与智能体视图占位。"""
-    return templates.TemplateResponse("app_details.html", {"request": request})
+    return templates.TemplateResponse(request, "app_details.html")

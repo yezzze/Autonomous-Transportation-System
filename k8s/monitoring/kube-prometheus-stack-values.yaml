@@ -1,0 +1,73 @@
+# kube-prometheus-stack 的 Helm values。
+# 建议使用 release 名 monitoring，并安装到 monitoring namespace，确保下方
+# Service DNS 和 kubectl 验证命令保持一致。
+grafana:
+  # 同时安装 Grafana，便于查看 Prometheus 指标和告警状态。
+  enabled: true
+  # Grafana 原始镜像来自 docker.io，因此可直接使用 DaoCloud 的 Docker Hub 镜像代理。
+  image:
+    registry: docker.m.daocloud.io
+    repository: grafana/grafana
+
+# kube-state-metrics 默认从 registry.k8s.io 拉取镜像。部分网络环境无法直接
+# 访问该仓库，因此使用 DaoCloud 通用代理格式：
+# m.daocloud.io/<原始镜像完整地址>。
+kube-state-metrics:
+  image:
+    registry: m.daocloud.io
+    repository: registry.k8s.io/kube-state-metrics/kube-state-metrics
+
+prometheus:
+  prometheusSpec:
+    # 指标保留 7 天；生产环境应结合磁盘容量和查询周期调整。
+    retention: 7d
+    # false 表示不强制使用 Helm release 自动生成的标签选择器。
+    # 配合空对象选择器，允许发现所有 namespace 中的 ServiceMonitor。
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    # 同理，允许 Prometheus 发现所有 namespace 中的 PrometheusRule。
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
+
+alertmanager:
+  alertmanagerSpec:
+    # 第一版使用单副本；生产环境可提升到 3 个副本以增强可用性。
+    replicas: 1
+  config:
+    global:
+      # 告警在此时间内未再次收到 firing 更新时可被判定为已恢复。
+      resolve_timeout: 5m
+    route:
+      # 根路由默认丢弃告警，避免 kube-prometheus-stack 自带的节点、Watchdog
+      # 等告警全部进入编排层自动扩缩容接口。
+      receiver: "null"
+      # 默认按告警名称聚合，减少相同系统告警产生的通知数量。
+      group_by:
+        - alertname
+      # 首次触发等待 30 秒，以便聚合同一时间段内出现的相关告警。
+      group_wait: 30s
+      # 已发送分组中新告警的最短再次通知间隔。
+      group_interval: 2m
+      # 告警持续未恢复时，每 15 分钟重复通知一次。
+      repeat_interval: 15m
+      routes:
+        # 只有明确声明编排动作的 QoS 告警才发送给编排层。
+        - receiver: orchestration-webhook
+          matchers:
+            - action=~"evaluate_scaling|investigate"
+          # 按告警名称和 Agent 聚合，避免不同 Agent 的告警互相覆盖。
+          group_by:
+            - alertname
+            - agent_id
+            - instance_id
+    receivers:
+      # 空接收器用于承接并丢弃无需编排层处理的监控栈告警。
+      - name: "null"
+      - name: orchestration-webhook
+        webhook_configs:
+          # 使用 Kubernetes Service DNS 从 Alertmanager 访问编排 API。
+          - url: http://orchestration-api-external.default.svc.cluster.local:8000/api/orchestration/alerts
+            # 告警恢复时也通知编排层，使接收器可将 firing 更新为 resolved。
+            send_resolved: true

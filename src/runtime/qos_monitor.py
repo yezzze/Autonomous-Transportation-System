@@ -14,6 +14,8 @@ from datetime import datetime
 from typing import Callable, Dict, List, Optional
 
 from src.runtime.models import QoSMetrics
+# 将运行层 QoS 数据同步到 Prometheus，供外部统一采集、聚合和告警。
+from src.runtime.prometheus_metrics import observe_agent_call
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +106,8 @@ class QoSMonitor:
         else:
             m.failure_count += 1
         m.last_updated = datetime.utcnow().isoformat()
+        # 保留原有进程内统计，同时生成 Prometheus Counter 和 Histogram 指标。
+        observe_agent_call(agent_id, latency_ms, success)
 
         logger.debug(
             f"[QoS] 记录调用: agent={agent_id}, "
