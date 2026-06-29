@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: agent-template
-          image: agent-template:0.1.1
+          image: agent-template:0.1.2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9001
@@ -32,6 +32,13 @@ spec:
               value: workflow-previousagent-result
             - name: NATS_OUT_SUBJECT
               value: workflow.agenttemplate.result
+            - name: AGENT_MAX_CONCURRENT_TASKS
+              value: "1"
+            - name: AGENT_ID
+              value: agent-template
+            - name: INSTANCE_ID
+              value: agent-template-instance-1
+
 ---
 apiVersion: v1
 kind: Service
@@ -49,3 +56,21 @@ spec:
       nodePort: 30091
       targetPort: 9001
   type: NodePort
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: agent-template
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      app: agent-template
+  endpoints:
+    - port: http
+      path: /metrics/
+      interval: 15s
+      scrapeTimeout: 10s

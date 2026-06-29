@@ -18,18 +18,22 @@ FastAPI 应用主体 — Agent Template 的核心服务
                                           │                      │
                                           │                      └─ 将结果发布到 NATS 输出主题
                                           │
-                                          └─ 通过 A2A Task artifact 返回执行结果
+                                          └─ 通过 A2A Task artifact 返回执行结果和 QoS metadata
 
 标准 A2A 入口:
   GET  /.well-known/agent-card.json
   POST /
 
+Prometheus 入口:
+  GET  /metrics/
+
 环境变量:
-  A2A_AGENT_URL    : Agent Card 中声明的服务地址，默认 http://localhost:9001
-  NATS_SERVER_URL  : NATS 服务器地址，默认 nats://nats:4222
-  NATS_IN_SUBJECT  : 输入主题（接收上游 Agent 的数据）
-  NATS_IN_DURABLE  : 输入持久化消费者名称
-  NATS_OUT_SUBJECT : 输出主题（向下游 Agent 发送数据）
+  A2A_AGENT_URL             : Agent Card 中声明的服务地址，默认 http://localhost:9001
+  NATS_SERVER_URL           : NATS 服务器地址，默认 nats://nats:4222
+  NATS_IN_SUBJECT           : 输入主题（接收上游 Agent 的数据）
+  NATS_IN_DURABLE           : 输入持久化消费者名称
+  NATS_OUT_SUBJECT          : 输出主题（向下游 Agent 发送数据）
+  AGENT_MAX_CONCURRENT_TASKS: 单实例并发执行槽数量，默认 1
 
 开发者指南:
   1. 在 agent_function() 中的 "模拟处理时间" 位置替换为你的业务逻辑
@@ -37,20 +41,14 @@ FastAPI 应用主体 — Agent Template 的核心服务
   3. 通过标准 A2A message 文本中的 JSON metadata 覆盖 NATS 主题，或使用环境变量默认值
 """
 
-# 标准库依赖:
-# - asyncio: 模拟异步初始化/处理，也用于承载真实的异步模型推理或 IO
-# - json: 解析 A2A 文本消息中的 JSON payload，并序列化返回 artifact
-# - os: 从环境变量读取部署时注入的配置
-# - asynccontextmanager: 以 async with 风格声明 FastAPI 启停生命周期
-# - Any: 为 JSON 序列化兜底函数提供宽泛类型标注
 import asyncio
 import json
 import os
+import random
+import time
 from contextlib import asynccontextmanager
 from typing import Any
 
-# a2a-python 工具函数和类型:
-# 这些封装负责把 FastAPI 请求转换成标准 A2A task / message / artifact 事件。
 from a2a.helpers import (
     get_message_text,
     new_task_from_user_message,
@@ -69,14 +67,18 @@ from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 from a2a.types.a2a_pb2 import TaskState
 from fastapi import FastAPI, HTTPException
+from prometheus_client import make_asgi_app
 
-# 项目内依赖:
-# - NatsComm: 对 NATS JetStream 的发送、接收和关闭连接做统一封装
-# - logger: 项目统一日志格式
-# - numpy_utils: 在 JSON/NATS 传输中编码和还原 numpy.ndarray
 from protocols import NatsComm
 from utils.logger_utils import get_logger
 from utils.numpy_utils import decode_structured_numpy, encode_structured_numpy
+from utils.prometheus_metrics import (
+    AgentCallTiming,
+    get_current_timing,
+    observe_call,
+    reset_current_timing,
+    set_current_timing,
+)
 
 
 logger = get_logger(__name__)
@@ -110,8 +112,10 @@ logger.info("A2A Agent URL initialized as: %s", A2A_AGENT_URL)
 logger.info("NATS communication initialized with server: %s", NATS_SERVER_URL)
 
 # 全局 NATS 通信实例，所有 NATS 操作复用此连接。
-# 这样可以避免每次请求都重新初始化连接对象；关闭动作集中在 helper 和 lifespan 中。
 _nats_comm = NatsComm(servers=[NATS_SERVER_URL])
+
+# 单实例并发执行槽。等待该信号量的时间会记录为 queue_wait_ms。
+_execution_slots = asyncio.Semaphore(int(os.getenv("AGENT_MAX_CONCURRENT_TASKS", "1")))
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -332,11 +336,19 @@ async def agent_function(
       A2A artifact 中展示的轻量执行结果。真正传给下游 Agent 的业务数据
       已通过 _send_data_to_nats() 发布到 NATS。
     """
+    timing = get_current_timing()
+
+    stage_started = time.monotonic()
+
     # 1. 读取上游 Agent 的输出。模板默认要求上游把结果发布到 nats_in_subject。
-    data = await _receive_data_from_nats(
-        nats_in_subject=nats_in_subject,
-        nats_in_durable=nats_in_durable,
-    )
+    try:
+        data = await _receive_data_from_nats(
+            nats_in_subject=nats_in_subject,
+            nats_in_durable=nats_in_durable,
+        )
+    finally:
+        if timing:
+            timing.nats_input_wait_ms = (time.monotonic() - stage_started) * 1000
 
     # 2. 还原 numpy 结构。
     # NATS payload 通常是 JSON 友好的 dict，无法直接承载 ndarray；
@@ -348,7 +360,14 @@ async def agent_function(
     # 示例: result_tensor = model.inference(decode_data)
     # 在真实 Agent 中，通常会在这里调用 lifespan() 中加载好的模型，
     # 或执行清洗、聚合、特征计算、格式转换等业务逻辑。
-    await asyncio.sleep(1)
+    stage_started = time.monotonic()
+    try:
+        simulated_processing_seconds = random.uniform(0.1, 8.0)
+        logger.info("Simulated processing time: %.3fs", simulated_processing_seconds)
+        await asyncio.sleep(simulated_processing_seconds)
+    finally:
+        if timing:
+            timing.execution_ms = (time.monotonic() - stage_started) * 1000
 
     # 3. 组织下游 payload。
     # 这里把输入原样编码后返回，表示模板 Agent 已成功处理。
@@ -360,7 +379,12 @@ async def agent_function(
     # ─── 开发者替换区结束 ───
 
     # 4. 发布给下游 Agent。A2A 响应只返回简短状态，业务数据走 NATS。
-    await _send_data_to_nats(result, nats_out_subject=nats_out_subject)
+    stage_started = time.monotonic()
+    try:
+        await _send_data_to_nats(result, nats_out_subject=nats_out_subject)
+    finally:
+        if timing:
+            timing.nats_output_publish_ms = (time.monotonic() - stage_started) * 1000
 
     return {
         "status": "success",
@@ -390,6 +414,8 @@ class AgentTemplateExecutor(AgentExecutor):
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         # 如果 a2a-python 已经为当前请求创建了 task，则继续使用它；
         # 否则根据用户消息新建 task，并先发送给事件队列，让调用方能看到任务已创建。
+        request_received = time.monotonic()
+
         if context.current_task:
             task = context.current_task
         else:
@@ -410,20 +436,32 @@ class AgentTemplateExecutor(AgentExecutor):
             message=new_text_message("Processing request..."),
         )
 
-        # A2A text message 是模板的唯一输入模式。
-        # 普通文本用于描述任务；JSON 文本可以额外携带 NATS metadata。
-        text = get_message_text(context.message)
-        task_description, metadata = _parse_a2a_text_payload(text)
-        nats_in_subject, nats_in_durable, nats_out_subject = _resolve_nats_config(metadata)
-
-        logger.info(
-            "Processing A2A task: description=%s, nats_in=%s, nats_out=%s",
-            task_description,
-            nats_in_subject,
-            nats_out_subject,
-        )
+        timing = AgentCallTiming(task_id=task.id)
+        status = "error"
+        result: dict | None = None
+        error_message: str | None = None
+        acquired_slot = False
+        timing_token = None
 
         try:
+            await _execution_slots.acquire()
+            acquired_slot = True
+            timing.queue_wait_ms = (time.monotonic() - request_received) * 1000
+            timing_token = set_current_timing(timing)
+
+            # A2A text message 是模板的唯一输入模式。
+            # 普通文本用于描述任务；JSON 文本可以额外携带 NATS metadata。
+            text = get_message_text(context.message)
+            task_description, metadata = _parse_a2a_text_payload(text)
+            nats_in_subject, nats_in_durable, nats_out_subject = _resolve_nats_config(metadata)
+
+            logger.info(
+                "Processing A2A task: description=%s, nats_in=%s, nats_out=%s",
+                task_description,
+                nats_in_subject,
+                nats_out_subject,
+            )
+
             # 将协议层解析出的 NATS 配置交给业务函数。
             # execute() 不直接处理业务 payload，保持 A2A 桥接层职责单一。
             result = await agent_function(
@@ -431,52 +469,68 @@ class AgentTemplateExecutor(AgentExecutor):
                 nats_in_durable=nats_in_durable,
                 nats_out_subject=nats_out_subject,
             )
+            result_status = result.get("status", "error") if isinstance(result, dict) else "error"
+            status = result_status if result_status in {"success", "error", "timeout", "cancelled"} else "error"
+        except asyncio.CancelledError:
+            status = "cancelled"
+            raise
         except Exception as exc:
-            # 任意未处理异常都会转成 A2A FAILED 状态。
-            # 详细堆栈写入服务日志，返回给调用方的 message 保持简短。
+            error_message = str(exc)
             logger.exception("Agent execution failed")
+        finally:
+            timing.server_total_ms = (time.monotonic() - request_received) * 1000
+            observe_call(timing, status)
+            logger.info(
+                "[Agent QoS] %s",
+                json.dumps(
+                    {**timing.to_dict(), "status": status},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            )
+            if timing_token is not None:
+                reset_current_timing(timing_token)
+            if acquired_slot:
+                _execution_slots.release()
+
+        qos_metadata = {"qos": timing.to_dict()}
+        if error_message is not None:
             await updater.update_status(
                 state=TaskState.TASK_STATE_FAILED,
-                message=new_text_message(f"Request failed: {exc}"),
+                message=new_text_message(f"Request failed: {error_message}"),
+                metadata=qos_metadata,
             )
             return
 
         # artifact 是 A2A task 的标准结果载体。
         # ensure_ascii=False 保留中文等非 ASCII 字符，便于调试和前端展示。
-        result_text = json.dumps(result, ensure_ascii=False, default=_json_default)
+        result_text = json.dumps(result or {}, ensure_ascii=False, default=_json_default)
         await updater.add_artifact(
             parts=[new_text_part(text=result_text, media_type="text/plain")],
             name="agent-template-result",
+            metadata=qos_metadata,
         )
 
-        # 业务函数也可以通过 {"status": "..."} 表达失败。
-        # 当前模板只有 success，但保留该分支方便后续扩展业务级错误。
-        if result.get("status") != "success":
+        if status != "success":
             await updater.update_status(
                 state=TaskState.TASK_STATE_FAILED,
                 message=new_text_message("Request failed."),
+                metadata=qos_metadata,
             )
             return
 
-        # 只有业务函数成功返回且 status == success，才把 A2A task 标记为完成。
         await updater.update_status(
             state=TaskState.TASK_STATE_COMPLETED,
             message=new_text_message("Request is completed!"),
+            metadata=qos_metadata,
         )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        # 模板暂不支持取消。
-        # 如果后续业务存在长时间推理/批处理，可在这里接入取消标志、任务队列撤销等机制。
         raise NotImplementedError("Cancel is not supported.")
 
 
 def _json_default(value: Any):
-    """
-    json.dumps(default=...) 的兜底序列化函数。
-
-    A2A artifact 最终需要文本化。如果 result 中仍残留 numpy.ndarray
-    或类似对象，tolist() 可以把它转成普通 Python list；其他未知对象退回 str()。
-    """
+    """json.dumps(default=...) 的兜底序列化函数。"""
     if hasattr(value, "tolist"):
         return value.tolist()
     return str(value)
@@ -539,6 +593,7 @@ def _build_agent_card() -> AgentCard:
 # FastAPI 应用实例。
 # lifespan 负责启动/关闭阶段的资源管理；A2A 路由随后被挂载到该应用上。
 app = FastAPI(title="Agent Template API", lifespan=lifespan)
+app.mount("/metrics", make_asgi_app())
 
 # 构建一次 Agent Card，并复用于 agent-card 路由和 JSON-RPC handler。
 _agent_card = _build_agent_card()

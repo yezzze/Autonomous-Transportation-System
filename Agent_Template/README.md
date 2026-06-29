@@ -1,6 +1,6 @@
 # Agent Template
 
-一个基于 **FastAPI + a2a-python + NATS** 的智能体模板项目。A2A 负责标准化调用入口，NATS 负责大数据或中间结果传输，适合快速构建可接入多智能体工作流的独立 Agent 服务。
+一个基于 **FastAPI + a2a-python + NATS + Prometheus** 的智能体模板项目。A2A 负责标准化调用入口，NATS 负责大数据或中间结果传输，Prometheus 负责暴露服务端分阶段 QoS 指标。
 
 ## 写在最前面
 
@@ -31,7 +31,7 @@ NATS 的 IN 或 OUT subject 可随项目需要删减。比如不需要从上游 
                        │   ├─ encode_structured_numpy() 编码结果
                        │   └─ 发布到 NATS_OUT_SUBJECT
                        │
-                       └─ 通过 A2A Task artifact 返回执行状态
+                       └─ 通过 A2A Task artifact 返回执行状态和 QoS metadata
 ```
 
 ## 技术栈
@@ -42,6 +42,7 @@ NATS 的 IN 或 OUT subject 可随项目需要删减。比如不需要从上游 
 | Web 框架 | FastAPI + Uvicorn | 提供 ASGI 服务 |
 | 消息中间件 | NATS JetStream | Agent 间异步数据传输 |
 | 数据序列化 | JSON + Base64 | 原生类型 JSON 编码，numpy 数组 base64 编码 |
+| QoS 指标 | prometheus-client | `/metrics/` 暴露分阶段时延和调用计数 |
 | 日志 | Python logging | 统一命名空间日志 |
 
 ## 项目结构
@@ -56,7 +57,8 @@ Agent_Template/
 │   └── nats_comm.py         # NATS 通信封装
 ├── utils/
 │   ├── logger_utils.py
-│   └── numpy_utils.py
+│   ├── numpy_utils.py
+│   └── prometheus_metrics.py
 ├── Dockerfile
 └── k8s/
     └── agent-template.yaml
@@ -105,6 +107,24 @@ Agent 执行成功后会通过 A2A Task artifact 返回类似：
 {"status": "success"}
 ```
 
+QoS 数据会放在标准 A2A artifact 和最终 status update 的 metadata 中：
+
+```json
+{
+  "qos": {
+    "schema_version": "1",
+    "agent_id": "agent-template",
+    "instance_id": "agent-template-xxxxx",
+    "task_id": "sdk-task-id",
+    "queue_wait_ms": 12.3,
+    "nats_input_wait_ms": 100.2,
+    "execution_ms": 820.4,
+    "nats_output_publish_ms": 8.1,
+    "server_total_ms": 950.7
+  }
+}
+```
+
 ## 环境变量
 
 | 变量名 | 说明 | 默认值 |
@@ -114,6 +134,42 @@ Agent 执行成功后会通过 A2A Task artifact 返回类似：
 | `NATS_IN_SUBJECT` | 输入主题 | `workflow.previousagent.result` |
 | `NATS_IN_DURABLE` | 输入持久化消费者名称 | `workflow-previousagent-result` |
 | `NATS_OUT_SUBJECT` | 输出主题 | `workflow.agenttemplate.result` |
+| `AGENT_ID` | Prometheus 指标中的 Agent 标识 | `agent-template` |
+| `INSTANCE_ID` | Prometheus 指标中的实例标识 | `HOSTNAME` 或 `agent-template-local` |
+| `AGENT_MAX_CONCURRENT_TASKS` | 单实例并发执行槽数量 | `1` |
+
+## 分阶段时延监控
+
+模板在标准 A2A Executor 中采集服务端真实分段时延，并通过标准 A2A metadata、结构化日志和 `/metrics/` 同时输出。
+
+```text
+server_total_ms
+├── queue_wait_ms
+├── nats_input_wait_ms
+├── execution_ms
+├── nats_output_publish_ms
+└── 解析、编解码等其他服务端开销
+```
+
+调用方应使用单调时钟测量完整 RTT，并计算网络残差：
+
+```text
+total_latency_ms = 请求发送至响应接收的完整 RTT
+network_ms = max(total_latency_ms - server_total_ms, 0)
+```
+
+Prometheus 暴露以下低基数指标，标签均为 `agent_id`、`instance_id` 和 `status`：
+
+| 指标 | 含义 |
+| --- | --- |
+| `agent_calls_total` | Agent 实例处理的 A2A 调用总数 |
+| `agent_queue_wait_seconds` | 请求等待执行槽的时间 |
+| `agent_nats_input_wait_seconds` | 等待 NATS 输入数据的时间 |
+| `agent_execution_seconds` | 核心业务逻辑执行时间 |
+| `agent_nats_output_publish_seconds` | 发布 NATS 输出数据的时间 |
+| `agent_server_total_seconds` | Agent 服务端总处理时间 |
+
+`task_id` 只写入 A2A metadata 与结构化日志，不作为 Prometheus 标签，避免高基数时间序列。安装 kube-prometheus-stack 后，清单中附带的 `ServiceMonitor` 会通过 Service 的 `http` 端口抓取 `/metrics/`。
 
 ## 如何定制你的 Agent
 
@@ -181,4 +237,5 @@ Service 类型为 `NodePort`，可通过以下地址访问标准 A2A 服务：
 ```text
 http://localhost:30091/.well-known/agent-card.json
 http://localhost:30091/
+http://localhost:30091/metrics/
 ```

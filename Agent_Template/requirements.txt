@@ -4,3 +4,4 @@ uvicorn
 pydantic
 nats-py
 numpy
+prometheus-client
