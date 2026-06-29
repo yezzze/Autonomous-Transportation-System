@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-nats-test-manual
+  labels:
+    app: k8s-nats-test-manual
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-nats-test-manual
+  template:
+    metadata:
+      labels:
+        app: k8s-nats-test-manual
+    spec:
+      containers:
+      - name: app
+        image: k8s-nats-test:0.1.4
+        imagePullPolicy: Never
+        command: ["sleep", "infinity"]
+        env:
+        - name: NATS_SERVERS
+          value: nats://nats:4222
