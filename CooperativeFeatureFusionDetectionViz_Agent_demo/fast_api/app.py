@@ -2,9 +2,11 @@ from contextlib import asynccontextmanager
 from collections import deque
 from pathlib import Path
 from typing import Any
+import asyncio
 import base64
 import json
 import os
+import time
 
 import cv2
 import numpy as np
@@ -28,6 +30,7 @@ from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 from a2a.types.a2a_pb2 import TaskState
 from fastapi import Body, FastAPI, HTTPException, Request
+from prometheus_client import make_asgi_app
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -35,6 +38,13 @@ from fastapi.templating import Jinja2Templates
 from utils.logger_utils import get_logger
 from utils.numpy_utils import decode_array_from_dict
 from utils.open3d_utils import render_vis
+from utils.prometheus_metrics import (
+    AgentCallTiming,
+    get_current_timing,
+    observe_call,
+    reset_current_timing,
+    set_current_timing,
+)
 from protocols import NatsComm
 
 from .model_runtime import model_runtime
@@ -52,6 +62,7 @@ NATS_SUBJECT = os.getenv("NATS_SUBJECT", "workflow.demo.perception2feature.resul
 NATS_DURABLE = os.getenv("NATS_DURABLE", "workflow-demo-perception2feature-result")
 
 logger = get_logger(__name__)
+_execution_slots = asyncio.Semaphore(int(os.getenv("AGENT_MAX_CONCURRENT_TASKS", "1")))
 
 
 class CooperativeFeatureFusionWebApp:
@@ -74,6 +85,7 @@ class CooperativeFeatureFusionWebApp:
             title="Cooperative Feature Fusion Detection Viz Agent API",
             lifespan=self._lifespan,
         )
+        fastapi_app.mount("/metrics", make_asgi_app())
         fastapi_app.mount(
             "/static",
             StaticFiles(directory=str(BASE_DIR / "static")),
@@ -191,6 +203,8 @@ class CooperativeFeatureFusionWebApp:
             raise RuntimeError(f"Startup model loading failed: {exc}") from exc
 
     async def _receive_data(self, nats_subject=NATS_SUBJECT, nats_durable=NATS_DURABLE) -> dict | None:
+        timing = get_current_timing()
+        stage_started = time.monotonic()
         try:
             messages = await self.nats_comm.receive(
                 subject=nats_subject,
@@ -204,51 +218,59 @@ class CooperativeFeatureFusionWebApp:
                 return message.payload
             return None
         finally:
+            if timing:
+                timing.nats_input_wait_ms = (time.monotonic() - stage_started) * 1000
             await self.nats_comm.close()
 
     async def run_forward(self, nats_subject=NATS_SUBJECT, nats_durable=NATS_DURABLE) -> dict:
         data = await self._receive_data(nats_subject=nats_subject, nats_durable=nats_durable)
 
-        if data is None:
-            raise HTTPException(status_code=404, detail="No data available")
-
+        timing = get_current_timing()
+        stage_started = time.monotonic()
         try:
-            decoded_data = self._decode_structured_numpy(data)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Failed to decode numpy payload: {exc}") from exc
+            if data is None:
+                raise HTTPException(status_code=404, detail="No data available")
 
-        masked_intermediate_feature = decoded_data.get("intermediate_feature")
-        if masked_intermediate_feature is None:
-            raise HTTPException(status_code=400, detail="intermediate_feature is missing in the payload")
+            try:
+                decoded_data = self._decode_structured_numpy(data)
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=f"Failed to decode numpy payload: {exc}") from exc
 
-        masked_intermediate_feature_tensor = self._convert_numpy_to_tensor(
-            masked_intermediate_feature,
-            device=self.model_runtime.device,
-        )
-        try:
-            intermediate_feature_tensor = self._restore_original_feature_from_dict(
-                masked_intermediate_feature_tensor,
-                target_hw=(96, 352),
+            masked_intermediate_feature = decoded_data.get("intermediate_feature")
+            if masked_intermediate_feature is None:
+                raise HTTPException(status_code=400, detail="intermediate_feature is missing in the payload")
+
+            masked_intermediate_feature_tensor = self._convert_numpy_to_tensor(
+                masked_intermediate_feature,
                 device=self.model_runtime.device,
             )
-        except (TypeError, KeyError, ValueError) as exc:
-            raise HTTPException(status_code=400, detail=f"Failed to restore feature map: {exc}") from exc
+            try:
+                intermediate_feature_tensor = self._restore_original_feature_from_dict(
+                    masked_intermediate_feature_tensor,
+                    target_hw=(96, 352),
+                    device=self.model_runtime.device,
+                )
+            except (TypeError, KeyError, ValueError) as exc:
+                raise HTTPException(status_code=400, detail=f"Failed to restore feature map: {exc}") from exc
 
-        intermediate_features = [intermediate_feature_tensor]
+            intermediate_features = [intermediate_feature_tensor]
 
-        ego_pred_box, fused_pred_box, ego_feature, fused_feature = self.model_runtime.process_intermediate_features(
-            intermediate_features
-        )
+            ego_pred_box, fused_pred_box, ego_feature, fused_feature = self.model_runtime.process_intermediate_features(
+                intermediate_features
+            )
 
-        pcd = decoded_data.get("pcd")
-        pcd_img = render_vis(None, pcd, ego_pred_box, fused_pred_box)
+            pcd = decoded_data.get("pcd")
+            pcd_img = render_vis(None, pcd, ego_pred_box, fused_pred_box)
 
-        await self._update_images(pcd_img=pcd_img, ego_feature=ego_feature, fused_feature=fused_feature)
+            await self._update_images(pcd_img=pcd_img, ego_feature=ego_feature, fused_feature=fused_feature)
 
-        return {
-            "status": "success",
-            "pred_box": ego_pred_box.tolist() if ego_pred_box is not None else None,
-        }
+            return {
+                "status": "success",
+                "pred_box": ego_pred_box.tolist() if ego_pred_box is not None else None,
+            }
+        finally:
+            if timing:
+                timing.execution_ms = (time.monotonic() - stage_started) * 1000
 
     def _register_routes(self, fastapi_app: FastAPI):
         @fastapi_app.get("/", response_class=HTMLResponse)
@@ -353,7 +375,7 @@ class CooperativeFeatureFusionWebApp:
                 "FastAPI visualization agent that consumes intermediate features "
                 "from NATS and exposes standard A2A JSON-RPC."
             ),
-            version="0.1.5",
+            version="0.1.6",
             default_input_modes=["text/plain"],
             default_output_modes=["text/plain"],
             capabilities=AgentCapabilities(streaming=True),
@@ -525,6 +547,8 @@ class CooperativeFeatureFusionExecutor(AgentExecutor):
         self.web_app = web_app
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        request_received = time.monotonic()
+
         if context.current_task:
             task = context.current_task
         else:
@@ -541,47 +565,92 @@ class CooperativeFeatureFusionExecutor(AgentExecutor):
             message=new_text_message("Processing request..."),
         )
 
-        text = get_message_text(context.message)
-        task_description, metadata = self.web_app._parse_a2a_text_payload(text)
-        nats_subject, nats_durable = self.web_app._resolve_nats_config(metadata)
-
-        logger.info(
-            "Processing A2A task: description=%s, nats_subject=%s, nats_durable=%s",
-            task_description,
-            nats_subject,
-            nats_durable,
-        )
+        timing = AgentCallTiming(task_id=task.id)
+        status = "error"
+        result: dict | None = None
+        error_message: str | None = None
+        acquired_slot = False
+        timing_token = None
 
         try:
+            await _execution_slots.acquire()
+            acquired_slot = True
+            timing.queue_wait_ms = (time.monotonic() - request_received) * 1000
+            timing_token = set_current_timing(timing)
+
+            text = get_message_text(context.message)
+            task_description, metadata = self.web_app._parse_a2a_text_payload(text)
+            nats_subject, nats_durable = self.web_app._resolve_nats_config(metadata)
+
+            logger.info(
+                "Processing A2A task: description=%s, nats_subject=%s, nats_durable=%s",
+                task_description,
+                nats_subject,
+                nats_durable,
+            )
+
             result = await self.web_app.run_forward(
                 nats_subject=nats_subject,
                 nats_durable=nats_durable,
             )
+            result_status = (
+                result.get("status", "error") if isinstance(result, dict) else "error"
+            )
+            status = (
+                result_status
+                if result_status in {"success", "error", "timeout", "cancelled"}
+                else "error"
+            )
+        except asyncio.CancelledError:
+            status = "cancelled"
+            raise
         except Exception as exc:
+            error_message = exc.detail if isinstance(exc, HTTPException) else str(exc)
             logger.exception("Agent execution failed")
-            message = exc.detail if isinstance(exc, HTTPException) else str(exc)
+        finally:
+            timing.server_total_ms = (time.monotonic() - request_received) * 1000
+            observe_call(timing, status)
+            logger.info(
+                "[Agent QoS] %s",
+                json.dumps(
+                    {**timing.to_dict(), "status": status},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            )
+            if timing_token is not None:
+                reset_current_timing(timing_token)
+            if acquired_slot:
+                _execution_slots.release()
+
+        qos_metadata = {"qos": timing.to_dict()}
+        if error_message is not None:
             await updater.update_status(
                 state=TaskState.TASK_STATE_FAILED,
-                message=new_text_message(f"Request failed: {message}"),
+                message=new_text_message(f"Request failed: {error_message}"),
+                metadata=qos_metadata,
             )
             return
 
-        result_text = json.dumps(result, ensure_ascii=False, default=self.web_app._json_default)
+        result_text = json.dumps(result or {}, ensure_ascii=False, default=self.web_app._json_default)
         await updater.add_artifact(
             parts=[new_text_part(text=result_text, media_type="text/plain")],
             name="cooperative-feature-fusion-detection-viz-result",
+            metadata=qos_metadata,
         )
 
-        if result.get("status") != "success":
+        if status != "success":
             await updater.update_status(
                 state=TaskState.TASK_STATE_FAILED,
                 message=new_text_message("Request failed."),
+                metadata=qos_metadata,
             )
             return
 
         await updater.update_status(
             state=TaskState.TASK_STATE_COMPLETED,
             message=new_text_message("Request is completed!"),
+            metadata=qos_metadata,
         )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:

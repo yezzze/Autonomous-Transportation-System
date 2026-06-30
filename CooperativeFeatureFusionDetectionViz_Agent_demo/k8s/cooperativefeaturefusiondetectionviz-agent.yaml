@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: cooperativefeaturefusiondetectionviz-agent
-          image: cooperativefeaturefusiondetectionviz-agent:0.1.5
+          image: cooperativefeaturefusiondetectionviz-agent:0.1.6
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9032
@@ -40,6 +40,12 @@ spec:
               value: workflow.demo.perception2feature.result.dx86.0601
             - name: NATS_DURABLE
               value: workflow-demo-perception2feature-result-dx86-0601
+            - name: AGENT_MAX_CONCURRENT_TASKS
+              value: "1"
+            - name: AGENT_ID
+              value: cooperativefeaturefusiondetectionviz-agent
+            - name: INSTANCE_ID
+              value: cooperativefeaturefusiondetectionviz-agent-instance-1
           resources:
             requests:
               nvidia.com/gpu: "1"
@@ -62,3 +68,21 @@ spec:
       port: 9032
       targetPort: 9032
   type: NodePort
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cooperativefeaturefusiondetectionviz-agent
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      app: cooperativefeaturefusiondetectionviz-agent
+  endpoints:
+    - port: http
+      path: /metrics/
+      interval: 15s
+      scrapeTimeout: 10s
