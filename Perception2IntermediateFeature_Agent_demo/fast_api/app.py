@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
+import asyncio
 import json
 import os
 import threading
+import time
 from typing import Any
 
 import numpy as np
@@ -23,9 +25,17 @@ from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 from a2a.types.a2a_pb2 import TaskState
 from fastapi import FastAPI, HTTPException
+from prometheus_client import make_asgi_app
 
 from utils.logger_utils import get_logger
 from utils.numpy_utils import encode_array_to_dict, decode_array_from_dict
+from utils.prometheus_metrics import (
+    AgentCallTiming,
+    get_current_timing,
+    observe_call,
+    reset_current_timing,
+    set_current_timing,
+)
 from protocols import NatsComm
 from fast_api.model_runtime import model_runtime
 from mcp_clients.pointcloud_mcp_clients import PointCloudMCPClient
@@ -56,6 +66,7 @@ pointcloud_mcp_client = PointCloudMCPClient(host=MCP_SERVER_HOST, port=MCP_SERVE
 logger.info("NATS communication initialized with server: %s", NATS_SERVER_URL)
 logger.info("A2A Agent URL initialized as: %s", A2A_AGENT_URL)
 _nats_comm = NatsComm(servers=[NATS_SERVER_URL])
+_execution_slots = asyncio.Semaphore(int(os.getenv("AGENT_MAX_CONCURRENT_TASKS", "1")))
 
 
 _resource_index = 0
@@ -148,43 +159,62 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Perception to Feature Agent Demo API", lifespan=lifespan)
+app.mount("/metrics", make_asgi_app())
 
 
 async def _run_model_forward(nats_subject: str = NATS_SUBJECT) -> dict:
+    timing = get_current_timing()
     resource_uri = _next_resource_uri()
-    perception_info = await pointcloud_mcp_client.fetch_perception_info(resource_uri)
 
-    if not isinstance(perception_info, dict):
-        raise RuntimeError("perception_info is not a dict")
+    stage_started = time.monotonic()
+    try:
+        perception_info = await pointcloud_mcp_client.fetch_perception_info(resource_uri)
+    finally:
+        if timing:
+            timing.mcp_fetch_ms = (time.monotonic() - stage_started) * 1000
 
-    if perception_info.get("status") == "error":
-        message = perception_info.get("message", "Unknown MCP error")
-        raise RuntimeError(f"MCP resource read failed: {message}")
+    stage_started = time.monotonic()
+    try:
+        if not isinstance(perception_info, dict):
+            raise RuntimeError("perception_info is not a dict")
 
-    pointcloud = perception_info.get("pcd")
+        if perception_info.get("status") == "error":
+            message = perception_info.get("message", "Unknown MCP error")
+            raise RuntimeError(f"MCP resource read failed: {message}")
 
-    if isinstance(pointcloud, dict) and pointcloud.get("data") is not None:
-        try:
-            pointcloud = decode_array_from_dict(pointcloud)
-        except Exception as exc:
-            logger.error(f"Failed to decode point cloud data: {exc}")
+        pointcloud = perception_info.get("pcd")
+
+        if isinstance(pointcloud, dict) and pointcloud.get("data") is not None:
+            try:
+                pointcloud = decode_array_from_dict(pointcloud)
+            except Exception as exc:
+                logger.error(f"Failed to decode point cloud data: {exc}")
+                pointcloud = None
+        else:
             pointcloud = None
-    else:
-        pointcloud = None
 
-    if not isinstance(pointcloud, np.ndarray):
-        raise RuntimeError("pcd is missing or not a decoded numpy array")
+        if not isinstance(pointcloud, np.ndarray):
+            raise RuntimeError("pcd is missing or not a decoded numpy array")
 
-    intermediate_feature = model_runtime.pointcloud_inference(pointcloud=pointcloud)
-    data = {
-        "status": "success",
-        "resource_uri": resource_uri,
-        "intermediate_feature": _encode_numpy_payload(intermediate_feature),
-        "pcd": perception_info.get("pcd"),
-    }
+        intermediate_feature = model_runtime.pointcloud_inference(pointcloud=pointcloud)
+        data = {
+            "status": "success",
+            "resource_uri": resource_uri,
+            "intermediate_feature": _encode_numpy_payload(intermediate_feature),
+            "pcd": perception_info.get("pcd"),
+        }
+    finally:
+        if timing:
+            timing.execution_ms = (time.monotonic() - stage_started) * 1000
 
     # _temp_post_data(data)
-    await _send_data(data, nats_subject=nats_subject)
+    stage_started = time.monotonic()
+    try:
+        await _send_data(data, nats_subject=nats_subject)
+    finally:
+        if timing:
+            timing.nats_output_publish_ms = (time.monotonic() - stage_started) * 1000
+
     return {
         "status": "success",
         "resource_uri": resource_uri,
@@ -206,6 +236,8 @@ async def agent_function(nats_subject: str = NATS_SUBJECT) -> dict:
 
 class Perception2IntermediateFeatureExecutor(AgentExecutor):
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        request_received = time.monotonic()
+
         if context.current_task:
             task = context.current_task
         else:
@@ -222,42 +254,88 @@ class Perception2IntermediateFeatureExecutor(AgentExecutor):
             message=new_text_message("Processing request..."),
         )
 
-        text = get_message_text(context.message)
-        task_description, metadata = _parse_a2a_text_payload(text)
-        nats_subject = _resolve_nats_subject(metadata)
-
-        logger.info(
-            "Processing A2A task: description=%s, nats_subject=%s",
-            task_description,
-            nats_subject,
-        )
+        timing = AgentCallTiming(task_id=task.id)
+        status = "error"
+        result: dict | None = None
+        error_message: str | None = None
+        acquired_slot = False
+        timing_token = None
 
         try:
+            await _execution_slots.acquire()
+            acquired_slot = True
+            timing.queue_wait_ms = (time.monotonic() - request_received) * 1000
+            timing_token = set_current_timing(timing)
+
+            text = get_message_text(context.message)
+            task_description, metadata = _parse_a2a_text_payload(text)
+            nats_subject = _resolve_nats_subject(metadata)
+
+            logger.info(
+                "Processing A2A task: description=%s, nats_subject=%s",
+                task_description,
+                nats_subject,
+            )
+
             result = await agent_function(nats_subject=nats_subject)
+            result_status = (
+                result.get("status", "error") if isinstance(result, dict) else "error"
+            )
+            status = (
+                result_status
+                if result_status in {"success", "error", "timeout", "cancelled"}
+                else "error"
+            )
+        except asyncio.CancelledError:
+            status = "cancelled"
+            raise
         except Exception as exc:
+            error_message = str(exc)
             logger.exception("Agent execution failed")
+        finally:
+            timing.server_total_ms = (time.monotonic() - request_received) * 1000
+            observe_call(timing, status)
+            logger.info(
+                "[Agent QoS] %s",
+                json.dumps(
+                    {**timing.to_dict(), "status": status},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            )
+            if timing_token is not None:
+                reset_current_timing(timing_token)
+            if acquired_slot:
+                _execution_slots.release()
+
+        qos_metadata = {"qos": timing.to_dict()}
+        if error_message is not None:
             await updater.update_status(
                 state=TaskState.TASK_STATE_FAILED,
-                message=new_text_message(f"Request failed: {exc}"),
+                message=new_text_message(f"Request failed: {error_message}"),
+                metadata=qos_metadata,
             )
             return
 
-        result_text = json.dumps(result, ensure_ascii=False, default=_json_default)
+        result_text = json.dumps(result or {}, ensure_ascii=False, default=_json_default)
         await updater.add_artifact(
             parts=[new_text_part(text=result_text, media_type="text/plain")],
             name="perception2intermediatefeature-result",
+            metadata=qos_metadata,
         )
 
-        if result.get("status") != "success":
+        if status != "success":
             await updater.update_status(
                 state=TaskState.TASK_STATE_FAILED,
                 message=new_text_message("Request failed."),
+                metadata=qos_metadata,
             )
             return
 
         await updater.update_status(
             state=TaskState.TASK_STATE_COMPLETED,
             message=new_text_message("Request is completed!"),
+            metadata=qos_metadata,
         )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
@@ -296,7 +374,7 @@ def _build_agent_card() -> AgentCard:
             "FastAPI agent that converts point cloud perception data into "
             "intermediate features and exposes standard A2A JSON-RPC."
         ),
-        version="0.1.5",
+        version="0.1.6",
         default_input_modes=["text/plain"],
         default_output_modes=["text/plain"],
         capabilities=AgentCapabilities(streaming=True),

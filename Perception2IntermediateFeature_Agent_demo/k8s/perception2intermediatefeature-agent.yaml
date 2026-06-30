@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: perception2intermediatefeature-agent
-          image: perception2intermediatefeature-agent:0.1.5
+          image: perception2intermediatefeature-agent:0.1.6
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9031
@@ -42,6 +42,12 @@ spec:
               value: workflow.>
             - name: NATS_SUBJECT
               value: workflow.demo.perception2feature.result.dx86.0601
+            - name: AGENT_MAX_CONCURRENT_TASKS
+              value: "1"
+            - name: AGENT_ID
+              value: perception2intermediatefeature-agent
+            - name: INSTANCE_ID
+              value: perception2intermediatefeature-agent-instance-1
           resources:
             requests:
               nvidia.com/gpu: "1"
@@ -64,3 +70,21 @@ spec:
       nodePort: 30391
       targetPort: 9031
   type: NodePort
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: perception2intermediatefeature-agent
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      app: perception2intermediatefeature-agent
+  endpoints:
+    - port: http
+      path: /metrics/
+      interval: 15s
+      scrapeTimeout: 10s
