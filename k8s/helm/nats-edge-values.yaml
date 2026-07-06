@@ -1,6 +1,6 @@
 config:
   merge:
-    max_payload: 8388608
+    max_payload: 67108864
 
   leafnodes:
     enabled: true

@@ -8,6 +8,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/lib/load_cluster_env.sh"
 
 PROFILE="${MINIKUBE_PROFILE:-cloud}"
+KUBERNETES_VERSION="${MINIKUBE_KUBERNETES_VERSION:-v1.33.3}"
 NAMESPACE="${NATS_CLOUD_NAMESPACE:-nats-cloud}"
 RELEASE="${NATS_CLOUD_RELEASE:-nats-hub}"
 CHART_VERSION="${NATS_CHART_VERSION:-2.14.0}"
@@ -25,6 +26,7 @@ fi
 minikube start \
   -p "${PROFILE}" \
   --driver=docker \
+  --kubernetes-version="${KUBERNETES_VERSION}" \
   --image-repository="${MINIKUBE_IMAGE_REPOSITORY:-registry.cn-hangzhou.aliyuncs.com/google_containers}" \
   --ports=4222:30422 \
   --ports=7422:30472 \
