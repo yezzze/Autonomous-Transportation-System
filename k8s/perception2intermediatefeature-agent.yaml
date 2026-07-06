@@ -39,7 +39,7 @@ spec:
             - name: NATS_STREAM_SUBJECTS
               value: workflow.>
             - name: NATS_SUBJECT
-              value: workflow.demo.perception2feature.result.dx86.0519
+              value: workflow.demo.perception2feature.result.dx86.0601
           resources:
             requests:
               nvidia.com/gpu: "1"

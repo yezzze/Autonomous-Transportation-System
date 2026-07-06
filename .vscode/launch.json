@@ -52,7 +52,9 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "env": {
-                "PYTHONPATH": "${workspaceFolder}"
+                "PYTHONPATH": "${workspaceFolder}",
+                "ENABLE_AOE_GOSSIP": "1",
+                "LOCAL_AOE_URL": "http://10.112.136.44:8000",
             }
         },
         {

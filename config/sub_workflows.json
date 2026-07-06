@@ -2,19 +2,5 @@
   "version": "1.0",
   "description": "子工作流定义 — 可被远端节点发现和调用的命名 Pipeline",
   "sub_workflows": [
-    {
-      "id": "swf_perception_fusion",
-      "capability": "perception_fusion",
-      "description": "多源感知融合流水线：采集自车+协同车辆感知数据，融合输出结构化环境认知报告",
-      "pipeline": [
-        {"capability": "perception", "agent_id": "perception_self_001", "description": "自车感知数据采集"},
-        [
-          {"capability": "perception", "agent_id": "perception_vehicleB_001", "description": "VehicleB协同感知"},
-          {"capability": "perception", "agent_id": "perception_vehicleC_001", "description": "VehicleC协同感知"}
-        ],
-        {"capability": "cognition", "agent_id": "cognition_main_001", "description": "多源数据融合认知"}
-      ],
-      "enabled": true
-    }
   ]
 }
