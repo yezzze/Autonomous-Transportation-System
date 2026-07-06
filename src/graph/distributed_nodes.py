@@ -442,7 +442,7 @@ def identify_cross_host_tasks(
             port = 0
             is_local = _agent_is_local(agent)
             # TODO: 特例：Perception2IntermediateFeature_agent_001 实际部署在本地，但 registry 中标记为 is_local=false
-            # is_local = agent_id == "Perception2IntermediateFeature_agent_001" or _agent_is_local(agent)  
+            # is_local = agent_id == "Perception2IntermediateFeature_agent_001" or _agent_is_local(agent)
 
         if not is_local:
             if port:
@@ -1113,11 +1113,11 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 _res = await _par_executor.execute_task((task_idx, task)[1] if False else task, on_decision=_on_decision)
                 _latency = (time.monotonic() - _t0) * 1000
                 try:
-                    from src.runtime.qos_monitor import get_qos_monitor
-                    get_qos_monitor().record_call(
-                        agent_id=task.get("assigned_agent_id", "unknown"),
+                    from src.runtime.prometheus_metrics import observe_orchestration_task
+                    observe_orchestration_task(
+                        execution_kind=_res.get("protocol", "error"),
+                        status=_res.get("status", "unknown"),
                         latency_ms=_latency,
-                        success=(_res.get("status") == "success"),
                     )
                 except Exception:
                     pass
@@ -1125,11 +1125,11 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
             except Exception as _e:
                 _latency = (time.monotonic() - _t0) * 1000
                 try:
-                    from src.runtime.qos_monitor import get_qos_monitor
-                    get_qos_monitor().record_call(
-                        agent_id=task.get("assigned_agent_id", "unknown"),
+                    from src.runtime.prometheus_metrics import observe_orchestration_task
+                    observe_orchestration_task(
+                        execution_kind="error",
+                        status="error",
                         latency_ms=_latency,
-                        success=False,
                     )
                 except Exception:
                     pass
@@ -1142,6 +1142,18 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
         result_texts: list[str] = []
 
         for (task_idx, task), par_rd in zip(group_tasks, par_results):
+            task_metadata = dict(updated_plan[task_idx].get("metadata") or {})
+            task_metadata.update(
+                {
+                    "protocol": par_rd.get("protocol", "unknown"),
+                    "executor": par_rd.get("tool_used") or par_rd.get("agent_used", "unknown"),
+                }
+            )
+            qos = (par_rd.get("metadata") or {}).get("qos")
+            if qos:
+                task_metadata["qos"] = qos
+            updated_plan[task_idx]["metadata"] = task_metadata
+
             if par_rd.get("status") == "success":
                 updated_plan[task_idx]["status"] = "completed"
                 updated_plan[task_idx]["result"] = par_rd.get("result", "")
@@ -1178,6 +1190,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     failed_remote_aoe_urls: dict[str, list[str]] = dict(state.get("failed_remote_aoe_urls", {}))
 
     if remote_aoe_url:
+        _task_start = time.monotonic()
         # 运行期优先使用编排期留下的远端注册结果；如果信息缺失，再补做一次注册。
         # 这样既满足新设计，也兼容旧状态或中断恢复场景。
         logger.info(
@@ -1216,7 +1229,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 "session_id": remote_info.get("session_id", ""),
                 "remote_aoe_url": remote_info.get("remote_aoe_url", ""),
             }
-        _task_latency = 0.0  # 远端执行，延迟由远端负责
+        _task_latency = (time.monotonic() - _task_start) * 1000
         if xh_result.get("status") == "completed":
             # 远端执行成功后，本地只保留结果摘要、子工作流 ID 和执行句柄。
             # 这样后续可视化、回放和故障切换都能引用同一个远端工作流。
@@ -1239,7 +1252,6 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 failed_cross_host_tasks.append(current_task["task_id"])
             # §2.3 重编排：记录本次失败的远端 URL，供 find_alternative_remote_aoe 排除
             task_failed_urls = list(failed_remote_aoe_urls.get(current_task["task_id"], []))
-            remote_aoe_url = remote_info.get("remote_aoe_url", "")
             if remote_aoe_url and remote_aoe_url not in task_failed_urls:
                 task_failed_urls.append(remote_aoe_url)
             failed_remote_aoe_urls[current_task["task_id"]] = task_failed_urls
@@ -1248,11 +1260,11 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 f"{current_task['task_id']}, 已失败节点: {task_failed_urls}"
             )
         try:
-            from src.runtime.qos_monitor import get_qos_monitor
-            get_qos_monitor().record_call(
-                agent_id=current_task.get("assigned_agent_id", "unknown"),
-                latency_ms=0.0,
-                success=(task_status == "completed"),
+            from src.runtime.prometheus_metrics import observe_orchestration_task
+            observe_orchestration_task(
+                execution_kind="remote_subworkflow",
+                status="success" if task_status == "completed" else "error",
+                latency_ms=_task_latency,
             )
         except Exception:
             pass
@@ -1290,10 +1302,11 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
             result_data = {"status": "error", "protocol": "sub_workflow", "error_message": str(e)}
             logger.error(f"[子工作流] ❌ {result_message}")
         try:
-            from src.runtime.qos_monitor import get_qos_monitor
-            get_qos_monitor().record_call(
-                agent_id=_local_swf_id, latency_ms=_task_latency,
-                success=(task_status == "completed"),
+            from src.runtime.prometheus_metrics import observe_orchestration_task
+            observe_orchestration_task(
+                execution_kind="local_subworkflow",
+                status="success" if task_status == "completed" else "error",
+                latency_ms=_task_latency,
             )
         except Exception:
             pass
@@ -1330,11 +1343,11 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
             result_data = await executor.execute_task(current_task, on_decision=_on_decision_serial)
             _task_latency = (time.monotonic() - _task_start) * 1000
             try:
-                from src.runtime.qos_monitor import get_qos_monitor
-                get_qos_monitor().record_call(
-                    agent_id=current_task.get("assigned_agent_id", "unknown"),
+                from src.runtime.prometheus_metrics import observe_orchestration_task
+                observe_orchestration_task(
+                    execution_kind=result_data.get("protocol", "error"),
+                    status=result_data.get("status", "unknown"),
                     latency_ms=_task_latency,
-                    success=(result_data.get("status") == "success"),
                 )
             except Exception:
                 pass
@@ -1354,6 +1367,16 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                     logger.warning("⚠️ MCP 和 A2A 都失败了")
 
         except Exception as e:
+            _task_latency = (time.monotonic() - _task_start) * 1000
+            try:
+                from src.runtime.prometheus_metrics import observe_orchestration_task
+                observe_orchestration_task(
+                    execution_kind="error",
+                    status="error",
+                    latency_ms=_task_latency,
+                )
+            except Exception:
+                pass
             logger.error(f"❌ Unified Executor 执行异常: {e}", exc_info=True)
             task_status = "failed"
             result_message = f"执行异常: {str(e)}"
@@ -1415,10 +1438,14 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     
     # 记录使用的协议信息
     if 'result_data' in locals() and result_data:
-        updated_plan[current_index]["metadata"] = {
+        task_metadata = {
             "protocol": result_data.get("protocol", "unknown"),
-            "executor": result_data.get("tool_used") or result_data.get("agent_used", "unknown")
+            "executor": result_data.get("tool_used") or result_data.get("agent_used", "unknown"),
         }
+        qos = (result_data.get("metadata") or {}).get("qos")
+        if qos:
+            task_metadata["qos"] = qos
+        updated_plan[current_index]["metadata"] = task_metadata
     
     # 6. 决定下一步
     failed_tasks = state.get("failed_tasks", [])

@@ -13,10 +13,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
+# 将 prometheus_client 的 ASGI 应用挂载到主 FastAPI 服务。
+from prometheus_client import make_asgi_app
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 from typing import AsyncGenerator, Dict, List, Any
@@ -44,6 +46,8 @@ app = FastAPI(
 )
 
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+# Prometheus 通过 ServiceMonitor 定期抓取此端点；实际抓取路径为 /metrics/。
+app.mount("/metrics", make_asgi_app())
 
 # Initialize Jinja2 templates (singleton, only created once at startup)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -210,10 +214,40 @@ def _required_stream_subjects(req: _NatsPublishRequest) -> List[str]:
 
 
 async def _ensure_jetstream_stream(js, req: _NatsPublishRequest) -> Dict[str, Any]:
-    from src.service.jetstream_stream import ensure_jetstream_stream
-
     required_subjects = _required_stream_subjects(req)
-    return await ensure_jetstream_stream(js, name=req.stream, subjects=required_subjects)
+    try:
+        info = await js.stream_info(req.stream)
+    except Exception as exc:
+        if exc.__class__.__name__ != "NotFoundError":
+            raise
+        await js.add_stream(name=req.stream, subjects=required_subjects)
+        return {"created": True, "subjects": required_subjects}
+
+    config = getattr(info, "config", None)
+    current_subjects = list(getattr(config, "subjects", None) or [])
+    if not current_subjects:
+        current_subjects = required_subjects
+
+    missing = [
+        subject
+        for subject in [req.subject, req.reply_subject]
+        if subject and not _covered_by_subjects(subject, current_subjects)
+    ]
+    if not missing:
+        return {"created": False, "subjects": current_subjects}
+
+    merged_subjects = current_subjects[:]
+    for subject in required_subjects:
+        if subject not in merged_subjects:
+            merged_subjects.append(subject)
+
+    try:
+        await js.update_stream(name=req.stream, subjects=merged_subjects)
+    except TypeError:
+        from nats.js.api import StreamConfig
+
+        await js.update_stream(StreamConfig(name=req.stream, subjects=merged_subjects))
+    return {"created": False, "updated": True, "subjects": merged_subjects, "added_subjects": missing}
 
 
 AOE_CLUSTER_CONFIG_PATH = os.path.abspath(
@@ -703,7 +737,7 @@ async def orchestration_dispatch(req: _DispatchRequest):
     1. POST /orchestration/register_subworkflow（编排期）
     2. POST /orchestration/execute/{sub_workflow_id}（运行期）
 
-    本接口保留仅用于兼容旧调用方。 
+    本接口保留仅用于兼容旧调用方。
     """
     task_id = req.subtask.get("task_id", uuid.uuid4().hex[:8])
     timeout = int(req.subtask.get("timeout_seconds", 60))
@@ -1495,6 +1529,36 @@ async def get_agent_qos_metrics(agent_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/orchestration/alerts", summary="接收 Alertmanager 告警")
+async def receive_alertmanager_webhook(payload: Dict[str, Any]):
+    """
+    接收 Alertmanager webhook。
+
+    此接口只负责可靠接收与记录告警状态。扩缩容、迁移等动作应由编排层策略
+    控制器消费告警后执行，不能在 webhook 请求路径中直接操作 Kubernetes。
+    """
+    try:
+        from src.service.alertmanager_receiver import get_alertmanager_receiver
+
+        # 接收器使用 fingerprint 幂等保存告警，避免 Alertmanager 重试造成重复动作。
+        result = get_alertmanager_receiver().receive(payload)
+        return {"status": "accepted", **result}
+    except Exception as e:
+        logger.error(f"receive_alertmanager_webhook error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/orchestration/alerts", summary="查询编排层收到的告警")
+async def list_orchestration_alerts(active_only: bool = False):
+    """供自动扩缩容控制器或运维界面查询编排层当前保存的告警。"""
+    from src.service.alertmanager_receiver import get_alertmanager_receiver
+
+    return {
+        # active_only=true 时过滤掉已经由 Alertmanager 通知恢复的告警。
+        "alerts": get_alertmanager_receiver().list_alerts(active_only=active_only),
+    }
+
+
 # ======================================================================
 # 资源层 API (RRDC / ASD)
 # ======================================================================
@@ -1748,16 +1812,101 @@ async def scale_agent_deployment(deployment_id: str, request: ScaleDeploymentReq
 
 
 # ======================================================================
+
+# ======================================================================
+# ? Agent Builder API (Auto-Agent Integration)
+# ======================================================================
+
+class AgentGenerateRequest(BaseModel):
+    """Agent generation request from Markdown configuration"""
+    agent_md_content: str = Field(..., description="agent.md content (role definition)")
+    workflow_md_content: Optional[str] = Field(None, description="workflow.md content (optional)")
+    agent_name: str = Field("custom-agent", description="Agent name")
+    capability: str = Field("chat", description="Capability type: chat/nlp/search/compute/vision")
+    version: str = Field("1.0.0", description="Version string")
+    install: bool = Field(True, description="Auto-install to warehouse")
+
+
+@app.get("/api/agent-builder/templates", summary="Get Agent templates")
+async def get_agent_templates():
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+        warehouse = get_agent_warehouse()
+        return warehouse.get_agent_templates()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/agent-builder/generate", summary="Generate Agent package")
+async def generate_agent_package(request: AgentGenerateRequest):
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+        warehouse = get_agent_warehouse()
+        result = warehouse.generate_agent(
+            agent_md_content=request.agent_md_content,
+            workflow_md_content=request.workflow_md_content,
+            agent_name=request.agent_name,
+            capability=request.capability,
+            version=request.version,
+            install=request.install,
+        )
+        return {
+            "success": True,
+            **result,
+            "deploy_instructions": {
+                "unzip": f"unzip {result['agent_id']}.zip -d my-agent && cd my-agent",
+                "env": "export DEEPSEEK_API_KEY=sk-your-key",
+                "start": "docker-compose up -d",
+                "port": 9001,
+                "a2a_endpoint": "POST /a2a/execute",
+            },
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Agent generation failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agent-builder/list", summary="List generated Agents")
+async def list_generated_agents():
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+        warehouse = get_agent_warehouse()
+        return {"agents": warehouse.list_generated_agents()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agent-builder/download/{agent_id}", summary="Download Agent package")
+async def download_agent_package(agent_id: str):
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+        warehouse = get_agent_warehouse()
+        zip_path = warehouse.download_agent(agent_id)
+        if not zip_path:
+            raise HTTPException(status_code=404, detail="Agent package not found")
+        return FileResponse(
+            path=str(zip_path),
+            filename=f"{agent_id}.zip",
+            media_type="application/zip",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Web UI
 # ======================================================================
 
 @app.get("/ui",response_class=HTMLResponse, include_in_schema=False)
 async def web_ui(request: Request):
     """应用管理层 Web UI 控制台 - 直接使用 Jinja2Templates 渲染"""
-    return templates.TemplateResponse("ui.html", {"request": request})
+    return templates.TemplateResponse(request, "ui.html")
 
 
 @app.get("/ui/apps/{app_id}", response_class=HTMLResponse, include_in_schema=False)
 async def app_details_page(request: Request, app_id: str):
     """应用详情页（前端模板）。显示应用逻辑、运行状态与智能体视图占位。"""
-    return templates.TemplateResponse("app_details.html", {"request": request})
+    return templates.TemplateResponse(request, "app_details.html")

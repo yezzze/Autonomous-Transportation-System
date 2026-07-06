@@ -24,6 +24,7 @@
     <button class="tab-btn" data-tab="qos">📊 QoS 监控</button>
     <button class="tab-btn" data-tab="resources">🗃 资源状态</button>
     <button class="tab-btn" data-tab="nats">🌐 NATS 云边</button>
+    <button class="tab-btn" data-tab="agentfactory">&#x1F9E0; 智能体生成</button>
   </div>
 
   <div id="tab-apps" class="tab-panel active">
@@ -315,7 +316,71 @@
       <pre id="nats-activity-log" class="nats-activity-log">暂无记录</pre>
     </div>
   </div>
+
+  <div id="tab-agentfactory" class="tab-panel">
+    <div id="af-alert" class="alert"></div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🎯</span> 生成新智能体</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>智能体名称 *</label>
+          <input id="af-name" type="text" value="custom-agent" placeholder="如：智能客服助手">
+        </div>
+        <div class="form-group">
+          <label>能力类型</label>
+          <select id="af-capability">
+            <option value="chat">chat（对话推理）</option>
+            <option value="nlp">nlp（自然语言处理）</option>
+            <option value="search">search（信息检索）</option>
+            <option value="compute">compute（计算分析）</option>
+            <option value="vision">vision（视觉处理）</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>agent.md — 角色定义 * <small style="color:#999;font-weight:400">（Markdown 格式）</small></label>
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <button class="btn btn-sm btn-ghost" onclick="loadAgentTemplate('agent')">📋 加载示例模板</button>
+            <button class="btn btn-sm btn-ghost" onclick="document.getElementById('af-agent-md').value='';">清空</button>
+          </div>
+          <textarea id="af-agent-md" style="height:200px;font-family:monospace;font-size:13px" placeholder="# 角色：你的Agent名称 ..."></textarea>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>workflow.md — 工作流程 <small style="color:#999;font-weight:400">（可选）</small></label>
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <button class="btn btn-sm btn-ghost" onclick="loadAgentTemplate('workflow')">📋 加载示例模板</button>
+            <button class="btn btn-sm btn-ghost" onclick="document.getElementById('af-workflow-md').value='';">清空</button>
+          </div>
+          <textarea id="af-workflow-md" style="height:120px;font-family:monospace;font-size:13px" placeholder="# 工作流程 ..."></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="generateAgent()" id="af-generate-btn">🚀 生成智能体</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('af-agent-md').value='';;document.getElementById('af-workflow-md').value='';;document.getElementById('af-name').value='custom-agent';">清空表单</button>
+        <span id="af-status" style="font-size:13px;color:#888;align-self:center"></span>
+      </div>
+      <div class="query-result" id="af-result"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📦</span> 已生成的智能体</div>
+      <div class="toolbar" style="margin-bottom:10px">
+        <span class="refresh-hint" id="af-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadAgentList()">🔄 刷新</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Agent ID</th><th>文件名</th><th>大小</th><th>创建时间</th><th>操作</th>
+        </tr></thead>
+        <tbody id="af-list-tbody">
+          <tr class="empty-row"><td colspan="5">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
+
+
 
 <script src="{{ url_for('static', path='/js/ui.js') }}"></script>
 </body>

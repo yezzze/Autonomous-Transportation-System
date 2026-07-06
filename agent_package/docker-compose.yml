@@ -1,0 +1,17 @@
+﻿version: "3.8"
+
+services:
+  auto-agent:
+    build: .
+    container_name: auto-agent
+    ports:
+      - "9001:9001"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_MODEL=deepseek-chat
+      - NATS_SERVER_URL=nats://nats:4222
+      - NATS_IN_SUBJECT=workflow.previousagent.result
+      - NATS_OUT_SUBJECT=workflow.autoagent.result
+    volumes:
+      - ./workspace:/app/workspace
+    restart: unless-stopped

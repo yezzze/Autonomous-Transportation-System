@@ -16,6 +16,7 @@ dependencies = [
     "langchain-openai>=0.3.8",
     "langchain-deepseek>=0.1.2",
     "langgraph>=0.3.5",
+    "a2a-sdk>=1.0.3,<2.0.0",
     "httpx>=0.28.1",
     "nats-py>=2.9.0",
     "aiohttp>=3.8.3",
@@ -35,6 +36,8 @@ dependencies = [
     "pydantic>=2.7.4",
     "pydantic-settings>=2.0.0",
     "kubernetes>=29.0.0",
+    # 暴露 Prometheus Counter、Histogram 和 ASGI /metrics 端点。
+    "prometheus-client>=0.20.0",
 ]
 
 [project.optional-dependencies]

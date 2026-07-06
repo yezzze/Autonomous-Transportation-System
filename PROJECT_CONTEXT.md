@@ -1,6 +1,6 @@
 # 项目上下文快照
 
-> 最后更新：2026-05-22
+> 最后更新：2026-06-01
 
 ---
 
@@ -39,6 +39,10 @@
 ---
 
 ## 当前正在解决的问题
+
+**跨主体编排路由迁移到 app.py 已完成**（2026-06-01）：按“编排期注册 + 运行期执行”模式在 `src/api/app.py` 新增 `POST /orchestration/register_subworkflow` 与 `POST /orchestration/execute/{sub_workflow_id}`，并将 `POST /orchestration/dispatch` 调整为兼容层（内部先注册再执行），用于承接历史调用方。远端工作流注册信息由 `app.py` 内置内存 `_WorkflowRegistry` 管理，`_SessionRegistry` 继续负责会话级取消与清理。
+
+**ARDC Gossip 对外地址对齐已完成**（2026-06-01）：`src/service/agent_registry.py` 在 `push_to_peer()` 发送前新增 `_build_gossip_agents(local_url)`，将推送给 peer 的本地 agents payload 中 `ip/port` 统一覆盖为本节点 `local_url` 解析出的地址，并将 `is_local` 标记为 `false`，避免 peer 侧将该节点 agent 误识别为“本地”；同时 `sync_from_peer()` 在接收侧对入站 agents 再次统一归一化 `is_local=false` 后入库，防止异常上游数据污染。该变更仅作用于 gossip 收发路径，不修改本地注册表原始记录。
 
 **工作流标识对齐已完成**（2026-05-25）：`src/distributed_workflow.py` 的 `run_distributed_workflow()` 新增 `workflow_id` 入参，VizBus 注册阶段优先使用外部传入值；`src/app/app_logic_engine.py` 的 `_run_workflow()` 调用已透传 `workflow_handle` 到 `workflow_id`，确保应用层句柄与可视化工作流 ID 一致。
 

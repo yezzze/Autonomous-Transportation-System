@@ -1,0 +1,93 @@
+# PrometheusRule 是 Prometheus Operator 管理的告警规则 CRD。
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agent-qos
+  # 当前 Prometheus 配置允许发现 monitoring namespace 中的规则。
+  namespace: monitoring
+spec:
+  groups:
+    # 同组规则由 Prometheus 按统一评估周期执行。
+    - name: agent-qos.rules
+      rules:
+        # 使用调用方测得的完整 A2A RTT 判断端到端 QoS 是否超标。
+        - alert: AgentP95LatencyHigh
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, agent_id, instance_id) (
+                rate(a2a_total_latency_seconds_bucket[5m])
+              )
+            ) > 5
+          # 连续超标 2 分钟才触发，过滤短时抖动。
+          for: 2m
+          labels:
+            severity: warning
+            # Alertmanager 使用 action 标签决定是否路由到编排层。
+            action: evaluate_scaling
+          annotations:
+            summary: "Agent {{ $labels.agent_id }} p95 latency is above 5 seconds"
+            description: "The 5-minute p95 latency has exceeded the QoS target for 2 minutes."
+
+        # 排队时延持续升高通常表示单实例吞吐不足，优先评估横向扩容。
+        - alert: AgentP95QueueWaitHigh
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, agent_id, instance_id) (
+                rate(agent_queue_wait_seconds_bucket[5m])
+              )
+            ) > 1
+          for: 2m
+          labels:
+            severity: warning
+            action: evaluate_scaling
+          annotations:
+            summary: "Agent {{ $labels.agent_id }} queue wait p95 is above 1 second"
+            description: "The Agent instance has sustained execution-slot queueing."
+
+        # 执行阶段持续过慢需要检查 CPU/GPU、模型或考虑纵向扩容与迁移。
+        - alert: AgentP95ExecutionHigh
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le, agent_id, instance_id) (
+                rate(agent_execution_seconds_bucket[5m])
+              )
+            ) > 4
+          for: 2m
+          labels:
+            severity: warning
+            action: investigate
+          annotations:
+            summary: "Agent {{ $labels.agent_id }} execution p95 is above 4 seconds"
+            description: "The Agent instance execution stage is persistently slow."
+
+        # 计算每个 Agent 最近 5 分钟失败调用占全部调用的比例。
+        - alert: AgentErrorRateHigh
+          expr: |
+            (
+              # 分子：失败调用的每秒增长速率。
+              sum by (agent_id, instance_id) (
+                rate(agent_calls_total{status="error"}[5m])
+              )
+              /
+              # 分母：全部调用的每秒增长速率。
+              sum by (agent_id, instance_id) (
+                rate(agent_calls_total[5m])
+              )
+            ) > 0.2
+            and
+            # 只在请求量大于每秒 0.05 次时触发，避免极低流量下单次失败误报。
+            sum by (agent_id, instance_id) (
+              rate(agent_calls_total[5m])
+            ) > 0.05
+          # 连续超标 2 分钟才进入 firing 状态。
+          for: 2m
+          labels:
+            severity: warning
+            # 错误率高不一定适合扩容，先交由编排层调查和策略判断。
+            action: investigate
+          annotations:
+            summary: "Agent {{ $labels.agent_id }} error rate is above 20%"
+            description: "The Agent error ratio has exceeded the QoS target for 2 minutes."
