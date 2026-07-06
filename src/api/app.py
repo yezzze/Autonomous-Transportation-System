@@ -31,6 +31,9 @@ from src.api.nats_cloud_edge import (
 from src.config import TEAM_MEMBERS
 from src.service.workflow_service import run_agent_workflow
 
+# 记忆中心 (MC) SDK 路由
+from src.sdk.mc_router import mc_router
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,10 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+# 注册记忆中心 (MC) 路由
+app.include_router(mc_router)
+logger.info("🧠 MC 记忆中心 SDK 已加载（路径前缀: /memory）")
 
 # ======================================================================
 # ARDC Gossip 端点（主 API 服务也支持 peer 同步）
