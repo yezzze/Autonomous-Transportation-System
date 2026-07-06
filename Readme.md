@@ -25,7 +25,189 @@
   - `orchestrated-app-template.yaml`
   - `multicluster/` 跨集群 NATS 示例
 
-## 3. 构建镜像
+## 3. 启动环境
+
+本项目支持三种部署模式，根据你的场景选择一种即可。
+
+---
+
+### 3.1 本地单集群模式（minikube + kubectl apply）
+
+在同一台机器的 minikube 内启动 NATS 和所有服务，适合单机开发测试。
+
+```bash
+# 1. 确保已配置 cluster.env（边缘环境变量）
+cp -n scripts/local/cluster.env.example scripts/local/cluster.env
+# 编辑 LOCAL_CLUSTER、CLUSTER_A_HOST、CLUSTER_B_HOST、NATS_CLOUD_PASSWORD
+
+# 2. 启动 minikube（使用阿里云镜像加速，避免 registry.k8s.io 拉不到）
+minikube start --driver=docker \
+  --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers
+
+# 3. 部署本地 NATS（单节点，无 leafnode）
+kubectl apply -f k8s/nats-a.yaml
+kubectl rollout status deployment/nats-a --timeout=180s
+
+# 4. 部署应用 Pod
+kubectl apply -f k8s/agent-grpc-deploy.yaml
+kubectl apply -f k8s/agent-grpc-svc.yaml
+kubectl apply -f k8s/agent-b-deploy.yaml
+kubectl apply -f k8s/agent-c-deploy.yaml
+kubectl apply -f k8s/hpa.yaml
+```
+
+验证：
+
+```bash
+kubectl get pods -o wide
+kubectl get svc
+kubectl get hpa
+```
+
+---
+
+### 3.2 云端 NATS Hub（minikube cloud profile + Helm）
+
+在独立用户 `k8s_cloud` 下启动一个专用的 minikube 集群，通过 Helm Chart 部署 3 副本 NATS 集群，作为边缘 leafnode 的 Hub。详细文档见 [docs/nats-helm-cloud-edge.md](docs/nats-helm-cloud-edge.md)。
+
+#### 3.2.1 前置条件（首次执行）
+
+```bash
+# 创建 k8s_cloud 系统用户，创建项目软链接，复制 helm
+sudo bash scripts/bootstrap_k8s_cloud_user.sh
+```
+
+#### 3.2.2 配置 cluster.env
+
+```bash
+cp -n scripts/local/cluster.env.example scripts/local/cluster.env
+```
+
+编辑 `scripts/local/cluster.env`，主要字段：
+
+| 字段 | 说明 |
+|---|---|
+| `LOCAL_CLUSTER=a` | 云端默认是集群 A |
+| `CLUSTER_A_HOST=<云端IP>` | 云端宿主机 IP（边缘可访问） |
+| `CLUSTER_B_HOST=<边缘IP>` | 边缘宿主机 IP |
+| `NATS_CLOUD_PASSWORD=change-me-leaf-password` | leafnode 密码，须与 values 一致 |
+
+#### 3.2.3 启动云端
+
+```bash
+# 切换到 k8s_cloud 用户
+sudo -iu k8s_cloud
+
+# 执行一键部署脚本
+bash ~/Project/K8S_demo/scripts/setup_cloud_minikube_nats_helm.sh
+```
+
+该脚本自动完成：
+
+1. `minikube start -p cloud --driver=docker` 启动 `cloud` profile
+2. 映射端口：`4222→30422`（client）、`7422→30472`（leafnode）、`8222→30482`（monitor）
+3. 创建 `nats-cloud` namespace
+4. `helm install nats-hub` 部署 3 副本 NATS 集群（JetStream domain: `hub`）
+
+验证：
+
+```bash
+kubectl get pods,svc,pvc -n nats-cloud
+```
+
+期望输出：
+
+```
+nats-hub-0   3/3   Running
+nats-hub-1   3/3   Running
+nats-hub-2   3/3   Running
+nats-hub-box 1/1   Running
+```
+
+云端 Hub 对边缘暴露的 leafnode 地址为：
+
+```
+<云端IP>:7422
+```
+
+> **注意：** 国内网络拉 `registry.k8s.io` 可能超时，脚本已默认使用阿里云镜像 `registry.cn-hangzhou.aliyuncs.com/google_containers`，可通过环境变量 `MINIKUBE_IMAGE_REPOSITORY` 覆盖。
+
+---
+
+### 3.3 边缘 NATS leafnode（Helm）
+
+在边缘 Kubernetes 集群上部署 NATS leafnode，通过 `7422/TCP` 主动连接云端 Hub。详细文档见 [docs/nats-helm-cloud-edge.md](docs/nats-helm-cloud-edge.md)。
+
+#### 3.3.1 前提
+
+- 当前 kube context 指向边缘集群
+- 边缘机器可访问云端 Hub 的 `7422/TCP`
+- `scripts/local/cluster.env` 已正确配置
+
+#### 3.3.2 部署
+
+```bash
+bash scripts/setup_edge_nats_helm.sh
+```
+
+该脚本：
+
+1. 从 `cluster.env` 读取 `LOCAL_CLUSTER`、`NATS_CLOUD_HOST`、`NATS_CLOUD_PASSWORD`
+2. 在 `default` namespace 部署 Helm release `nats`（1 副本）
+3. 创建 `ConfigMap/edge-cluster-config` 供业务使用
+4. 等待 `statefulset/nats` Ready
+
+验证：
+
+```bash
+kubectl get pods,svc
+kubectl get configmap edge-cluster-config -o yaml
+```
+
+期望输出：
+
+```
+nats-0    2/2   Running
+nats-box  1/1   Running
+```
+
+#### 3.3.3 边缘 Agent 连接配置
+
+所有 Agent 连接本地 NATS，通过 leafnode 路由到云端 JetStream domain `hub`：
+
+```
+NATS_SERVERS=nats://nats:4222
+NATS_JETSTREAM_DOMAIN=hub
+CLUSTER_ID=<edge-cluster-id>
+```
+
+生成某个集群的 Agent subject 环境变量：
+
+```bash
+bash scripts/render_agent_subject_env.sh
+```
+
+#### 3.3.4 验证跨集群消息
+
+在 edge-a 订阅：
+
+```bash
+kubectl exec -it deploy/nats-box -- \
+  nats sub 'workflow.>' --server nats://nats:4222
+```
+
+在 edge-b 发布：
+
+```bash
+kubectl exec deploy/nats-box -- \
+  nats pub workflow.edge-a.test 'hello from edge-b' --server nats://nats:4222
+```
+
+如果 edge-a 收到消息，说明两个边缘集群已通过云端 Hub 互通。
+
+---
+
+## 4. 构建镜像
 ```bash
 docker build -f agent_gRPC/Dockerfile -t agent-grpc:v1 .
 docker build -f agent_b/Dockerfile -t agent-b-worker:v3 .
@@ -40,7 +222,7 @@ minikube image load agent-c-worker:v1
 minikube image load nats:2.10
 ```
 
-## 4. 部署
+## 5. 部署
 ```bash
 kubectl apply -f k8s/nats.yaml
 kubectl apply -f k8s/agent-grpc-deploy.yaml
@@ -57,7 +239,7 @@ kubectl get svc
 kubectl get hpa
 ```
 
-## 5. 业务调用（gRPC）
+## 6. 业务调用（gRPC）
 本机转发后测试：
 ```bash
 kubectl port-forward service/agent-grpc 50051:50051
@@ -68,7 +250,7 @@ python client.py
 返回结果: Agent B processed with Agent C: Agent C transformed: HELLO FROM PYTHON CLIENT
 ```
 
-## 6. 编排器侧资源分配
+## 7. 编排器侧资源分配
 本仓库对应的编排器链路是：
 ```text
 ResourceConfig(cpu_cores, memory_mb, gpu_count, node_id)
@@ -236,9 +418,9 @@ kubectl patch deployment agent-grpc --type merge -p '{
 
 GPU 前提：节点必须安装 GPU 驱动与 `nvidia-device-plugin`，并且 `nvidia.com/gpu` 大于 0 才会真正占用 GPU。
 
-## 7. 通信能力说明
+## 8. 通信能力说明
 
-### 7.1 不同 Node 间
+### 8.1 不同 Node 间
 - K8s Service 天生支持跨 Node 访问
 - `agent_gRPC/agent-b` 的调度里加了 `podAntiAffinity`，会优先分散到不同 Node
 - 查看 Pod 落点：
@@ -246,7 +428,7 @@ GPU 前提：节点必须安装 GPU 驱动与 `nvidia-device-plugin`，并且 `n
 kubectl get pods -o wide
 ```
 
-### 7.2 不同集群间
+### 8.2 不同集群间
 当前推荐使用 **官方 Helm Chart + 云端 NATS Hub + 边缘 leafnode** 方案。部署文档见：
 
 ```text
@@ -281,7 +463,7 @@ docs/agent-nats-config.md
 - 公共代码、Agent 逻辑、API fallback 不写死 `nats-a` / `nats-b`
 - AOE 和 Agent 统一只读取启动环境里的 `NATS_SERVERS`
 
-#### 7.2.1 本地 NATS
+#### 8.2.1 本地 NATS
 
 部署本地 NATS：
 ```bash
@@ -317,7 +499,7 @@ kubectl rollout status deployment/nats-b --timeout=180s
 - 让代码保持通用，不把 A/B 服务名写死到业务逻辑里
 - 出问题时优先排查当前集群，而不是把跨集群网络问题混进来
 
-#### 7.2.2 跨集群 Gateway NATS
+#### 8.2.2 跨集群 Gateway NATS
 
 只有在你明确需要 **NATS 层跨集群互通** 时，才部署 gateway 版本，而不是默认把所有集群都跑成 gateway 模式。
 
@@ -392,7 +574,7 @@ PYTHON=/home/t/anaconda3/envs/k8s/bin/python \
 CLUSTER_A_AOE_URL=http://10.112.136.44:8001 ./scripts/start_cluster_b_aoe.sh
 ```
 
-#### 7.2.3 两边连通性的完整验证流程
+#### 8.2.3 两边连通性的完整验证流程
 
 建议按下面顺序验证，不要一上来就直接看业务 Pod。这样可以把问题定位在“本地 NATS”、“Gateway NATS”还是“AOE HTTP”。
 
@@ -550,7 +732,7 @@ kubectl logs <pod-name>
 
 注意：`node_id` 只会变成当前 kubeconfig 指向集群内的 `nodeSelector`，不能用它表达另一个 Kubernetes 集群。需要远端能力时，本地 AOE 通过 `/orchestration/dispatch` 把子任务发给远端 AOE。
 
-### 7.3 K8s 就绪探针
+### 8.3 K8s 就绪探针
 编排器仓库的 `agent_server.py` 已支持在设置 `NATS_SERVERS` 时检查 NATS 连接状态。K8s 可以用 readiness probe 感知真实通信依赖：
 ```yaml
 readinessProbe:
@@ -567,7 +749,7 @@ livenessProbe:
   periodSeconds: 10
 ```
 
-## 8. 容器化应用可复用的 NATS API
+## 9. 容器化应用可复用的 NATS API
 其他应用不需要关心 NATS 底层连接、JetStream、ack、consumer 等细节，只需要在容器内调用 `runtime_api.NatsComm`。
 
 接入方式：
@@ -582,7 +764,7 @@ env:
     value: "nats://<local-nats-service>:4222"
 ```
 
-### 8.1 发送消息
+### 9.1 发送消息
 ```python
 import asyncio
 from runtime_api import NatsComm
@@ -608,7 +790,7 @@ asyncio.run(main())
 python examples/external_app_send.py
 ```
 
-### 8.2 接收消息
+### 9.2 接收消息
 `receive()` 默认不会自动 ack。业务处理成功后调用 `message.ack()`，失败时可调用 `message.nak()` 让 NATS 重新投递。
 
 ```python
@@ -638,7 +820,7 @@ asyncio.run(main())
 python examples/external_app_receive.py
 ```
 
-### 8.3 请求-响应
+### 9.3 请求-响应
 `request()` 使用 Core NATS 原生 request/reply，不会创建 JetStream durable consumer，适合瞬时查询类调用。被调用方需要用 `respond()` 订阅同一个 subject 并返回结果。
 
 Responder 示例：
@@ -689,7 +871,7 @@ python examples/external_app_responder.py
 python examples/external_app_request.py
 ```
 
-## 9. 常用排查
+## 10. 常用排查
 如果当前 shell 设置了 `HTTP_PROXY/HTTPS_PROXY`，访问 Minikube apiserver 需要绕过代理：
 
 ```bash

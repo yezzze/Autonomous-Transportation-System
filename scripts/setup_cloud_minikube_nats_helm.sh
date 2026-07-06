@@ -25,6 +25,7 @@ fi
 minikube start \
   -p "${PROFILE}" \
   --driver=docker \
+  --image-repository="${MINIKUBE_IMAGE_REPOSITORY:-registry.cn-hangzhou.aliyuncs.com/google_containers}" \
   --ports=4222:30422 \
   --ports=7422:30472 \
   --ports=8222:30482
