@@ -1,3 +1,59 @@
+"""
+runtime_api — 基于 NATS JetStream 的运行时通信层
+===============================================
+
+本模块为 K8S 容器化应用提供一套基于 NATS JetStream 的消息通信基础设施。
+应用在 Pod 内部通过 NatsComm 客户端发送/接收消息，无需关心底层 NATS
+集群的部署细节。
+
+模块组成
+--------
+- NatsComm         : 核心通信客户端，支持发布/订阅、请求/响应、流式消费
+- NatsMessage      : 消息封装类，支持 ACK/NACK/进度/终止等 JetStream 操作
+- build_stream_config  : 构建 JetStream Stream 配置（名称、主题、存储策略）
+- ensure_jetstream_stream : 确保 JetStream Stream 存在（自动创建/更新）
+- parse_bytes      : 解析 NATS 风格的大小字符串（如 "5GB" → int）
+
+快速示例
+--------
+    # 发送消息
+    nc = NatsComm()
+    await nc.connect()
+    result = await nc.send("workflow.task.execute", {"task_id": "123"})
+
+    # 消费消息
+    msgs = await nc.receive("workflow.task.execute", durable="worker-1", batch=5)
+    for msg in msgs:
+        print(msg.payload)
+        await msg.ack()
+
+    # 请求-响应模式（服务端）
+    await nc.respond("workflow.rpc.task", handler=my_handler)
+
+    # 请求-响应模式（客户端）
+    result = await nc.request("workflow.rpc.task", {"action": "query"})
+
+环境变量
+--------
+    NATS_SERVERS              NATS 服务器地址（默认 nats://nats:4222）
+    NATS_STREAM               流名称（默认 WORKFLOW）
+    NATS_STREAM_SUBJECTS      流主题列表（默认 workflow.>）
+    NATS_STREAM_MAX_BYTES     流最大大小（默认 5GB）
+    NATS_STREAM_DISCARD       淘汰策略（默认 old）
+    NATS_STREAM_RETENTION     保留策略（默认 limits）
+    NATS_STREAM_STORAGE       存储类型（默认 file）
+    NATS_JETSTREAM_DOMAIN     JetStream 域（默认 hub）
+    NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
+    NATS_SEND_DELAY_FILE      运行时延迟配置文件（默认 /tmp/nats_send_delay_seconds）
+
+运行时修改发送延迟
+----------------
+容器内执行以下命令可影响后续 send() 调用：
+
+    echo 0.2 > /tmp/nats_send_delay_seconds   # 设置 200ms 发送前延迟
+    echo 0 > /tmp/nats_send_delay_seconds     # 关闭延迟
+"""
+
 from .jetstream_stream import build_stream_config, ensure_jetstream_stream, parse_bytes
 from .nats_comm import NatsComm, NatsMessage
 
