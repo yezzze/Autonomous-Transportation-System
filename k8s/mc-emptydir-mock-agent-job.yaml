@@ -1,0 +1,260 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mc-emptydir-mock-agent
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: mc-emptydir-mock-agent
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: memory
+          emptyDir: {}
+      initContainers:
+        - name: fetch-memory-bundle
+          image: mc-mock-agent:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MC_API_URL
+              value: "http://host.minikube.internal:8000"
+            - name: BUNDLE_ID
+              value: "REPLACE_BUNDLE_ID"
+          command: ["python", "-c"]
+          args:
+            - |
+              import os
+              import pathlib
+              import tarfile
+              import urllib.request
+
+              mc_api_url = os.environ["MC_API_URL"].rstrip("/")
+              bundle_id = os.environ["BUNDLE_ID"]
+              memory_root = pathlib.Path("/sandbox/memory")
+              memory_root.mkdir(parents=True, exist_ok=True)
+
+              archive_path = "/tmp/memory-bundle.tar.gz"
+              url = f"{mc_api_url}/memory/bundles/{bundle_id}/archive"
+              print("[fetch] start")
+              print(f"[fetch] mc_api_url={mc_api_url}")
+              print(f"[fetch] bundle_id={bundle_id}")
+              print(f"[fetch] download_url={url}")
+              print(f"[fetch] archive_path={archive_path}")
+              print(f"[fetch] memory_root={memory_root}")
+              urllib.request.urlretrieve(url, archive_path)
+              archive_size = pathlib.Path(archive_path).stat().st_size
+              print(f"[fetch] downloaded_bytes={archive_size}")
+
+              with tarfile.open(archive_path, "r:gz") as tar:
+                  members = tar.getnames()
+                  print(f"[fetch] archive_members={members}")
+                  tar.extractall(memory_root)
+
+              (memory_root / "output" / "artifacts").mkdir(parents=True, exist_ok=True)
+              extracted = sorted(
+                  str(path.relative_to(memory_root))
+                  for path in memory_root.rglob("*")
+                  if path.is_file()
+              )
+              print(f"[fetch] extracted_files={extracted}")
+              print(f"[fetch] ensured_output_dir={memory_root / 'output'}")
+              print(f"[fetch] done bundle_id={bundle_id}")
+          volumeMounts:
+            - name: memory
+              mountPath: /sandbox/memory
+      containers:
+        - name: mock-agent
+          image: mc-mock-agent:local
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-c"]
+          args:
+            - |
+              import json
+              import pathlib
+
+              memory_root = pathlib.Path("/sandbox/memory")
+              print("[agent] start")
+              print(f"[agent] memory_root={memory_root}")
+              print(f"[agent] memory_root_exists={memory_root.exists()}")
+              manifest = json.loads((memory_root / "manifest.json").read_text(encoding="utf-8"))
+              task = (memory_root / "input" / "task.md").read_text(encoding="utf-8")
+              print("[agent] manifest=", json.dumps(manifest, ensure_ascii=False))
+              print(f"[agent] task_path={memory_root / 'input' / 'task.md'}")
+              print(f"[agent] task_chars={len(task)}")
+              print("[agent] task_begin")
+              print(task)
+              print("[agent] task_end")
+
+              local_files = sorted(
+                  str(path.relative_to(memory_root))
+                  for path in (memory_root / "local").rglob("*")
+                  if path.is_file()
+              )
+              input_files = sorted(
+                  str(path.relative_to(memory_root))
+                  for path in (memory_root / "input").rglob("*")
+                  if path.is_file()
+              )
+              print(f"[agent] input_files={input_files}")
+              print(f"[agent] local_files={local_files}")
+
+              output_dir = memory_root / "output"
+              output_dir.mkdir(parents=True, exist_ok=True)
+              print(f"[agent] output_dir={output_dir}")
+
+              result = {
+                  "ok": True,
+                  "source": "k8s-emptydir-mock-agent",
+                  "bundle_id": manifest["bundle_id"],
+                  "agent_id": manifest["agent_id"],
+                  "agent_instance_id": manifest["agent_instance_id"],
+              }
+              result_path = output_dir / "result.json"
+              result_path.write_text(
+                  json.dumps(result, ensure_ascii=False),
+                  encoding="utf-8",
+              )
+              print(f"[agent] wrote {result_path}: {json.dumps(result, ensure_ascii=False)}")
+
+              notes_path = output_dir / "execution_notes.md"
+              notes_path.write_text(
+                  "Mock Agent ran inside K8s and used /sandbox/memory.",
+                  encoding="utf-8",
+              )
+              print(f"[agent] wrote {notes_path}")
+
+              entry = {
+                  "memory_type": "local_agent_audit",
+                  "target_owner": "local_agent",
+                  "content": "K8s emptyDir + initContainer + sidecar 已验证 MC 本地审计闭环",
+                  "confidence": 0.99,
+                  "agent_id": manifest["agent_id"],
+                  "metadata": {"validation": "mc-emptydir-mock-agent"},
+              }
+              writeback_path = output_dir / "writeback_to_local.jsonl"
+              with open(writeback_path, "a", encoding="utf-8") as f:
+                  f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+              print(f"[agent] appended {writeback_path}: {json.dumps(entry, ensure_ascii=False)}")
+
+              done_path = output_dir / ".done"
+              done_path.write_text("ok", encoding="utf-8")
+              output_files = sorted(
+                  str(path.relative_to(memory_root))
+                  for path in output_dir.rglob("*")
+                  if path.is_file()
+              )
+              print(f"[agent] output_files={output_files}")
+              print(f"[agent] wrote_done={done_path}")
+              print("[agent] done")
+          volumeMounts:
+            - name: memory
+              mountPath: /sandbox/memory
+        - name: outbox-sidecar
+          image: mc-mock-agent:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MC_API_URL
+              value: "http://host.minikube.internal:8000"
+            - name: BUNDLE_ID
+              value: "REPLACE_BUNDLE_ID"
+            - name: COMMIT_AFTER_UPLOAD
+              value: "true"
+          command: ["python", "-c"]
+          args:
+            - |
+              import base64
+              import json
+              import os
+              import pathlib
+              import time
+              import urllib.request
+
+              mc_api_url = os.environ["MC_API_URL"].rstrip("/")
+              bundle_id = os.environ["BUNDLE_ID"]
+              output_dir = pathlib.Path("/sandbox/memory/output")
+              print("[sidecar] start")
+              print(f"[sidecar] mc_api_url={mc_api_url}")
+              print(f"[sidecar] bundle_id={bundle_id}")
+              print(f"[sidecar] output_dir={output_dir}")
+
+              deadline = time.time() + 300
+              print("[sidecar] waiting_for_done=/sandbox/memory/output/.done")
+              while time.time() < deadline:
+                  if (output_dir / ".done").exists():
+                      break
+                  time.sleep(1)
+              else:
+                  raise SystemExit("timeout waiting for /sandbox/memory/output/.done")
+              print("[sidecar] detected_done")
+
+              payload = {
+                  "writeback_to_caller": [],
+                  "writeback_to_local": [],
+                  "artifacts": {},
+              }
+
+              result_path = output_dir / "result.json"
+              if result_path.exists():
+                  payload["result"] = json.loads(result_path.read_text(encoding="utf-8"))
+                  print(f"[sidecar] loaded result.json keys={list(payload['result'].keys())}")
+
+              notes_path = output_dir / "execution_notes.md"
+              if notes_path.exists():
+                  payload["execution_notes"] = notes_path.read_text(encoding="utf-8")
+                  print(f"[sidecar] loaded execution_notes chars={len(payload['execution_notes'])}")
+
+              def read_jsonl(filename):
+                  path = output_dir / filename
+                  if not path.exists():
+                      return []
+                  entries = []
+                  for line in path.read_text(encoding="utf-8").splitlines():
+                      line = line.strip()
+                      if line:
+                          entries.append(json.loads(line))
+                  return entries
+
+              payload["writeback_to_caller"] = read_jsonl("writeback_to_caller.jsonl")
+              payload["writeback_to_local"] = read_jsonl("writeback_to_local.jsonl")
+              print(f"[sidecar] writeback_to_caller_count={len(payload['writeback_to_caller'])}")
+              print(f"[sidecar] writeback_to_local_count={len(payload['writeback_to_local'])}")
+
+              artifacts_dir = output_dir / "artifacts"
+              if artifacts_dir.exists():
+                  for artifact in artifacts_dir.iterdir():
+                      if artifact.is_file():
+                          payload["artifacts"][artifact.name] = base64.b64encode(
+                              artifact.read_bytes()
+                          ).decode("ascii")
+              print(f"[sidecar] artifacts={list(payload['artifacts'].keys())}")
+
+              data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+              upload_url = f"{mc_api_url}/memory/bundles/{bundle_id}/upload_outbox"
+              print(f"[sidecar] upload_url={upload_url}")
+              print(f"[sidecar] upload_payload_bytes={len(data)}")
+              req = urllib.request.Request(
+                  upload_url,
+                  data=data,
+                  headers={"Content-Type": "application/json"},
+                  method="POST",
+              )
+              upload_resp = urllib.request.urlopen(req, timeout=30).read().decode("utf-8")
+              print(f"[sidecar] upload_response={upload_resp}")
+
+              if os.environ.get("COMMIT_AFTER_UPLOAD", "false").lower() == "true":
+                  commit_url = f"{mc_api_url}/memory/bundles/{bundle_id}/commit"
+                  print(f"[sidecar] commit_url={commit_url}")
+                  req = urllib.request.Request(
+                      commit_url,
+                      data=b"",
+                      method="POST",
+                  )
+                  commit_resp = urllib.request.urlopen(req, timeout=30).read().decode("utf-8")
+                  print(f"[sidecar] commit_response={commit_resp}")
+
+              print("[sidecar] done")
+          volumeMounts:
+            - name: memory
+              mountPath: /sandbox/memory
