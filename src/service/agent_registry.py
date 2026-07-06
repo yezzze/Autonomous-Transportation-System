@@ -316,6 +316,14 @@ class AgentRegistryClient:
         Returns:
             合并后 peer agents 数量
         """
+        agents = [
+            {
+                **agent,
+                "is_local": False,
+            }
+            for agent in agents
+        ]
+
         self._peer_agents[peer_url] = agents
         self._peer_last_seen[peer_url] = time.time()
         if sub_workflows is not None:

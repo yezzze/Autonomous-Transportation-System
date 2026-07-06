@@ -3,6 +3,7 @@ FastAPI application for LangManus.
 """
 
 import json
+import hashlib
 import logging
 import os
 import re
@@ -80,188 +81,18 @@ class _DispatchRequest(BaseModel):
     source_aoe_url: str = ""
 
 
-class _NatsPublishRequest(BaseModel):
-    """由 AOE 代发 NATS 消息，默认投递到本 AOE 管理集群的 NATS。"""
-    subject: str = Field(..., description="要发布的 NATS subject")
-    payload: Dict[str, Any] = Field(default_factory=dict, description="JSON payload")
-    reply_subject: Optional[str] = Field(None, description="需要等待的 reply subject")
-    servers: Optional[List[str]] = Field(
-        None,
-        description="可选 NATS servers；默认使用当前 AOE 的 NATS_SERVERS",
-    )
-    stream: str = Field("WORKFLOW", description="JetStream stream 名称")
-    stream_subjects: List[str] = Field(
-        default_factory=lambda: ["workflow.demo.>"],
-        description="stream 不存在时创建使用的 subjects",
-    )
-    timeout_sec: float = Field(30.0, description="等待 reply 的超时时间")
-
-
-class _AoePeer(BaseModel):
-    name: str = "peer"
-    url: str
-
-
-class _AoeClusterConfig(BaseModel):
-    local_name: str = "cluster"
-    local_aoe_url: str = ""
-    default_peer_url: str = ""
-    peers: List[_AoePeer] = Field(default_factory=list)
-    default_timeout_seconds: int = 60
-
-
-class _AoeRegistryPullRequest(BaseModel):
-    target_url: Optional[str] = None
-
-
-class _AoeGossipPushRequest(BaseModel):
-    target_url: Optional[str] = None
-
-
-class _AoeDispatchUiRequest(BaseModel):
-    target_url: Optional[str] = None
-    session_id: Optional[str] = None
-    task_id: Optional[str] = None
-    task_description: str
-    timeout_seconds: Optional[int] = None
-
-
-class _AoeAgentChainTestRequest(BaseModel):
-    """从 UI 触发一次 Agent B -> Agent C 的最小链路验证。"""
-    target_url: Optional[str] = None
-    workflow_id: Optional[str] = None
-    text: str = "hello aoe"
-    in_subject: str = "workflow.demo.agent.b.in"
-    reply_subject: Optional[str] = None
-    timeout_seconds: Optional[int] = None
-
-
-def _safe_nats_token(value: str) -> str:
-    token = re.sub(r"[^a-zA-Z0-9_-]+", "-", value)
-    return token.strip("-") or uuid.uuid4().hex[:8]
-
-
-AOE_CLUSTER_CONFIG_PATH = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
-        "config",
-        "aoe_cluster_config.json",
-    )
-)
-
-
-def _clean_aoe_url(url: str) -> str:
-    cleaned = (url or "").strip().rstrip("/")
-    if not cleaned:
-        raise HTTPException(status_code=400, detail="AOE URL 不能为空")
-    if not cleaned.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail=f"AOE URL 必须以 http:// 或 https:// 开头: {cleaned}")
-    return cleaned
-
-
-def _default_aoe_config() -> Dict[str, Any]:
-    local_url = os.getenv("LOCAL_AOE_URL", "http://localhost:8001").strip()
-    peer_urls_raw = os.getenv("PEER_AOE_URLS", "").strip()
-    peer_urls = [u.strip().rstrip("/") for u in re.split(r"[\s,]+", peer_urls_raw) if u.strip()]
-    default_peer = peer_urls[0] if peer_urls else ""
-    return {
-        "local_name": os.getenv("AOE_CLUSTER_NAME", "cluster").strip() or "cluster",
-        "local_aoe_url": local_url,
-        "default_peer_url": default_peer,
-        "peers": [
-            {"name": f"peer-{idx + 1}", "url": url}
-            for idx, url in enumerate(peer_urls)
-        ],
-        "default_timeout_seconds": int(os.getenv("AOE_DEFAULT_TIMEOUT_SECONDS", "60")),
-    }
-
-
-def _load_aoe_config() -> Dict[str, Any]:
-    if not os.path.exists(AOE_CLUSTER_CONFIG_PATH):
-        return _default_aoe_config()
-    try:
-        with open(AOE_CLUSTER_CONFIG_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"读取 AOE 配置失败: {e}")
-
-    base = _default_aoe_config()
-    base.update(data or {})
-    base["local_aoe_url"] = (base.get("local_aoe_url") or "").strip()
-    base["default_peer_url"] = (base.get("default_peer_url") or "").strip().rstrip("/")
-    base["peers"] = [
-        {"name": (peer.get("name") or "peer").strip(), "url": _clean_aoe_url(peer.get("url", ""))}
-        for peer in base.get("peers", [])
-        if peer.get("url")
-    ]
-    return base
-
-
-def _save_aoe_config(config: _AoeClusterConfig) -> Dict[str, Any]:
-    data = config.model_dump()
-    data["local_aoe_url"] = _clean_aoe_url(data["local_aoe_url"])
-    data["default_peer_url"] = _clean_aoe_url(data["default_peer_url"]) if data.get("default_peer_url") else ""
-    data["peers"] = [
-        {"name": (peer.get("name") or "peer").strip(), "url": _clean_aoe_url(peer.get("url", ""))}
-        for peer in data.get("peers", [])
-    ]
-    os.makedirs(os.path.dirname(AOE_CLUSTER_CONFIG_PATH), exist_ok=True)
-    with open(AOE_CLUSTER_CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return data
-
-
-def _resolve_target_aoe_url(target_url: Optional[str]) -> str:
-    if target_url:
-        return _clean_aoe_url(target_url)
-    config = _load_aoe_config()
-    if config.get("default_peer_url"):
-        return _clean_aoe_url(config["default_peer_url"])
-    peers = config.get("peers") or []
-    if peers:
-        return _clean_aoe_url(peers[0]["url"])
-    raise HTTPException(status_code=400, detail="未配置目标 AOE URL")
-
-
-class _SessionRegistry:
-    """跟踪远端 AOE 发来的跨主体会话，支持运行中任务取消。"""
-
-    def __init__(self):
-        self._sessions: Dict[str, Dict[str, Any]] = {}
-
-    def register(
-        self,
-        session_id: str,
-        workflow_handle: str,
-        task: Optional[asyncio.Task] = None,
-    ):
-        self._sessions[session_id] = {"handle": workflow_handle, "task": task}
-
-    def unregister(self, session_id: str) -> Optional[str]:
-        entry = self._sessions.pop(session_id, None)
-        return entry["handle"] if entry else None
-
-    def cancel_session(self, session_id: str) -> bool:
-        entry = self._sessions.get(session_id)
-        if not entry:
-            return False
-        task = entry.get("task")
-        if task and not task.done():
-            task.cancel()
-            return True
-        return False
-
-
-_session_registry = _SessionRegistry()
-
-
-class _DispatchRequest(BaseModel):
-    """跨主体子任务分发请求。"""
+class _RegisterSubWorkflowRequest(BaseModel):
+    """编排期：跨主体子任务图注册请求。"""
     subtask: Dict[str, Any]
     session_id: str
     source_aoe_url: str = ""
+
+
+class _ExecuteSubWorkflowRequest(BaseModel):
+    """运行期：按已注册 sub_workflow_id 执行请求。"""
+    session_id: str
+    source_aoe_url: str = ""
+    timeout_seconds: int = 60
 
 
 class _NatsPublishRequest(BaseModel):
@@ -379,40 +210,10 @@ def _required_stream_subjects(req: _NatsPublishRequest) -> List[str]:
 
 
 async def _ensure_jetstream_stream(js, req: _NatsPublishRequest) -> Dict[str, Any]:
+    from src.service.jetstream_stream import ensure_jetstream_stream
+
     required_subjects = _required_stream_subjects(req)
-    try:
-        info = await js.stream_info(req.stream)
-    except Exception as exc:
-        if exc.__class__.__name__ != "NotFoundError":
-            raise
-        await js.add_stream(name=req.stream, subjects=required_subjects)
-        return {"created": True, "subjects": required_subjects}
-
-    config = getattr(info, "config", None)
-    current_subjects = list(getattr(config, "subjects", None) or [])
-    if not current_subjects:
-        current_subjects = required_subjects
-
-    missing = [
-        subject
-        for subject in [req.subject, req.reply_subject]
-        if subject and not _covered_by_subjects(subject, current_subjects)
-    ]
-    if not missing:
-        return {"created": False, "subjects": current_subjects}
-
-    merged_subjects = current_subjects[:]
-    for subject in required_subjects:
-        if subject not in merged_subjects:
-            merged_subjects.append(subject)
-
-    try:
-        await js.update_stream(name=req.stream, subjects=merged_subjects)
-    except TypeError:
-        from nats.js.api import StreamConfig
-
-        await js.update_stream(StreamConfig(name=req.stream, subjects=merged_subjects))
-    return {"created": False, "updated": True, "subjects": merged_subjects, "added_subjects": missing}
+    return await ensure_jetstream_stream(js, name=req.stream, subjects=required_subjects)
 
 
 AOE_CLUSTER_CONFIG_PATH = os.path.abspath(
@@ -531,6 +332,93 @@ class _SessionRegistry:
 _session_registry = _SessionRegistry()
 
 
+class _WorkflowRegistry:
+    """远端 AWM 的内存工作流注册表（app.py 版本）。"""
+
+    def __init__(self):
+        self._workflows: Dict[str, Dict[str, Any]] = {}
+        self._signature_index: Dict[str, str] = {}
+
+    @staticmethod
+    def _signature(subtask: Dict[str, Any]) -> str:
+        payload = json.dumps(subtask, ensure_ascii=False, sort_keys=True, default=str)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def get(self, sub_workflow_id: str) -> Optional[Dict[str, Any]]:
+        return self._workflows.get(sub_workflow_id)
+
+    def register(
+        self,
+        *,
+        source_url: str,
+        subtask: Dict[str, Any],
+        pipeline_topology: List[Dict[str, Any]],
+        workflow_handle: str,
+        validation_message: str,
+        timeout_seconds: int,
+    ) -> Dict[str, Any]:
+        signature = self._signature(subtask)
+        existing_id = self._signature_index.get(signature)
+        if existing_id and existing_id in self._workflows:
+            workflow = self._workflows[existing_id]
+            workflow["reference_count"] = int(workflow.get("reference_count", 0)) + 1
+            workflow["status"] = "exists"
+            workflow["validation_message"] = validation_message
+            workflow["last_source_url"] = source_url
+            return workflow
+
+        sub_workflow_id = f"swf_{subtask.get('task_id', uuid.uuid4().hex[:8])}_{uuid.uuid4().hex[:6]}"
+        workflow = {
+            "sub_workflow_id": sub_workflow_id,
+            "workflow_handle": workflow_handle,
+            "source_url": source_url,
+            "subtask": subtask,
+            "task_description": subtask.get("task_description", ""),
+            "pipeline_topology": pipeline_topology,
+            "timeout_seconds": timeout_seconds,
+            "validation_message": validation_message,
+            "status": "ready",
+            "reference_count": 1,
+            "created_at": uuid.uuid4().hex,
+            "last_source_url": source_url,
+        }
+        self._workflows[sub_workflow_id] = workflow
+        self._signature_index[signature] = sub_workflow_id
+        return workflow
+
+
+_workflow_registry = _WorkflowRegistry()
+
+
+def _validate_and_build_workflow(subtask: Dict[str, Any]) -> tuple[bool, str, List[Dict[str, Any]]]:
+    """远端校验子任务图并构造可执行拓扑。"""
+    task_description = (subtask.get("task_description") or "").strip()
+    if not task_description:
+        return False, "task_description 不能为空", []
+
+    agent_id = (subtask.get("assigned_agent_id") or "").strip()
+    if not agent_id:
+        return False, "assigned_agent_id 不能为空", []
+
+    from src.service.agent_registry import get_registry_client
+
+    registry = get_registry_client()
+    agent = registry.get_agent_by_id(agent_id)
+    if not agent:
+        return False, f"Agent {agent_id} 不存在", []
+    if agent.get("status") != "online":
+        return False, f"Agent {agent_id} 当前不可用: {agent.get('status')}", []
+
+    pipeline_topology = subtask.get("pipeline_topology") or [{
+        "capability": subtask.get("capability_required") or agent.get("capability", ""),
+        "agent_id": agent_id,
+        "description": task_description,
+        "target_ip": agent.get("ip", "127.0.0.1"),
+        "target_port": agent.get("port", 8000),
+    }]
+    return True, "子任务图校验通过", pipeline_topology
+
+
 @app.post("/registry/sync", summary="ARDC Gossip 接收 peer 推送")
 async def registry_sync(req: _RegistrySyncRequest):
     """接收来自 peer 节点的 agent 列表和子工作流列表，合并到本节点注册表"""
@@ -631,7 +519,7 @@ async def pull_aoe_registry(req: _AoeRegistryPullRequest):
 
 @app.post("/api/aoe/dispatch", summary="从 UI 转发子任务到目标 AOE")
 async def dispatch_aoe_from_ui(req: _AoeDispatchUiRequest):
-    """从当前 AOE 通过 HTTP 调用目标 AOE 的 /orchestration/dispatch。"""
+    """从当前 AOE 通过 HTTP 调用目标 AOE 的 /orchestration/dispatch（兼容入口）。"""
     import httpx
 
     target_url = _resolve_target_aoe_url(req.target_url)
@@ -809,74 +697,163 @@ async def publish_nats_message(req: _NatsPublishRequest):
 @app.post("/orchestration/dispatch", summary="跨 AOE 子任务分发接收端")
 async def orchestration_dispatch(req: _DispatchRequest):
     """
-    接收其他 Kubernetes 集群 AOE 发来的子任务，在本集群 AOE 内执行。
+    兼容旧入口：先注册子工作流，再按 sub_workflow_id 执行。
 
-    这是跨多个 K8S 集群时的 E_AOE 入口；调用方通常来自
-    src.graph.distributed_nodes.dispatch_subtask_to_remote_aoe()。
+    新设计建议调用：
+    1. POST /orchestration/register_subworkflow（编排期）
+    2. POST /orchestration/execute/{sub_workflow_id}（运行期）
+
+    本接口保留仅用于兼容旧调用方。 
     """
-    import uuid
-    from src.distributed_workflow import run_distributed_workflow
-
     task_id = req.subtask.get("task_id", uuid.uuid4().hex[:8])
-    task_desc = req.subtask.get("task_description", "")
     timeout = int(req.subtask.get("timeout_seconds", 60))
+
+    register_result = await register_subworkflow(
+        _RegisterSubWorkflowRequest(
+            subtask=req.subtask,
+            session_id=req.session_id,
+            source_aoe_url=req.source_aoe_url,
+        )
+    )
+    if register_result.get("status") not in {"ready", "exists"} or not register_result.get("sub_workflow_id"):
+        return {
+            "task_id": task_id,
+            "session_id": req.session_id,
+            "workflow_handle": register_result.get("workflow_handle", ""),
+            "status": register_result.get("status", "registration_error"),
+            "result": register_result.get("validation_message", "远端子工作流注册失败"),
+            "sub_workflow_id": register_result.get("sub_workflow_id", ""),
+        }
+
+    execute_result = await execute_subworkflow(
+        sub_workflow_id=register_result["sub_workflow_id"],
+        req=_ExecuteSubWorkflowRequest(
+            session_id=req.session_id,
+            source_aoe_url=req.source_aoe_url,
+            timeout_seconds=timeout,
+        ),
+    )
+    execute_result["task_id"] = task_id
+    return execute_result
+
+
+@app.post("/orchestration/register_subworkflow", summary="编排期：注册跨 AOE 子工作流")
+async def register_subworkflow(req: _RegisterSubWorkflowRequest):
+    """
+    编排期入口：接收子任务图并在本端注册为可复用子工作流。
+    返回 sub_workflow_id / workflow_handle / execute_url。
+    """
+    task_id = req.subtask.get("task_id", uuid.uuid4().hex[:8])
+    local_aoe_url = _clean_aoe_url(_load_aoe_config().get("local_aoe_url") or os.getenv("LOCAL_AOE_URL", "http://localhost:8001"))
     workflow_handle = f"remote_wf_{task_id}_{uuid.uuid4().hex[:6]}"
 
-    logger.info(
-        "[E_AOE] 收到跨集群子任务: task_id=%s, source=%s, desc=%s",
-        task_id,
-        req.source_aoe_url,
-        task_desc[:120],
+    is_valid, validation_message, pipeline_topology = _validate_and_build_workflow(req.subtask)
+    if not is_valid:
+        logger.warning("[E_AOE] 子任务图校验失败: task_id=%s, reason=%s", task_id, validation_message)
+        return {
+            "status": "rejected",
+            "task_id": task_id,
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": "",
+            "execute_url": "",
+            "validation_message": validation_message,
+            "source_aoe_url": req.source_aoe_url,
+        }
+
+    timeout_seconds = int(req.subtask.get("timeout_seconds", 60))
+    workflow = _workflow_registry.register(
+        source_url=req.source_aoe_url,
+        subtask=req.subtask,
+        pipeline_topology=pipeline_topology,
+        workflow_handle=workflow_handle,
+        validation_message=validation_message,
+        timeout_seconds=timeout_seconds,
     )
+    execute_url = f"{local_aoe_url}/orchestration/execute/{workflow['sub_workflow_id']}"
+    workflow["execute_url"] = execute_url
+
+    logger.info(
+        "[E_AOE] 子工作流注册成功: task_id=%s, swf=%s, status=%s",
+        task_id,
+        workflow["sub_workflow_id"],
+        workflow.get("status", "ready"),
+    )
+    return {
+        "status": workflow.get("status", "ready"),
+        "task_id": task_id,
+        "workflow_handle": workflow["workflow_handle"],
+        "sub_workflow_id": workflow["sub_workflow_id"],
+        "execute_url": execute_url,
+        "validation_message": workflow["validation_message"],
+        "source_aoe_url": req.source_aoe_url,
+    }
+
+
+@app.post("/orchestration/execute/{sub_workflow_id}", summary="运行期：执行已注册跨 AOE 子工作流")
+async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequest):
+    """运行期入口：按 sub_workflow_id 执行远端已注册工作流。"""
+    from src.distributed_workflow import run_distributed_workflow
+
+    workflow = _workflow_registry.get(sub_workflow_id)
+    if not workflow:
+        return {
+            "status": "not_found",
+            "sub_workflow_id": sub_workflow_id,
+            "session_id": req.session_id,
+            "result": "未找到已注册的子工作流",
+        }
+
+    workflow_handle = workflow["workflow_handle"]
+    timeout = int(req.timeout_seconds or workflow.get("timeout_seconds", 60))
 
     workflow_task = asyncio.create_task(
         run_distributed_workflow(
-            user_input=task_desc,
-            adaptive_mode=True,
+            user_input=workflow.get("task_description", ""),
+            pipeline_topology=workflow.get("pipeline_topology", []),
+            adaptive_mode=False,
             timeout_seconds=timeout,
+            workflow_id=workflow_handle,
         )
     )
     _session_registry.register(req.session_id, workflow_handle, task=workflow_task)
 
     try:
-        result = await asyncio.wait_for(
-            asyncio.shield(workflow_task),
-            timeout=float(timeout),
-        )
+        result = await asyncio.wait_for(asyncio.shield(workflow_task), timeout=float(timeout))
+        logger.info("[E_AOE] 子工作流执行完成: swf=%s, session_id=%s", sub_workflow_id, req.session_id)
         return {
-            "task_id": task_id,
+            "status": "completed",
             "session_id": req.session_id,
             "workflow_handle": workflow_handle,
-            "status": "completed",
+            "sub_workflow_id": sub_workflow_id,
             "result": str(result)[:3000],
         }
     except asyncio.TimeoutError:
         workflow_task.cancel()
-        logger.warning("[E_AOE] 子任务超时: task_id=%s", task_id)
+        logger.warning("[E_AOE] 子工作流执行超时: swf=%s, session_id=%s", sub_workflow_id, req.session_id)
         return {
-            "task_id": task_id,
+            "status": "timeout",
             "session_id": req.session_id,
             "workflow_handle": workflow_handle,
-            "status": "timeout",
-            "result": f"子任务执行超时（{timeout}s）",
+            "sub_workflow_id": sub_workflow_id,
+            "result": f"子工作流执行超时（{timeout}s）",
         }
     except asyncio.CancelledError:
-        logger.info("[E_AOE] 子任务被取消: task_id=%s", task_id)
+        logger.info("[E_AOE] 子工作流被取消: swf=%s, session_id=%s", sub_workflow_id, req.session_id)
         return {
-            "task_id": task_id,
+            "status": "cancelled",
             "session_id": req.session_id,
             "workflow_handle": workflow_handle,
-            "status": "cancelled",
-            "result": "子任务已被终止",
+            "sub_workflow_id": sub_workflow_id,
+            "result": "子工作流已取消",
         }
     except Exception as e:
-        logger.error("[E_AOE] 子任务失败: task_id=%s, error=%s", task_id, e)
+        logger.error("[E_AOE] 子工作流执行失败: swf=%s, session_id=%s, err=%s", sub_workflow_id, req.session_id, e)
         return {
-            "task_id": task_id,
+            "status": "error",
             "session_id": req.session_id,
             "workflow_handle": workflow_handle,
-            "status": "error",
-            "result": f"子任务执行失败: {str(e)}",
+            "sub_workflow_id": sub_workflow_id,
+            "result": f"子工作流执行失败: {str(e)}",
         }
 
 
@@ -1784,91 +1761,3 @@ async def web_ui(request: Request):
 async def app_details_page(request: Request, app_id: str):
     """应用详情页（前端模板）。显示应用逻辑、运行状态与智能体视图占位。"""
     return templates.TemplateResponse("app_details.html", {"request": request})
-
-
-# ======================================================================
-# Demo: 车辆协同感知 — 可视化演示（DEMO_MODE=1 时激活事件总线）
-# ======================================================================
-
-class _DemoStartRequest(BaseModel):
-    task_description: str
-
-
-@app.get("/demo", response_class=HTMLResponse, include_in_schema=False)
-async def demo_page():
-    """车辆协同感知演示可视化页面"""
-    from src.api.demo_ui import get_demo_html
-    return HTMLResponse(content=get_demo_html())
-
-
-@app.websocket("/demo/ws")
-async def demo_ws(ws: WebSocket):
-    """
-    Demo WebSocket 端点 — 订阅 DemoEventBus，实时推送结构化事件到前端。
-    每个浏览器连接对应一个独立的订阅队列（fan-out 广播）。
-    """
-    from src.service.demo_bus import get_demo_bus
-    await ws.accept()
-    try:
-        async for event in get_demo_bus().subscribe():
-            await ws.send_json(event)
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        logger.debug(f"[Demo WS] 连接关闭: {e}")
-
-
-@app.post("/demo/start", summary="启动协同感知演示工作流")
-async def demo_start(request: _DemoStartRequest):
-    """
-    启动 app_vehicle_demo 工作流（后台异步执行）。
-    Demo 事件通过 DemoEventBus 推送到 /demo/ws WebSocket 连接。
-    """
-    import uuid
-    wf_id = f"demo_{uuid.uuid4().hex[:8]}"
-    asyncio.create_task(_run_demo_workflow(request.task_description, wf_id))
-    from src.service.demo_bus import get_demo_bus
-    get_demo_bus().publish("log", {"level": "info", "message": f"工作流 {wf_id} 开始执行"})
-    return {"status": "accepted", "workflow_id": wf_id}
-
-
-async def _run_demo_workflow(task_desc: str, wf_id: str) -> None:
-    """后台任务：运行 app_vehicle_demo 工作流并在完成时推送 demo:task_complete 事件"""
-    from src.service.demo_bus import get_demo_bus
-    bus = get_demo_bus()
-    try:
-        from src.app.app_logic_engine import get_app_logic_engine
-        engine = get_app_logic_engine()
-        result = await engine.run_query(app_id="app_vehicle_demo", user_input=task_desc)
-        # 提取最终消息内容
-        raw_state = result.get("result", {}) or {}
-        messages = raw_state.get("messages", []) if isinstance(raw_state, dict) else []
-        final_result = ""
-        for msg in reversed(messages):
-            content = (
-                msg.content if hasattr(msg, "content")
-                else msg.get("content") if isinstance(msg, dict)
-                else None
-            )
-            if content and len(str(content)) > 50:
-                final_result = str(content)[:1500]
-                break
-        bus.publish("demo:task_complete", {"result": final_result})
-    except Exception as e:
-        logger.error(f"[Demo] 工作流执行失败: {e}")
-        bus.publish("log", {"level": "error", "message": f"工作流执行失败: {e}"})
-        bus.publish("demo:task_complete", {"result": f"执行出错: {e}"})
-
-
-@app.post("/demo/toggle-vehicleB-failure", summary="切换VehicleB故障模拟")
-async def demo_toggle_vehicleB():
-    """
-    切换 VehicleB 感知节点故障模拟状态：
-    - 开启时：下次执行 perception_vehicleB 任务时注入失败，触发 §2.3 failover 切换到 VehicleC
-    - 关闭时：恢复正常执行
-    """
-    from src.service.demo_bus import set_vehicleB_failed, is_vehicleB_failed, get_demo_bus
-    new_state = not is_vehicleB_failed()
-    set_vehicleB_failed(new_state)
-    get_demo_bus().publish("demo:status", {"vehicleB_failed": new_state})
-    return {"vehicleB_failed": new_state, "message": f"VehicleB 故障模拟: {'开启' if new_state else '关闭'}"}

@@ -128,6 +128,13 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
         all_agents = state.get("agent_registry_cache", []) or []
     agent_map = {a.get("id", ""): a for a in all_agents if a.get("id")}
 
+    def _remote_url(value: Any) -> str:
+        if isinstance(value, dict):
+            return value.get("remote_aoe_url", "") or value.get("execute_url", "")
+        if isinstance(value, str):
+            return value
+        return ""
+
     nodes: List[Dict[str, Any]] = []
     for i, t in enumerate(plan):
         task_id = t.get("task_id", f"task_{i}")
@@ -139,6 +146,7 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
         is_local = bool(agent_info.get("is_local", False)) if agent_info else False
         if not agent_info and not t.get("sub_workflow_id") and not is_cross:
             is_local = False
+        remote_info = cross.get(task_id, {})
         nodes.append({
             "id": task_id,
             "index": i,
@@ -150,7 +158,8 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
             "ip": ip,
             "port": t.get("target_port", 0),
             "parallel_group": t.get("parallel_group", "") or "",
-            "remote_aoe_url": cross.get(task_id, ""),
+            "remote_aoe_url": _remote_url(remote_info),
+            "sub_workflow_id": (remote_info.get("sub_workflow_id", "") if isinstance(remote_info, dict) else t.get("sub_workflow_id", "")),
             "is_current": i == current_index and t.get("status") == "running",
             "is_failed": (task_id in failed) or (t.get("status") == "failed"),
             "retry_count": t.get("retry_count", 0),
