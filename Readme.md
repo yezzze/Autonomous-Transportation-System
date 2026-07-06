@@ -38,7 +38,7 @@
 ```bash
 # 1. 确保已配置 cluster.env（边缘环境变量）
 cp -n scripts/local/cluster.env.example scripts/local/cluster.env
-# 编辑 LOCAL_CLUSTER、CLUSTER_A_HOST、CLUSTER_B_HOST、NATS_CLOUD_PASSWORD
+# 编辑 LOCAL_CLUSTER、CLUSTER_A_HOST、CLUSTER_B_HOST、CLUSTER_C_HOST、NATS_CLOUD_PASSWORD
 
 # 2. 启动 minikube（使用阿里云镜像加速，避免 registry.k8s.io 拉不到）
 minikube start --driver=docker \
@@ -87,9 +87,10 @@ cp -n scripts/local/cluster.env.example scripts/local/cluster.env
 
 | 字段 | 说明 |
 |---|---|
-| `LOCAL_CLUSTER=a` | 云端默认是集群 A |
+| `LOCAL_CLUSTER=a` | 当前边缘编号，可为 `a`、`b` 或 `c`；云端默认是集群 A |
 | `CLUSTER_A_HOST=<云端IP>` | 云端宿主机 IP（边缘可访问） |
 | `CLUSTER_B_HOST=<边缘IP>` | 边缘宿主机 IP |
+| `CLUSTER_C_HOST=<边缘IP>` | 第三个边缘宿主机 IP |
 | `NATS_CLOUD_PASSWORD=change-me-leaf-password` | leafnode 密码，须与 values 一致 |
 
 #### 3.2.3 启动云端

@@ -25,6 +25,10 @@ edge-a 集群
 edge-b 集群
   Agent -> nats://nats:4222
   local nats -> leafnode -> cloud:7422
+
+edge-c 集群
+  Agent -> nats://nats:4222
+  local nats -> leafnode -> cloud:7422
 ```
 
 业务 subject 约定：
@@ -39,6 +43,7 @@ workflow.<cluster-id>.<agent-id>.reply.<workflow-id>
 ```text
 workflow.edge-a.agent.b.in
 workflow.edge-b.agent.c.in
+workflow.edge-c.agent.d.in
 workflow.edge-a.agent.grpc.reply.<workflow-id>
 ```
 
@@ -130,7 +135,7 @@ bash scripts/setup_edge_nats_helm.sh
 
 ```bash
 cp scripts/local/cluster.env.example scripts/local/cluster.env
-# 编辑 LOCAL_CLUSTER=a|b、CLUSTER_A_HOST、CLUSTER_B_HOST、NATS_CLOUD_PASSWORD
+# 编辑 LOCAL_CLUSTER=a|b|c、CLUSTER_A_HOST、CLUSTER_B_HOST、CLUSTER_C_HOST、NATS_CLOUD_PASSWORD
 bash scripts/setup_edge_nats_helm.sh
 ```
 
@@ -139,8 +144,8 @@ bash scripts/setup_edge_nats_helm.sh
 变量说明：
 
 - `NATS_CLOUD_HOST`：云端 Hub 对当前边缘机器可达的 IP 或域名，不包含端口。
-- `LOCAL_CLUSTER`：本机是 `a` 还是 `b`（自动选用 `CLUSTER_*_EDGE_ID`）。
-- `CLUSTER_A_HOST` / `CLUSTER_B_HOST`：两台宿主机 IP。
+- `LOCAL_CLUSTER`：本机是 `a`、`b` 还是 `c`（自动选用 `CLUSTER_*_EDGE_ID`）。
+- `CLUSTER_A_HOST` / `CLUSTER_B_HOST` / `CLUSTER_C_HOST`：三台宿主机 IP。
 - `NATS_CLOUD_PASSWORD`：须与云端 leafnode 密码一致。
 
 脚本会：
