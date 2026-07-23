@@ -70,6 +70,7 @@ NATS 集群的部署、连接管理和流的生命周期。
     NATS_JETSTREAM_DOMAIN     JetStream 域（默认 hub）
     NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
     NATS_SEND_DELAY_FILE      运行时延迟配置文件（默认 /tmp/nats_send_delay_seconds）
+    NATS_CONTROL_MAX_BYTES    NATS 控制消息上限（默认 1MiB）
 """
 
 import asyncio
@@ -78,7 +79,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from nats.aio.client import Client as NATS
 from nats.errors import TimeoutError as NatsTimeoutError
@@ -237,6 +238,7 @@ class NatsComm:
         jetstream_domain: Optional[str] = None,
         send_delay: Optional[float] = None,
         send_delay_file: Optional[str] = None,
+        max_control_payload_bytes: Optional[int] = None,
     ):
         """
         初始化 NatsComm 实例。
@@ -265,8 +267,25 @@ class NatsComm:
             send_delay_file
             or os.environ.get("NATS_SEND_DELAY_FILE", "/tmp/nats_send_delay_seconds")
         )
+        self.max_control_payload_bytes = (
+            max_control_payload_bytes
+            if max_control_payload_bytes is not None
+            else int(os.environ.get("NATS_CONTROL_MAX_BYTES", str(1024 * 1024)))
+        )
+        if self.max_control_payload_bytes <= 0:
+            raise ValueError("NATS_CONTROL_MAX_BYTES must be positive")
         self._nc = NATS()
         self._js = None
+
+    def _encode_control_payload(self, payload: Dict[str, Any]) -> bytes:
+        encoded = json.dumps(payload, separators=(",", ":")).encode()
+        if len(encoded) > self.max_control_payload_bytes:
+            raise ValueError(
+                f"NATS control payload is {len(encoded)} bytes, exceeding "
+                f"NATS_CONTROL_MAX_BYTES={self.max_control_payload_bytes}; "
+                "send large binary data over gRPC and publish only its reference"
+            )
+        return encoded
 
     @staticmethod
     def _servers_from_env() -> List[str]:
@@ -454,7 +473,8 @@ class NatsComm:
         send_delay = self.get_send_delay()
         if send_delay > 0:
             await asyncio.sleep(send_delay)
-        ack = await self._js.publish(subject, json.dumps(payload).encode())
+        encoded = self._encode_control_payload(payload)
+        ack = await self._js.publish(subject, encoded)
         return {
             "subject": subject,
             "stream": ack.stream,
@@ -543,6 +563,8 @@ class NatsComm:
         durable: str,
         handler: Callable[[Dict[str, Any]], Any],
         poll_timeout_sec: float = 5.0,
+        max_inflight: int = 1,
+        ack_progress_interval_sec: float = 10.0,
     ) -> None:
         """
         持续拉取并处理消息（流式消费者）。
@@ -562,6 +584,10 @@ class NatsComm:
             支持同步和异步（async）函数。
         poll_timeout_sec : float
             拉取超时时间（秒），超时后会重新拉取（默认 5 秒）
+        max_inflight : int
+            同一 worker 最多并发处理的消息数（默认 1）
+        ack_progress_interval_sec : float
+            处理期间发送 ACK 进度的间隔秒数，0 表示关闭（默认 10）
 
         示例
         ----
@@ -576,27 +602,78 @@ class NatsComm:
                 handler=task_handler,
             )
         """
-        while True:
-            messages = await self.receive(
-                subject=subject,
-                durable=durable,
-                batch=1,
-                timeout_sec=poll_timeout_sec,
-                ack=False,
-            )
-            for message in messages:
+        if max_inflight <= 0:
+            raise ValueError("max_inflight must be positive")
+        if ack_progress_interval_sec < 0:
+            raise ValueError("ack_progress_interval_sec cannot be negative")
+
+        async def report_progress(message: NatsMessage) -> None:
+            while True:
+                await asyncio.sleep(ack_progress_interval_sec)
                 try:
-                    result = handler(message.payload)
-                    if asyncio.iscoroutine(result):
-                        await result
-                    await message.ack()
-                except Exception as exc:
-                    logger.exception("消息处理失败 subject=%s payload=%s", subject, message.payload)
-                    try:
-                        await message.nak()
-                    except Exception as nak_exc:
-                        logger.warning("处理异常后 NACK 也失败: %s", nak_exc)
+                    await message.in_progress()
+                except asyncio.CancelledError:
                     raise
+                except Exception as exc:
+                    logger.warning(
+                        "发送 ACK 进度失败 subject=%s error=%s",
+                        subject,
+                        exc,
+                    )
+                    return
+
+        async def process(message: NatsMessage) -> None:
+            progress_task = None
+            if ack_progress_interval_sec > 0:
+                progress_task = asyncio.create_task(report_progress(message))
+            try:
+                result = handler(message.payload)
+                if asyncio.iscoroutine(result):
+                    await result
+                await message.ack()
+            except Exception:
+                logger.exception("消息处理失败 subject=%s payload=%s", subject, message.payload)
+                try:
+                    await message.nak()
+                except Exception as nak_exc:
+                    logger.warning("处理异常后 NACK 也失败: %s", nak_exc)
+                raise
+            finally:
+                if progress_task:
+                    progress_task.cancel()
+                    await asyncio.gather(progress_task, return_exceptions=True)
+
+        pending: Set[asyncio.Task] = set()
+        try:
+            while True:
+                finished = {task for task in pending if task.done()}
+                pending.difference_update(finished)
+                for task in finished:
+                    task.result()
+
+                if len(pending) >= max_inflight:
+                    finished, pending = await asyncio.wait(
+                        pending,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for task in finished:
+                        task.result()
+                    continue
+
+                messages = await self.receive(
+                    subject=subject,
+                    durable=durable,
+                    batch=max_inflight - len(pending),
+                    timeout_sec=poll_timeout_sec,
+                    ack=False,
+                )
+                for message in messages:
+                    pending.add(asyncio.create_task(process(message)))
+        finally:
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
 
     async def request(
         self,
@@ -645,7 +722,7 @@ class NatsComm:
         try:
             msg = await self._nc.request(
                 subject,
-                json.dumps(payload).encode(),
+                self._encode_control_payload(payload),
                 timeout=timeout_sec,
             )
         except NatsTimeoutError as exc:
@@ -701,10 +778,12 @@ class NatsComm:
                 result = handler(payload)
                 if asyncio.iscoroutine(result):
                     result = await result
-                await msg.respond(json.dumps(result or {}).encode())
+                await msg.respond(self._encode_control_payload(result or {}))
             except Exception as exc:
                 logger.exception("请求处理失败 subject=%s", subject)
-                await msg.respond(json.dumps({"error": str(exc)}).encode())
+                await msg.respond(
+                    self._encode_control_payload({"error": str(exc)})
+                )
 
         await self._nc.subscribe(subject, queue=queue, cb=_callback)
         while True:

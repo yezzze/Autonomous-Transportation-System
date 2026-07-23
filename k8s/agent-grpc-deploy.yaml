@@ -40,12 +40,37 @@ spec:
               value: "workflow.__EDGE_CLUSTER_ID__.agent.b.in"
             - name: REPLY_SUBJECT_PREFIX
               value: "workflow.__EDGE_CLUSTER_ID__.agent.grpc.reply"
+            - name: NATS_CONTROL_MAX_BYTES
+              value: "1048576"
+            - name: WORKFLOW_TIMEOUT_SEC
+              value: "120"
+            - name: FRAME_PUBLIC_ADDR
+              value: "agent-grpc:50051"
+            - name: FRAME_STORE_DIR
+              value: "/var/lib/agent-frames"
+            - name: FRAME_CHUNK_SIZE
+              value: "1048576"
+            - name: FRAME_MAX_BYTES
+              value: "67108864"
+            - name: FRAME_STORE_MAX_BYTES
+              value: "536870912"
+            - name: FRAME_TTL_SECONDS
+              value: "300"
+            - name: FRAME_MAX_INFLIGHT_UPLOADS
+              value: "4"
           resources:
             requests:
-              cpu: "250m"
-              memory: "256Mi"
+              cpu: "500m"
+              memory: "512Mi"
             limits:
-              cpu: "1"
-              memory: "1Gi"
+              cpu: "2"
+              memory: "2Gi"
           ports:
             - containerPort: 50051
+          volumeMounts:
+            - name: frame-spool
+              mountPath: /var/lib/agent-frames
+      volumes:
+        - name: frame-spool
+          emptyDir:
+            sizeLimit: 1Gi

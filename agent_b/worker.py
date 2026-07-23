@@ -9,6 +9,11 @@ OUT_SUBJECT = os.environ.get("OUT_SUBJECT", "workflow.demo.agent.grpc.reply.defa
 C_IN_SUBJECT = os.environ.get("C_IN_SUBJECT", "workflow.demo.agent.c.in")
 B_REPLY_PREFIX = os.environ.get("B_REPLY_PREFIX", "workflow.demo.agent.b.c.reply")
 DURABLE = os.environ.get("DURABLE", "agent-b-consumer")
+MAX_INFLIGHT = int(os.environ.get("NATS_MAX_INFLIGHT", "4"))
+WORKFLOW_TIMEOUT_SEC = float(os.environ.get("WORKFLOW_TIMEOUT_SEC", "120"))
+ACK_PROGRESS_INTERVAL_SEC = float(
+    os.environ.get("NATS_ACK_PROGRESS_INTERVAL_SEC", "10")
+)
 
 
 def log(msg: str) -> None:
@@ -36,6 +41,8 @@ async def main():
             "text": text,
             "reply_subject": reply_subject,
         }
+        if data.get("frame_ref"):
+            c_payload["frame_ref"] = data["frame_ref"]
 
         log(f"forwarding workflow_id={workflow_id} to Agent C: {c_payload}")
         await comm.send(C_IN_SUBJECT, c_payload)
@@ -44,7 +51,7 @@ async def main():
             subject=reply_subject,
             durable=None,
             batch=1,
-            timeout_sec=30,
+            timeout_sec=WORKFLOW_TIMEOUT_SEC,
         )
         if not replies:
             raise TimeoutError(f"timeout waiting for Agent C reply: workflow_id={workflow_id}")
@@ -69,6 +76,8 @@ async def main():
             subject=IN_SUBJECT,
             durable=DURABLE,
             handler=handler,
+            max_inflight=MAX_INFLIGHT,
+            ack_progress_interval_sec=ACK_PROGRESS_INTERVAL_SEC,
         )
     finally:
         await comm.close()

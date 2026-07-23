@@ -18,7 +18,7 @@ class AgentServiceStub(object):
                 '/agent.AgentService/Infer',
                 request_serializer=agent__pb2.InferRequest.SerializeToString,
                 response_deserializer=agent__pb2.InferResponse.FromString,
-                )
+                _registered_method=True)
 
 
 class AgentServiceServicer(object):
@@ -42,6 +42,7 @@ def add_AgentServiceServicer_to_server(servicer, server):
     generic_handler = grpc.method_handlers_generic_handler(
             'agent.AgentService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('agent.AgentService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -59,8 +60,18 @@ class AgentService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/agent.AgentService/Infer',
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/agent.AgentService/Infer',
             agent__pb2.InferRequest.SerializeToString,
             agent__pb2.InferResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

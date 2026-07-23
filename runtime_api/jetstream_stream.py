@@ -52,6 +52,7 @@ from typing import Any, Dict, List, Optional
 
 from nats.js.api import DiscardPolicy, RetentionPolicy, StorageType, StreamConfig
 from nats.js.errors import NotFoundError
+from runtime_api.nats_subjects import merge_subject_patterns
 
 logger = logging.getLogger(__name__)
 
@@ -279,11 +280,7 @@ def merge_stream_subjects(current: List[str], required: List[str]) -> List[str]:
     List[str]
         合并去重后的主题列表
     """
-    merged = list(current or [])
-    for subject in required:
-        if subject and subject not in merged:
-            merged.append(subject)
-    return merged or list(required)
+    return merge_subject_patterns(current or [], required)
 
 
 async def apply_stream_config(js, config: StreamConfig) -> None:

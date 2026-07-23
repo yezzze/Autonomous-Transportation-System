@@ -9,6 +9,7 @@
   - 不同 Node 间（通过 Service + 调度策略）
   - 不同集群间（通过 NATS Gateway 示例清单）
 - 提供容器化应用可复用的 NATS 通信 API：`runtime_api.NatsComm`
+- 大帧通过 gRPC streaming 分块传输，NATS 只携带帧引用和工作流控制信息
 
 ## 2. 目录说明
 - `agent_gRPC/`: gRPC 接口服务，接收请求并通过 `runtime_api.NatsComm` 发布到 NATS
@@ -211,15 +212,15 @@ kubectl exec deploy/nats-box -- \
 ## 4. 构建镜像
 ```bash
 docker build -f agent_gRPC/Dockerfile -t agent-grpc:v1 .
-docker build -f agent_b/Dockerfile -t agent-b-worker:v3 .
-docker build -f agent_c/Dockerfile -t agent-c-worker:v1 .
+docker build -f agent_b/Dockerfile -t agent-b-worker:v5 .
+docker build -f agent_c/Dockerfile -t agent-c-worker:v3 .
 ```
 
 如果是 Minikube：
 ```bash
 minikube image load agent-grpc:v1
-minikube image load agent-b-worker:v3
-minikube image load agent-c-worker:v1
+minikube image load agent-b-worker:v5
+minikube image load agent-c-worker:v3
 minikube image load nats:2.10
 ```
 
@@ -241,15 +242,74 @@ kubectl get hpa
 ```
 
 ## 6. 业务调用（gRPC）
-本机转发后测试：
+
+当前数据链路：
+
+```text
+调用方 --gRPC UploadFrame(1MiB chunks)--> agent-grpc 临时帧存储
+调用方 --gRPC Infer(frame_ref)----------> agent-grpc
+agent-grpc --NATS 控制消息--------------> Agent B --> Agent C
+Agent C --gRPC DownloadFrame------------> agent-grpc
+Agent C --NATS 结果----------------------> agent-grpc --> 调用方
+```
+
+NATS 控制消息默认限制为 1MiB，避免误把图片、张量或 Base64 数据写入
+JetStream。帧默认上限 64MiB，按 1MiB 分块，并使用 SHA-256 做完整性校验。
+
+本机转发后只测试文本：
+
 ```bash
 kubectl port-forward service/agent-grpc 50051:50051
 python client.py
 ```
-预期输出：
-```text
-返回结果: Agent B processed with Agent C: Agent C transformed: HELLO FROM PYTHON CLIENT
+
+传输一帧并执行工作流：
+
+```bash
+python client.py --frame /path/to/frame.bin --text "infer this frame"
 ```
+
+预期输出：
+
+```text
+上传帧: id=..., bytes=..., sha256=...
+返回结果: Agent B processed with Agent C: Agent C transformed: INFER THIS FRAME (frame_bytes=..., sha256=...)
+```
+
+关键配置：
+
+| 环境变量 | 默认值 | 说明 |
+|---|---:|---|
+| `FRAME_CHUNK_SIZE` | `1048576` | 单个 gRPC 消息的数据字节数 |
+| `FRAME_MAX_BYTES` | `67108864` | 单帧最大大小 |
+| `FRAME_STORE_MAX_BYTES` | `536870912` | 网关临时帧总容量 |
+| `FRAME_TTL_SECONDS` | `300` | 未消费帧的保留时间 |
+| `FRAME_PUBLIC_ADDR` | `agent-grpc:50051` | Agent C 可访问的下载地址 |
+| `FRAME_UPLOAD_TARGET` | `agent-grpc:50051` | FrameComm 上传帧的服务地址 |
+| `FRAME_ALLOWED_TARGETS` | `agent-grpc:50051` | Agent C 允许访问的帧服务地址 |
+| `FRAME_RETRY_ATTEMPTS` | `3` | 上传遇到背压或断连时的尝试次数 |
+| `NATS_CONTROL_MAX_BYTES` | `1048576` | NATS 控制消息大小上限 |
+| `NATS_MAX_INFLIGHT` | `4` | 每个 worker 的并发消息数 |
+| `NATS_ACK_PROGRESS_INTERVAL_SEC` | `10` | 长任务 ACK 进度上报间隔 |
+
+跨 Kubernetes Node 时 Service 地址可以直接使用。跨集群时，
+`FRAME_PUBLIC_ADDR` 必须配置为 Agent C 所在网络可访问的地址，并同步加入
+`FRAME_ALLOWED_TARGETS`。当前帧存储使用 `emptyDir`，Pod 重启后不保留；
+需要断点恢复或回放时应再接入 MinIO。
+
+固定速率帧压测：
+
+```bash
+PYTHONPATH=.:agent_gRPC python tests/grpc_frame_load.py \
+  --target localhost:50051 \
+  --size-mib 10 \
+  --fps 10 \
+  --duration-sec 30
+```
+
+压测输出包含成功率、上传延迟、端到端延迟、实际完成 FPS 和 gRPC 错误分类。
+跨机器部署和压测步骤见
+[docs/frame-transport-handoff.md](docs/frame-transport-handoff.md)。
 
 ## 7. 编排器侧资源分配
 本仓库对应的编排器链路是：

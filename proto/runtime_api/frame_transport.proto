@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package runtime;
+
+service FrameTransport {
+  rpc UploadFrame (stream FrameChunk) returns (FrameReference);
+  rpc DownloadFrame (FrameReference) returns (stream FrameChunk);
+  rpc DeleteFrame (FrameReference) returns (DeleteFrameResponse);
+}
+
+message FrameChunk {
+  string frame_id = 1;
+  uint32 chunk_index = 2;
+  bytes data = 3;
+  string content_type = 4;
+  uint64 total_size = 5;
+  string sha256 = 6;
+}
+
+message FrameReference {
+  string transport = 1;
+  string target = 2;
+  string frame_id = 3;
+  uint64 size_bytes = 4;
+  string sha256 = 5;
+  string content_type = 6;
+  uint32 chunk_size = 7;
+}
+
+message DeleteFrameResponse {
+  bool deleted = 1;
+}

@@ -38,6 +38,22 @@ spec:
               value: "__EDGE_CLUSTER_ID__"
             - name: IN_SUBJECT
               value: "workflow.__EDGE_CLUSTER_ID__.agent.c.in"
+            - name: NATS_CONTROL_MAX_BYTES
+              value: "1048576"
+            - name: NATS_MAX_INFLIGHT
+              value: "4"
+            - name: NATS_ACK_PROGRESS_INTERVAL_SEC
+              value: "10"
+            - name: FRAME_ALLOWED_TARGETS
+              value: "agent-grpc:50051"
+            - name: FRAME_DOWNLOAD_DIR
+              value: "/var/lib/agent-frame-downloads"
+            - name: FRAME_DOWNLOAD_TIMEOUT_SEC
+              value: "120"
+            - name: FRAME_MAX_CHUNK_BYTES
+              value: "2097152"
+            - name: FRAME_DELETE_AFTER_PROCESS
+              value: "true"
           resources:
             requests:
               cpu: "200m"
@@ -45,3 +61,10 @@ spec:
             limits:
               cpu: "1"
               memory: "1Gi"
+          volumeMounts:
+            - name: frame-downloads
+              mountPath: /var/lib/agent-frame-downloads
+      volumes:
+        - name: frame-downloads
+          emptyDir:
+            sizeLimit: 512Mi

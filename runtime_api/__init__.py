@@ -45,6 +45,7 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
     NATS_JETSTREAM_DOMAIN     JetStream 域（默认 hub）
     NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
     NATS_SEND_DELAY_FILE      运行时延迟配置文件（默认 /tmp/nats_send_delay_seconds）
+    NATS_CONTROL_MAX_BYTES    NATS 控制消息上限（默认 1MiB）
 
 运行时修改发送延迟
 ----------------
@@ -60,7 +61,22 @@ from .nats_comm import NatsComm, NatsMessage
 __all__ = [
     "NatsComm",
     "NatsMessage",
+    "FrameComm",
+    "FrameTransportClient",
+    "DownloadedFrame",
     "build_stream_config",
     "ensure_jetstream_stream",
     "parse_bytes",
 ]
+
+
+def __getattr__(name):
+    if name in {"FrameComm", "FrameTransportClient", "DownloadedFrame"}:
+        from .frame_comm import DownloadedFrame, FrameComm, FrameTransportClient
+
+        return {
+            "FrameComm": FrameComm,
+            "FrameTransportClient": FrameTransportClient,
+            "DownloadedFrame": DownloadedFrame,
+        }[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

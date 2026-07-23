@@ -29,6 +29,10 @@ spec:
               value: "workflow.>"
             - name: CLUSTER_ID
               value: "<filled-by-orchestrator>"
+            - name: FRAME_UPLOAD_TARGET
+              value: "<frame-service-ip-or-dns>:30051"
+            - name: FRAME_ALLOWED_TARGETS
+              value: "<frame-service-ip-or-dns>:30051"
           resources:
             requests:
               cpu: "500m"

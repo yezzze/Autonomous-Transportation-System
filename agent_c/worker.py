@@ -1,10 +1,18 @@
 import asyncio
 import os
 
-from runtime_api import NatsComm
+from runtime_api import FrameComm
 
 IN_SUBJECT = os.environ.get("IN_SUBJECT", "workflow.demo.agent.c.in")
 DURABLE = os.environ.get("DURABLE", "agent-c-consumer")
+MAX_INFLIGHT = int(os.environ.get("NATS_MAX_INFLIGHT", "4"))
+ACK_PROGRESS_INTERVAL_SEC = float(
+    os.environ.get("NATS_ACK_PROGRESS_INTERVAL_SEC", "10")
+)
+DELETE_REMOTE_FRAME = (
+    os.environ.get("FRAME_DELETE_AFTER_PROCESS", "true").strip().lower()
+    not in {"0", "false", "no"}
+)
 
 
 def log(msg: str) -> None:
@@ -12,8 +20,8 @@ def log(msg: str) -> None:
 
 
 async def main():
-    log("worker.py starting with runtime_api.NatsComm")
-    comm = NatsComm()
+    log("worker.py starting with runtime_api.FrameComm")
+    comm = FrameComm()
 
     async def handler(data):
         workflow_id = data.get("workflow_id")
@@ -24,7 +32,23 @@ async def main():
         if not reply_subject:
             raise ValueError("missing reply_subject")
 
-        result = f"Agent C transformed: {text.upper()}"
+        frame_ref = data.get("frame_ref")
+        if frame_ref:
+            frame_path = data["frame_path"]
+            frame_size = data["frame_size_bytes"]
+            frame_sha256 = data["frame_sha256"]
+            log(
+                f"downloaded frame_id={frame_ref.get('frame_id')}, "
+                f"bytes={frame_size}, sha256={frame_sha256}"
+            )
+            # Replace this demo result with model inference against frame_path.
+            result = (
+                f"Agent C transformed: {text.upper()} "
+                f"(frame_bytes={frame_size}, sha256={frame_sha256})"
+            )
+        else:
+            result = f"Agent C transformed: {text.upper()}"
+
         reply = {
             "workflow_id": workflow_id,
             "result": result,
@@ -38,6 +62,10 @@ async def main():
             subject=IN_SUBJECT,
             durable=DURABLE,
             handler=handler,
+            max_inflight=MAX_INFLIGHT,
+            ack_progress_interval_sec=ACK_PROGRESS_INTERVAL_SEC,
+            download_frames=True,
+            delete_remote_frame=DELETE_REMOTE_FRAME,
         )
     finally:
         await comm.close()

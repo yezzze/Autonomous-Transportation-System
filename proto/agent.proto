@@ -2,12 +2,16 @@ syntax = "proto3";
 
 package agent;
 
+import "runtime_api/frame_transport.proto";
+
 service AgentService {
   rpc Infer (InferRequest) returns (InferResponse);
 }
 
 message InferRequest {
   string text = 1;
+  runtime.FrameReference frame = 2;
+  bool retain_frame = 3;
 }
 
 message InferResponse {

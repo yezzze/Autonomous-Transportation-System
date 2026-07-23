@@ -1,13 +1,14 @@
 # runtime_api 使用手册
 
-本文档说明外部容器化应用如何使用 `runtime_api.NatsComm` 接入 K8S_demo 的 NATS 通信总线。
+本文档说明外部容器化应用如何使用 `runtime_api.NatsComm` 和
+`runtime_api.FrameComm` 接入 K8S_demo。
 
 ## 1. 接入方式
 
 应用镜像需要包含两部分：
 
 - `runtime_api/` 目录
-- Python 依赖 `nats-py`
+- Python 依赖 `nats-py`；传输大帧时还需要 `grpcio` 和 `protobuf`
 
 推荐 Dockerfile 写法：
 
@@ -49,6 +50,41 @@ python examples/external_app_send.py
 
 - JetStream 持久消息：`send()`、`receive()`、`serve()`
 - Core NATS 瞬时请求响应：`request()`、`respond()`
+
+`FrameComm` 在 `NatsComm` 上增加 gRPC 帧数据面：
+
+- `send(..., frame_path=...)`：先上传帧，再向 NATS 写入 `frame_ref`
+- `serve(..., download_frames=True)`：自动下载、校验并清理临时帧
+- 不带帧调用 `FrameComm.send()` 时，行为与 `NatsComm.send()` 一致
+
+发送帧：
+
+```python
+comm = FrameComm()
+await comm.send(
+    "workflow.demo.frame.in",
+    {"workflow_id": "task-1"},
+    frame_path="/data/frame.bin",
+)
+```
+
+消费帧：
+
+```python
+async def handler(data):
+    model.infer(data["frame_path"])
+
+await comm.serve(
+    subject="workflow.demo.frame.in",
+    durable="frame-worker",
+    handler=handler,
+    download_frames=True,
+    delete_remote_frame=True,
+)
+```
+
+`frame_path` 只在 handler 执行期间有效。完整示例见
+`external_app_send_frame.py` 和 `external_app_receive_frame.py`。
 
 `send()/receive()/serve()` 默认使用 `WORKFLOW` stream，默认 subjects 为 `workflow.demo.>`。如果要使用其他 subject 前缀，需要创建 `NatsComm(stream_subjects=[...])`。
 

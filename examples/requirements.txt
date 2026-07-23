@@ -1,2 +1,4 @@
 nats-py==2.11.0
+grpcio==1.71.0
+protobuf>=5.29.3,<6
 dataclasses==0.8; python_version < "3.7"
