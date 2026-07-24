@@ -9,7 +9,9 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-IN_SUBJECT = os.environ.get("IN_SUBJECT", "workflow.demo.agent.c.in")
+AGENT_ID = os.environ.get("AGENT_ID", "c")
+AGENT_INSTANCE_ID = os.environ.get("AGENT_INSTANCE_ID", "")
+CLUSTER_ID = os.environ.get("CLUSTER_ID", "demo")
 DURABLE = os.environ.get("DURABLE", "agent-c-consumer")
 MAX_INFLIGHT = int(os.environ.get("NATS_MAX_INFLIGHT", "4"))
 ACK_PROGRESS_INTERVAL_SEC = float(
@@ -27,6 +29,8 @@ def log(msg: str) -> None:
 
 async def main():
     log("worker.py starting with runtime_api.FrameComm")
+    if not AGENT_INSTANCE_ID:
+        raise ValueError("AGENT_INSTANCE_ID is required")
     comm = FrameComm()
 
     async def handler(data):
@@ -63,9 +67,13 @@ async def main():
         await comm.publish_core(reply_subject, reply)
 
     try:
-        log(f"subscribing to {IN_SUBJECT}")
-        await comm.serve(
-            subject=IN_SUBJECT,
+        log(
+            f"subscribing as {CLUSTER_ID}/{AGENT_ID}/{AGENT_INSTANCE_ID}"
+        )
+        await comm.serve_workflow(
+            agent_id=AGENT_ID,
+            instance_id=AGENT_INSTANCE_ID,
+            local_cluster=CLUSTER_ID,
             durable=DURABLE,
             handler=handler,
             max_inflight=MAX_INFLIGHT,

@@ -10,29 +10,35 @@ cat <<EOF
 - name: NATS_SERVERS
   value: "nats://nats:4222"
 - name: NATS_JETSTREAM_DOMAIN
-  value: "hub"
-- name: NATS_STREAM_SUBJECTS
-  value: "workflow.>"
-- name: NATS_STREAM
-  value: "WORKFLOW"
+  value: "${EDGE_CLUSTER_ID}"
+- name: NATS_WORKFLOW_STREAM_PREFIX
+  value: "WF"
 - name: NATS_STREAM_MAX_BYTES
-  value: "${NATS_STREAM_MAX_BYTES:-5GB}"
+  value: "${NATS_STREAM_MAX_BYTES:-512MiB}"
 - name: NATS_STREAM_DISCARD
-  value: "${NATS_STREAM_DISCARD:-old}"
+  value: "${NATS_STREAM_DISCARD:-new}"
 - name: CLUSTER_ID
   value: "${EDGE_CLUSTER_ID}"
 
-# agent-grpc
-- name: REQ_SUBJECT
-  value: "workflow.${EDGE_CLUSTER_ID}.agent.b.in"
+# Agent 自身实例 ID 使用 Downward API
+- name: AGENT_INSTANCE_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.uid
 
-# agent-b
-- name: IN_SUBJECT
-  value: "workflow.${EDGE_CLUSTER_ID}.agent.b.in"
-- name: C_IN_SUBJECT
-  value: "workflow.${EDGE_CLUSTER_ID}.agent.c.in"
+# agent-grpc -> agent-b（由编排器填入目标 Pod UID）
+- name: TARGET_B_CLUSTER_ID
+  value: "${EDGE_CLUSTER_ID}"
+- name: TARGET_B_AGENT_ID
+  value: "b"
+- name: TARGET_B_INSTANCE_ID
+  value: "${TARGET_B_INSTANCE_ID:-<agent-b-pod-uid>}"
 
-# agent-c
-- name: IN_SUBJECT
-  value: "workflow.${EDGE_CLUSTER_ID}.agent.c.in"
+# agent-b -> agent-c（由编排器填入目标 Pod UID）
+- name: TARGET_C_CLUSTER_ID
+  value: "${EDGE_CLUSTER_ID}"
+- name: TARGET_C_AGENT_ID
+  value: "c"
+- name: TARGET_C_INSTANCE_ID
+  value: "${TARGET_C_INSTANCE_ID:-<agent-c-pod-uid>}"
 EOF

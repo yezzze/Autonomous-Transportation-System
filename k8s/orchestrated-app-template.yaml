@@ -24,9 +24,15 @@ spec:
             - name: NATS_SERVERS
               value: "nats://nats:4222"
             - name: NATS_JETSTREAM_DOMAIN
-              value: "hub"
-            - name: NATS_STREAM_SUBJECTS
-              value: "workflow.>"
+              value: "<filled-by-orchestrator>"
+            - name: NATS_WORKFLOW_STREAM_PREFIX
+              value: "WF"
+            - name: NATS_STREAM_MAX_BYTES
+              value: "512MiB"
+            - name: NATS_STREAM_DISCARD
+              value: "new"
+            - name: NATS_STREAM_RETENTION
+              value: "workqueue"
             - name: NATS_BINARY_MAX_BYTES
               value: "67108864"
             - name: NATS_PENDING_SIZE_BYTES
@@ -37,6 +43,18 @@ spec:
               value: "32"
             - name: CLUSTER_ID
               value: "<filled-by-orchestrator>"
+            - name: AGENT_ID
+              value: "<filled-by-orchestrator>"
+            - name: AGENT_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NATS_STREAM_PROVISION_TIMEOUT_SEC
+              value: "120"
             - name: FRAME_UPLOAD_TARGET
               value: "<frame-service-ip-or-dns>:30051"
             - name: FRAME_ALLOWED_TARGETS

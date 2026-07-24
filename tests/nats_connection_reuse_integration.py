@@ -1,20 +1,37 @@
 import asyncio
 import os
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from runtime_api import NatsComm
 
 
 REQUEST_COUNT = int(os.environ.get("NATS_REUSE_TEST_REQUESTS", "200"))
-SUBJECT = "workflow.reuse.integration.in"
+CLUSTER_ID = os.environ.get("CLUSTER_ID", "hub")
+AGENT_ID = "reuse"
+INSTANCE_ID = "reuse-integration-pod"
 DURABLE = "reuse-integration-worker"
 
 
 async def wait_for_worker(worker: NatsComm) -> None:
     for _ in range(100):
-        if worker._pull_subscriptions:
+        if len(worker._pull_subscriptions) == 2:
             return
         await asyncio.sleep(0.05)
     raise TimeoutError("worker pull subscription was not created")
+
+
+async def wait_for_stream_empty(js, stream: str):
+    for _ in range(100):
+        info = await js.stream_info(stream)
+        if info.state.messages == 0:
+            return info
+        await asyncio.sleep(0.01)
+    raise TimeoutError(f"stream did not drain: {stream}")
 
 
 async def main() -> None:
@@ -30,9 +47,16 @@ async def main() -> None:
             },
         )
 
+    await requester.provision_workflow_stream(
+        target_cluster=CLUSTER_ID,
+        agent_id=AGENT_ID,
+        instance_id=INSTANCE_ID,
+    )
     serve_task = asyncio.create_task(
-        worker.serve(
-            subject=SUBJECT,
+        worker.serve_workflow(
+            agent_id=AGENT_ID,
+            instance_id=INSTANCE_ID,
+            local_cluster=CLUSTER_ID,
             durable=DURABLE,
             handler=handler,
             max_inflight=1,
@@ -42,13 +66,15 @@ async def main() -> None:
 
     try:
         await wait_for_worker(worker)
-        await requester.connect()
         requester_subscription_baseline = len(requester._nc._subs)
         worker_subscription_baseline = len(worker._nc._subs)
 
         for index in range(REQUEST_COUNT):
-            reply = await requester.send_and_wait(
-                subject=SUBJECT,
+            reply = await requester.send_workflow_and_wait(
+                target_cluster=CLUSTER_ID,
+                agent_id=AGENT_ID,
+                target_instance_id=INSTANCE_ID,
+                local_cluster=CLUSTER_ID,
                 payload={"workflow_id": f"reuse-{index}"},
                 timeout_sec=5,
             )
@@ -67,21 +93,27 @@ async def main() -> None:
                 f"baseline={worker_subscription_baseline}, "
                 f"current={len(worker._nc._subs)}"
             )
-        if len(worker._pull_subscriptions) != 1:
+        if len(worker._pull_subscriptions) != 2:
             raise AssertionError(
-                f"expected one cached pull subscription, "
+                f"expected two cached pull subscriptions, "
                 f"got {len(worker._pull_subscriptions)}"
             )
 
-        stream_info = await requester._js.stream_info(requester.stream)
-        consumers = await requester._js.consumers_info(requester.stream)
+        js = requester._nc.jetstream(domain=CLUSTER_ID)
+        stream = requester.workflow_stream_name(INSTANCE_ID)
+        stream_info = await wait_for_stream_empty(js, stream)
+        consumers = await js.consumers_info(stream)
         consumer_names = sorted(info.name for info in consumers)
-        if consumer_names != [DURABLE]:
+        expected_consumers = [
+            f"{DURABLE}-global",
+            f"{DURABLE}-local",
+        ]
+        if consumer_names != expected_consumers:
             raise AssertionError(f"unexpected consumers: {consumer_names}")
-        if stream_info.state.messages != REQUEST_COUNT:
+        if stream_info.state.messages != 0:
             raise AssertionError(
-                "reply inbox messages were unexpectedly persisted: "
-                f"expected={REQUEST_COUNT}, actual={stream_info.state.messages}"
+                "ACKed work-queue messages were not removed: "
+                f"actual={stream_info.state.messages}"
             )
 
         print(
@@ -96,6 +128,10 @@ async def main() -> None:
     finally:
         serve_task.cancel()
         await asyncio.gather(serve_task, return_exceptions=True)
+        await requester.delete_workflow_stream(
+            target_cluster=CLUSTER_ID,
+            instance_id=INSTANCE_ID,
+        )
         await requester.close()
         await worker.close()
 

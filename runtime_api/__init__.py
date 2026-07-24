@@ -37,11 +37,12 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
 环境变量
 --------
     NATS_SERVERS              NATS 服务器地址（默认 nats://nats:4222）
-    NATS_STREAM               流名称（默认 WORKFLOW）
-    NATS_STREAM_SUBJECTS      流主题列表（默认 workflow.>）
-    NATS_STREAM_MAX_BYTES     流最大大小（默认 5GB）
-    NATS_STREAM_DISCARD       淘汰策略（默认 old）
-    NATS_STREAM_RETENTION     保留策略（默认 limits）
+    NATS_STREAM               兼容模式流名称（默认 WORKFLOW）
+    NATS_STREAM_SUBJECTS      兼容流主题列表（默认 legacy.workflow.>）
+    NATS_WORKFLOW_STREAM_PREFIX 实例 Stream 前缀（默认 WF）
+    NATS_STREAM_MAX_BYTES     流最大大小（默认 512MiB）
+    NATS_STREAM_DISCARD       淘汰策略（默认 new）
+    NATS_STREAM_RETENTION     保留策略（默认 workqueue）
     NATS_STREAM_STORAGE       存储类型（默认 file）
     NATS_JETSTREAM_DOMAIN     JetStream 域（默认 hub）
     NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
@@ -52,6 +53,7 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
     NATS_BINARY_PENDING_MSGS  二进制订阅待处理消息数（默认 32）
     NATS_BINARY_PENDING_BYTES 二进制订阅待处理字节数（默认 128MiB）
     NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC 临时consumer自动清理时间（默认30秒）
+    NATS_STREAM_PROVISION_TIMEOUT_SEC 等待编排器创建实例 Stream 的时间（默认120秒）
 
 运行时修改发送延迟
 ----------------

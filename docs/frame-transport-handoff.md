@@ -101,17 +101,12 @@ minikube image load agent-grpc:v1
 minikube image load agent-b-worker:v5
 minikube image load agent-c-worker:v3
 
-kubectl apply -f k8s/agent-grpc-deploy.yaml
 kubectl apply -f k8s/agent-grpc-svc.yaml
-kubectl apply -f k8s/agent-b-deploy.yaml
-kubectl apply -f k8s/agent-c-deploy.yaml
-kubectl rollout restart deployment/agent-grpc deployment/agent-b deployment/agent-c
-kubectl rollout status deployment/agent-grpc --timeout=180s
-kubectl rollout status deployment/agent-b --timeout=180s
-kubectl rollout status deployment/agent-c --timeout=180s
 ```
 
-应用清单前，先把 `FRAME_PUBLIC_ADDR` 和 `FRAME_ALLOWED_TARGETS` 替换成实际可达地址。
+Agent 清单由编排器创建。除替换 `FRAME_PUBLIC_ADDR` 和
+`FRAME_ALLOWED_TARGETS` 外，还必须注入目标实例 UID，并按
+`docs/agent-nats-config.md` 创建实例 Stream。
 
 ## 5. 压测
 

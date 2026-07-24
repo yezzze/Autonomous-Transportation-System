@@ -25,7 +25,10 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-REQ_SUBJECT = os.environ.get("REQ_SUBJECT", "workflow.demo.agent.b.in")
+CLUSTER_ID = os.environ.get("CLUSTER_ID", "demo")
+TARGET_B_CLUSTER_ID = os.environ.get("TARGET_B_CLUSTER_ID", CLUSTER_ID)
+TARGET_B_AGENT_ID = os.environ.get("TARGET_B_AGENT_ID", "b")
+TARGET_B_INSTANCE_ID = os.environ.get("TARGET_B_INSTANCE_ID", "")
 FRAME_PUBLIC_ADDR = os.environ.get("FRAME_PUBLIC_ADDR", "agent-grpc:50051")
 FRAME_CHUNK_SIZE = int(os.environ.get("FRAME_CHUNK_SIZE", str(1024 * 1024)))
 FRAME_MAX_INFLIGHT_UPLOADS = int(os.environ.get("FRAME_MAX_INFLIGHT_UPLOADS", "4"))
@@ -62,10 +65,17 @@ async def handle_infer(comm: NatsComm, text: str, frame_ref=None) -> str:
         if frame_ref:
             payload["frame_ref"] = frame_ref
         started = time.monotonic()
-        log(f"sending request to {REQ_SUBJECT}, workflow_id={workflow_id}")
-        reply = await comm.send_and_wait(
-            subject=REQ_SUBJECT,
+        log(
+            f"sending request to "
+            f"{TARGET_B_CLUSTER_ID}/{TARGET_B_AGENT_ID}/{TARGET_B_INSTANCE_ID}, "
+            f"workflow_id={workflow_id}"
+        )
+        reply = await comm.send_workflow_and_wait(
+            target_cluster=TARGET_B_CLUSTER_ID,
+            agent_id=TARGET_B_AGENT_ID,
+            target_instance_id=TARGET_B_INSTANCE_ID,
             payload=payload,
+            local_cluster=CLUSTER_ID,
             timeout_sec=WORKFLOW_TIMEOUT_SEC,
         )
         result = reply.get("result", "")
@@ -173,9 +183,14 @@ class AgentService(agent_pb2_grpc.AgentServiceServicer):
 
 
 def serve():
+    if not TARGET_B_INSTANCE_ID:
+        raise ValueError("TARGET_B_INSTANCE_ID is required")
     log("creating gRPC server")
     log(f"runtime_api=NatsComm, NATS_SERVERS={os.environ.get('NATS_SERVERS', 'nats://nats:4222')}")
-    log(f"REQ_SUBJECT={REQ_SUBJECT}")
+    log(
+        f"TARGET_B={TARGET_B_CLUSTER_ID}/"
+        f"{TARGET_B_AGENT_ID}/{TARGET_B_INSTANCE_ID}"
+    )
     log(
         f"FRAME_PUBLIC_ADDR={FRAME_PUBLIC_ADDR}, FRAME_CHUNK_SIZE={FRAME_CHUNK_SIZE}, "
         f"FRAME_MAX_BYTES={FRAME_STORE.max_frame_bytes}"

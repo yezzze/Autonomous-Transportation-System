@@ -9,8 +9,10 @@ config:
         - urls:
             - nats://leaf:change-me-leaf-password@CHANGE_ME_CLOUD_HOST:7422
           deny_imports:
+            - "workflow.local.>"
             - "frame.local.>"
           deny_exports:
+            - "workflow.local.>"
             - "frame.local.>"
 
   monitor:
@@ -18,10 +20,13 @@ config:
 
   jetstream:
     enabled: true
+    merge:
+      domain: CHANGE_ME_EDGE_DOMAIN
     fileStore:
-      enabled: false
+      enabled: true
       pvc:
-        enabled: false
+        enabled: true
+        size: 10Gi
     memoryStore:
       enabled: true
       maxSize: 1Gi

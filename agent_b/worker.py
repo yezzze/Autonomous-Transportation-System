@@ -10,8 +10,12 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-IN_SUBJECT = os.environ.get("IN_SUBJECT", "workflow.demo.agent.b.in")
-C_IN_SUBJECT = os.environ.get("C_IN_SUBJECT", "workflow.demo.agent.c.in")
+AGENT_ID = os.environ.get("AGENT_ID", "b")
+AGENT_INSTANCE_ID = os.environ.get("AGENT_INSTANCE_ID", "")
+CLUSTER_ID = os.environ.get("CLUSTER_ID", "demo")
+TARGET_C_CLUSTER_ID = os.environ.get("TARGET_C_CLUSTER_ID", CLUSTER_ID)
+TARGET_C_AGENT_ID = os.environ.get("TARGET_C_AGENT_ID", "c")
+TARGET_C_INSTANCE_ID = os.environ.get("TARGET_C_INSTANCE_ID", "")
 DURABLE = os.environ.get("DURABLE", "agent-b-consumer")
 MAX_INFLIGHT = int(os.environ.get("NATS_MAX_INFLIGHT", "4"))
 WORKFLOW_TIMEOUT_SEC = float(os.environ.get("WORKFLOW_TIMEOUT_SEC", "120"))
@@ -26,6 +30,10 @@ def log(msg: str) -> None:
 
 async def main():
     log("worker.py starting with runtime_api.NatsComm")
+    if not AGENT_INSTANCE_ID:
+        raise ValueError("AGENT_INSTANCE_ID is required")
+    if not TARGET_C_INSTANCE_ID:
+        raise ValueError("TARGET_C_INSTANCE_ID is required")
     comm = NatsComm()
 
     async def handler(data):
@@ -45,10 +53,16 @@ async def main():
             c_payload["frame_ref"] = data["frame_ref"]
 
         started = time.monotonic()
-        log(f"forwarding workflow_id={workflow_id} to Agent C")
-        c_reply_payload = await comm.send_and_wait(
-            subject=C_IN_SUBJECT,
+        log(
+            f"forwarding workflow_id={workflow_id} to "
+            f"{TARGET_C_CLUSTER_ID}/{TARGET_C_AGENT_ID}/{TARGET_C_INSTANCE_ID}"
+        )
+        c_reply_payload = await comm.send_workflow_and_wait(
+            target_cluster=TARGET_C_CLUSTER_ID,
+            agent_id=TARGET_C_AGENT_ID,
+            target_instance_id=TARGET_C_INSTANCE_ID,
             payload=c_payload,
+            local_cluster=CLUSTER_ID,
             timeout_sec=WORKFLOW_TIMEOUT_SEC,
         )
         c_result = c_reply_payload.get("result", "")
@@ -66,9 +80,13 @@ async def main():
         await comm.publish_core(final_reply_subject, reply)
 
     try:
-        log(f"subscribing to {IN_SUBJECT}, forwarding to {C_IN_SUBJECT}")
-        await comm.serve(
-            subject=IN_SUBJECT,
+        log(
+            f"subscribing as {CLUSTER_ID}/{AGENT_ID}/{AGENT_INSTANCE_ID}"
+        )
+        await comm.serve_workflow(
+            agent_id=AGENT_ID,
+            instance_id=AGENT_INSTANCE_ID,
+            local_cluster=CLUSTER_ID,
             durable=DURABLE,
             handler=handler,
             max_inflight=MAX_INFLIGHT,

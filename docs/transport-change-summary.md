@@ -37,8 +37,9 @@ consumer。即使严格一发一回，订阅和 consumer 资源仍可能随运�
 
 ### 2.2 JetStream ACK 不等于删除 Stream 消息
 
-当前 WORKFLOW Stream 使用 Limits 保留策略。消息 ACK 只更新 consumer 状态，
-不会立即从 Stream 删除消息。
+旧共享 WORKFLOW Stream 使用 Limits 保留策略时，消息 ACK 只更新 consumer
+状态，不会立即从 Stream 删除消息。当前实例级 Stream 使用 WorkQueue 策略，
+ACK 后删除任务；每个 Pod UID 使用独立的 `WF_<pod-uid>`。
 
 如果大帧直接进入 JetStream，即使每次只发送一帧，Stream 文件仍会持续增长。
 接近大小限制后，旧消息淘汰、文件删除和磁盘 I/O 可能造成延迟抖动。
@@ -136,7 +137,7 @@ await comm.publish_core(...)
 - 请求方在发布任务前创建Core NATS `_INBOX`订阅。
 - 处理方通过`publish_core()`回复请求payload中的`reply_subject`。
 - 成功或超时后自动注销临时回复订阅。
-- `_INBOX`不匹配`workflow.>`，因此回复不会写入WORKFLOW Stream。
+- `_INBOX`不匹配实例 Stream subject，因此回复不会写入 JetStream。
 - 不再为每个workflow创建JetStream回复consumer。
 
 ## 4. 当前仓库已实现的数据链路

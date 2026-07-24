@@ -17,8 +17,11 @@ async def run(args):
     )
 
     try:
-        reply = await comm.send_and_wait(
-            subject=args.subject,
+        reply = await comm.send_workflow_and_wait(
+            target_cluster=args.target_cluster,
+            agent_id=args.target_agent,
+            target_instance_id=args.target_instance,
+            local_cluster=args.local_cluster,
             payload={
                 "workflow_id": workflow_id,
                 "text": "frame comm smoke",
@@ -37,7 +40,10 @@ async def run(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--frame-target", default="agent-grpc:50051")
-    parser.add_argument("--subject", default="workflow.demo.agent.c.in")
+    parser.add_argument("--local-cluster", default="demo")
+    parser.add_argument("--target-cluster", default="demo")
+    parser.add_argument("--target-agent", default="c")
+    parser.add_argument("--target-instance", required=True)
     parser.add_argument("--size-mib", type=int, default=12)
     parser.add_argument("--timeout-sec", type=float, default=60)
     asyncio.run(run(parser.parse_args()))

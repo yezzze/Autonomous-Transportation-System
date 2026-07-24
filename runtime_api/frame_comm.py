@@ -417,17 +417,12 @@ class FrameComm:
         reference = payload_or_reference.get("frame_ref", payload_or_reference)
         return await asyncio.to_thread(self.transport.download, reference)
 
-    async def serve(
+    def _wrap_handler(
         self,
-        subject: str,
-        durable: str,
         handler,
-        poll_timeout_sec: float = 5.0,
-        max_inflight: int = 1,
-        ack_progress_interval_sec: float = 10.0,
-        download_frames: bool = False,
-        delete_remote_frame: bool = False,
-    ) -> None:
+        download_frames: bool,
+        delete_remote_frame: bool,
+    ):
         async def wrapped(payload):
             downloaded = None
             enriched = dict(payload)
@@ -454,11 +449,57 @@ class FrameComm:
             finally:
                 if downloaded:
                     downloaded.cleanup()
+        return wrapped
 
+    async def serve(
+        self,
+        subject: str,
+        durable: str,
+        handler,
+        poll_timeout_sec: float = 5.0,
+        max_inflight: int = 1,
+        ack_progress_interval_sec: float = 10.0,
+        download_frames: bool = False,
+        delete_remote_frame: bool = False,
+    ) -> None:
         await self.nats.serve(
             subject=subject,
             durable=durable,
-            handler=wrapped,
+            handler=self._wrap_handler(
+                handler,
+                download_frames,
+                delete_remote_frame,
+            ),
+            poll_timeout_sec=poll_timeout_sec,
+            max_inflight=max_inflight,
+            ack_progress_interval_sec=ack_progress_interval_sec,
+        )
+
+    async def serve_workflow(
+        self,
+        agent_id: str,
+        durable: str,
+        handler,
+        operation: str = "in",
+        local_cluster: Optional[str] = None,
+        instance_id: Optional[str] = None,
+        poll_timeout_sec: float = 5.0,
+        max_inflight: int = 1,
+        ack_progress_interval_sec: float = 10.0,
+        download_frames: bool = False,
+        delete_remote_frame: bool = False,
+    ) -> None:
+        await self.nats.serve_workflow(
+            agent_id=agent_id,
+            durable=durable,
+            handler=self._wrap_handler(
+                handler,
+                download_frames,
+                delete_remote_frame,
+            ),
+            operation=operation,
+            local_cluster=local_cluster,
+            instance_id=instance_id,
             poll_timeout_sec=poll_timeout_sec,
             max_inflight=max_inflight,
             ack_progress_interval_sec=ack_progress_interval_sec,
@@ -498,6 +539,38 @@ class FrameComm:
         return await self.nats.send_and_wait(
             subject=subject,
             payload=control_payload,
+            reply_subject=reply_subject,
+            timeout_sec=timeout_sec,
+        )
+
+    async def send_workflow_and_wait(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        target_instance_id: str,
+        payload: Dict[str, Any],
+        operation: str = "in",
+        local_cluster: Optional[str] = None,
+        reply_subject: Optional[str] = None,
+        timeout_sec: float = 30.0,
+        frame_path=None,
+        frame_bytes: Optional[bytes] = None,
+        content_type: str = "application/octet-stream",
+    ) -> Dict[str, Any]:
+        """上传可选帧并向编排器选定的精确 Agent 实例发送任务。"""
+        control_payload, _reference = await self._prepare_payload(
+            payload,
+            frame_path=frame_path,
+            frame_bytes=frame_bytes,
+            content_type=content_type,
+        )
+        return await self.nats.send_workflow_and_wait(
+            target_cluster=target_cluster,
+            agent_id=agent_id,
+            target_instance_id=target_instance_id,
+            payload=control_payload,
+            operation=operation,
+            local_cluster=local_cluster,
             reply_subject=reply_subject,
             timeout_sec=timeout_sec,
         )

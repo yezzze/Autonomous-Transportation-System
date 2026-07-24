@@ -31,15 +31,35 @@ spec:
             - name: NATS_SERVERS
               value: "nats://nats:4222"
             - name: NATS_JETSTREAM_DOMAIN
-              value: "hub"
-            - name: NATS_STREAM_SUBJECTS
-              value: "workflow.>"
+              value: "__EDGE_CLUSTER_ID__"
+            - name: NATS_WORKFLOW_STREAM_PREFIX
+              value: "WF"
+            - name: NATS_STREAM_MAX_BYTES
+              value: "512MiB"
+            - name: NATS_STREAM_DISCARD
+              value: "new"
+            - name: NATS_STREAM_RETENTION
+              value: "workqueue"
             - name: CLUSTER_ID
               value: "__EDGE_CLUSTER_ID__"
-            - name: IN_SUBJECT
-              value: "workflow.__EDGE_CLUSTER_ID__.agent.b.in"
-            - name: C_IN_SUBJECT
-              value: "workflow.__EDGE_CLUSTER_ID__.agent.c.in"
+            - name: AGENT_ID
+              value: "b"
+            - name: AGENT_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TARGET_C_CLUSTER_ID
+              value: "__EDGE_CLUSTER_ID__"
+            - name: TARGET_C_AGENT_ID
+              value: "c"
+            - name: TARGET_C_INSTANCE_ID
+              value: "__AGENT_C_INSTANCE_ID__"
+            - name: NATS_STREAM_PROVISION_TIMEOUT_SEC
+              value: "120"
             - name: NATS_CONTROL_MAX_BYTES
               value: "1048576"
             - name: NATS_BINARY_MAX_BYTES

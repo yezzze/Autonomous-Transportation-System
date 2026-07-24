@@ -6,7 +6,7 @@
 
 1. 进程启动时创建并连接。
 2. 所有帧和任务共用该实例。
-3. `serve()` 在进程生命周期内只启动一次。
+3. `serve_workflow()` 在进程生命周期内只启动一次。
 4. 进程退出时调用 `close()`。
 
 不要在单帧处理函数、HTTP handler、gRPC方法或模型推理函数内部创建通信实例，
@@ -20,6 +20,7 @@ asyncio事件循环。
 
 ```python
 import asyncio
+import os
 
 from runtime_api import FrameComm
 
@@ -32,8 +33,11 @@ class Agent:
         await self.comm.nats.connect()
 
     async def infer(self, frame_path, workflow_id):
-        return await self.comm.send_and_wait(
-            subject="workflow.edge.agent.in",
+        return await self.comm.send_workflow_and_wait(
+            target_cluster=self.target_cluster,
+            agent_id=self.target_agent_id,
+            target_instance_id=self.target_instance_id,
+            local_cluster=self.local_cluster,
             payload={"workflow_id": workflow_id},
             frame_path=frame_path,
             content_type="application/octet-stream",
@@ -57,11 +61,11 @@ async def main():
 asyncio.run(main())
 ```
 
-`FrameComm.send_and_wait()`会依次完成：
+`FrameComm.send_workflow_and_wait()`会依次完成：
 
 1. 通过复用的gRPC channel上传帧。
 2. 只把`frame_ref`写入JetStream任务消息。
-3. 自动创建不属于WORKFLOW Stream的`_INBOX`回复subject。
+3. 自动创建不属于实例 Stream 的`_INBOX`回复subject。
 4. 收到一条Core NATS回复或超时后注销临时订阅。
 
 业务代码不要再手工执行`send() + receive(durable=None)`。
@@ -81,9 +85,11 @@ async def main():
         )
 
     try:
-        await comm.serve(
-            subject="workflow.edge.agent.in",
-            durable="actual-agent-consumer",
+        await comm.serve_workflow(
+            agent_id=os.environ["AGENT_ID"],
+            instance_id=os.environ["AGENT_INSTANCE_ID"],
+            local_cluster=os.environ["CLUSTER_ID"],
+            durable=os.environ["AGENT_INSTANCE_ID"],
             handler=handler,
             max_inflight=1,
             download_frames=True,
@@ -93,7 +99,8 @@ async def main():
         await comm.close()
 ```
 
-`serve()`内部会缓存并复用同一个durable pull subscription。回复必须发布到请求
+`serve_workflow()`内部会缓存并复用 local/global 两个 durable pull
+subscription。回复必须发布到请求
 payload携带的`reply_subject`，不要自行拼接`workflow.*.reply.*`。
 
 ## 同步gRPC或线程模型

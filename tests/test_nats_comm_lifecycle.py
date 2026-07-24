@@ -1,6 +1,6 @@
 import json
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 from nats.errors import TimeoutError as NatsTimeoutError
 
@@ -123,12 +123,16 @@ class FrameCommLifecycleTest(unittest.IsolatedAsyncioTestCase):
         }
         comm = FrameComm(nats=nats, transport=transport)
 
-        reply = await comm.send_and_wait(
-            "workflow.tasks",
-            {"workflow_id": "wf-frame"},
-            frame_bytes=b"abc",
-            timeout_sec=10,
-        )
+        with patch(
+            "runtime_api.frame_comm.asyncio.to_thread",
+            new=AsyncMock(side_effect=lambda fn, *args: fn(*args)),
+        ):
+            reply = await comm.send_and_wait(
+                "workflow.tasks",
+                {"workflow_id": "wf-frame"},
+                frame_bytes=b"abc",
+                timeout_sec=10,
+            )
 
         self.assertEqual(reply, {"result": "ok"})
         transport.upload_bytes.assert_called_once_with(
@@ -141,6 +145,33 @@ class FrameCommLifecycleTest(unittest.IsolatedAsyncioTestCase):
                 "workflow_id": "wf-frame",
                 "frame_ref": transport.upload_bytes.return_value,
             },
+            reply_subject=None,
+            timeout_sec=10,
+        )
+
+    async def test_send_workflow_and_wait_routes_to_instance(self):
+        nats = AsyncMock()
+        nats.send_workflow_and_wait.return_value = {"result": "ok"}
+        transport = Mock()
+        comm = FrameComm(nats=nats, transport=transport)
+
+        reply = await comm.send_workflow_and_wait(
+            target_cluster="edge-b",
+            agent_id="detector",
+            target_instance_id="pod-uid-b",
+            local_cluster="edge-a",
+            payload={"workflow_id": "wf-frame"},
+            timeout_sec=10,
+        )
+
+        self.assertEqual(reply, {"result": "ok"})
+        nats.send_workflow_and_wait.assert_awaited_once_with(
+            target_cluster="edge-b",
+            agent_id="detector",
+            target_instance_id="pod-uid-b",
+            payload={"workflow_id": "wf-frame"},
+            operation="in",
+            local_cluster="edge-a",
             reply_subject=None,
             timeout_sec=10,
         )

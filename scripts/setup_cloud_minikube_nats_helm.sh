@@ -12,17 +12,18 @@ NAMESPACE="${NATS_CLOUD_NAMESPACE:-nats-cloud}"
 RELEASE="${NATS_CLOUD_RELEASE:-nats-hub}"
 CHART_VERSION="${NATS_CHART_VERSION:-2.14.0}"
 VALUES_FILE="${NATS_CLOUD_VALUES:-${REPO_ROOT}/k8s/helm/nats-cloud-values.yaml}"
-STREAM="${NATS_STREAM:-WORKFLOW}"
-STREAM_SUBJECTS="${NATS_STREAM_SUBJECTS:-workflow.>}"
-STREAM_MAX_BYTES="${NATS_STREAM_MAX_BYTES:-512MiB}"
-STREAM_MAX_AGE="${NATS_STREAM_MAX_AGE:-5m}"
-STREAM_MAX_MSGS="${NATS_STREAM_MAX_MSGS:-128}"
-STREAM_MAX_MSGS_PER_SUBJECT="${NATS_STREAM_MAX_MSGS_PER_SUBJECT:-1}"
-STREAM_DISCARD="${NATS_STREAM_DISCARD:-old}"
-STREAM_RETENTION="${NATS_STREAM_RETENTION:-limits}"
+STREAM="${NATS_STREAM:-WORKFLOW_LEGACY}"
+STREAM_SUBJECTS="${NATS_STREAM_SUBJECTS:-legacy.workflow.>}"
+STREAM_MAX_BYTES="${NATS_STREAM_MAX_BYTES:-5GiB}"
+STREAM_MAX_AGE="${NATS_STREAM_MAX_AGE:-24h}"
+STREAM_MAX_MSGS="${NATS_STREAM_MAX_MSGS:--1}"
+STREAM_MAX_MSGS_PER_SUBJECT="${NATS_STREAM_MAX_MSGS_PER_SUBJECT:--1}"
+STREAM_DISCARD="${NATS_STREAM_DISCARD:-new}"
+STREAM_RETENTION="${NATS_STREAM_RETENTION:-workqueue}"
 STREAM_STORAGE="${NATS_STREAM_STORAGE:-file}"
 CONSUMER_MAX_INACTIVE="${NATS_CONSUMER_MAX_INACTIVE:-10m}"
-CLEAN_CONSUMERS_ON_START="${NATS_CLEAN_CONSUMERS_ON_START:-true}"
+CLEAN_CONSUMERS_ON_START="${NATS_CLEAN_CONSUMERS_ON_START:-false}"
+CREATE_CLOUD_WORKFLOW_STREAM="${NATS_CREATE_CLOUD_WORKFLOW_STREAM:-false}"
 
 if ! command -v "${HELM}" >/dev/null 2>&1; then
   if [[ -x "${HOME}/.local/bin/helm" ]]; then
@@ -59,7 +60,8 @@ echo "[cloud-nats] cluster_a_host=${CLUSTER_A_HOST} leaf_password=(from cluster.
   -f "${tmp_values}"
 
 kubectl rollout status -n "${NAMESPACE}" statefulset/"${RELEASE}" --timeout=300s
-if kubectl get deploy -n "${NAMESPACE}" "${RELEASE}-box" >/dev/null 2>&1; then
+if [[ "${CREATE_CLOUD_WORKFLOW_STREAM}" == "true" ]] \
+  && kubectl get deploy -n "${NAMESPACE}" "${RELEASE}-box" >/dev/null 2>&1; then
   kubectl rollout status -n "${NAMESPACE}" deploy/"${RELEASE}-box" --timeout=300s
 
   echo "[cloud-nats] ensuring stream=${STREAM} subjects=${STREAM_SUBJECTS} max_age=${STREAM_MAX_AGE} max_bytes=${STREAM_MAX_BYTES}"
@@ -128,7 +130,7 @@ if kubectl get deploy -n "${NAMESPACE}" "${RELEASE}-box" >/dev/null 2>&1; then
     "${CLEAN_CONSUMERS_ON_START}" \
     "nats://${RELEASE}:4222"
 else
-  echo "[cloud-nats] warning: deploy/${RELEASE}-box not found; skip stream/consumer cleanup" >&2
+  echo "[cloud-nats] skip shared WORKFLOW stream; each Agent Pod owns a stream in its edge domain"
 fi
 
 kubectl get pods,svc,pvc -n "${NAMESPACE}"

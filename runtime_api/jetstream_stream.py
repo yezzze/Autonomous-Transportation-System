@@ -35,11 +35,11 @@ JetStream Stream 配置管理
 
 环境变量
 --------
-    NATS_STREAM              流名称（默认 WORKFLOW）
-    NATS_STREAM_SUBJECTS     流主题，逗号分隔（默认 workflow.>）
-    NATS_STREAM_MAX_BYTES    最大大小 5GB / 512MiB（默认 5GB）
-    NATS_STREAM_DISCARD      淘汰策略 old / new（默认 old）
-    NATS_STREAM_RETENTION    保留策略 limits / interest / workqueue（默认 limits）
+    NATS_STREAM              兼容模式流名称（默认 WORKFLOW）
+    NATS_STREAM_SUBJECTS     流主题，逗号分隔（默认 legacy.workflow.>）
+    NATS_STREAM_MAX_BYTES    最大大小（默认 512MiB）
+    NATS_STREAM_DISCARD      淘汰策略 old / new（默认 new）
+    NATS_STREAM_RETENTION    保留策略 limits / interest / workqueue（默认 workqueue）
     NATS_STREAM_STORAGE      存储类型 file / memory（默认 file）
 """
 
@@ -59,9 +59,9 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # 默认配置常量
 # ============================================================
-_DEFAULT_MAX_BYTES = "5GB"        # 流存储上限
-_DEFAULT_DISCARD = "old"           # 超出限制时丢弃旧消息
-_DEFAULT_RETENTION = "limits"      # 基于大小/数量的限制保留
+_DEFAULT_MAX_BYTES = "512MiB"      # 每实例流存储上限
+_DEFAULT_DISCARD = "new"           # 满载时拒绝新消息，让发布方显式感知
+_DEFAULT_RETENTION = "workqueue"   # ACK 后删除，未处理消息保留
 _DEFAULT_STORAGE = "file"          # 文件存储（持久化）
 
 
@@ -94,7 +94,7 @@ def parse_bytes(value: str) -> int:
         parse_bytes("5GiB")   → 5368709120 （二进制 GiB）
         parse_bytes("512MiB") → 536870912
         parse_bytes("1000")   → 1000
-        parse_bytes("")       → 5368709120 （默认 5GB）
+        parse_bytes("")       → 5368709120 （工具函数兼容默认值）
     """
     raw = (value or "").strip()
     if not raw:
@@ -148,11 +148,11 @@ def stream_subjects_from_env() -> List[str]:
     返回
     ----
     List[str]
-        主题列表，默认 ["workflow.>"]
+        主题列表，默认 ["legacy.workflow.>"]
     """
-    raw = os.getenv("NATS_STREAM_SUBJECTS", "workflow.>")
+    raw = os.getenv("NATS_STREAM_SUBJECTS", "legacy.workflow.>")
     subjects = [item.strip() for item in raw.split(",") if item.strip()]
-    return subjects or ["workflow.>"]
+    return subjects or ["legacy.workflow.>"]
 
 
 # ============================================================
@@ -230,9 +230,9 @@ def build_stream_config(
     基于环境变量构建完整的 StreamConfig。
 
     配置来源（优先级: 环境变量 > 内部默认值）:
-        - max_bytes : NATS_STREAM_MAX_BYTES → 默认 5GB
-        - discard   : NATS_STREAM_DISCARD   → 默认 old
-        - retention : NATS_STREAM_RETENTION → 默认 limits
+        - max_bytes : NATS_STREAM_MAX_BYTES → 默认 512MiB
+        - discard   : NATS_STREAM_DISCARD   → 默认 new
+        - retention : NATS_STREAM_RETENTION → 默认 workqueue
         - storage   : 传入参数 或 NATS_STREAM_STORAGE → 默认 file
 
     参数
@@ -305,6 +305,7 @@ async def ensure_jetstream_stream(
     name: Optional[str] = None,
     subjects: Optional[List[str]] = None,
     storage: Optional[str] = None,
+    replace_subjects: bool = False,
 ) -> Dict[str, Any]:
     """
     确保 JetStream 流存在，不存在则自动创建，存在则更新配置。
@@ -324,6 +325,8 @@ async def ensure_jetstream_stream(
         流主题列表，不传则从环境变量 NATS_STREAM_SUBJECTS 读取
     storage : Optional[str]
         存储类型 "file" / "memory"
+    replace_subjects : bool
+        True 时使用传入 subjects 精确替换现有主题；实例隔离 Stream 应启用
 
     返回
     ----
@@ -388,11 +391,14 @@ async def ensure_jetstream_stream(
 
     # 流已存在 → 检查并更新配置
     current = list(getattr(getattr(info, "config", None), "subjects", None) or [])
-    merged = merge_stream_subjects(current, required)
-    config = build_stream_config(stream, merged, storage=storage)
+    final_subjects = required if replace_subjects else merge_stream_subjects(
+        current,
+        required,
+    )
+    config = build_stream_config(stream, final_subjects, storage=storage)
 
     await apply_stream_config(js, config)
-    updated = merged != current or (
+    updated = final_subjects != current or (
         getattr(info.config, "max_bytes", None) != config.max_bytes
         or str(getattr(info.config, "discard", "")) != str(config.discard)
     )
@@ -400,14 +406,14 @@ async def ensure_jetstream_stream(
         logger.info(
             "updated JetStream stream %s subjects=%s max_bytes=%s discard=%s",
             stream,
-            merged,
+            final_subjects,
             config.max_bytes,
             config.discard,
         )
     return {
         "created": False,
         "updated": updated,
-        "subjects": merged,
+        "subjects": final_subjects,
         "max_bytes": config.max_bytes,
         "discard": str(config.discard),
     }

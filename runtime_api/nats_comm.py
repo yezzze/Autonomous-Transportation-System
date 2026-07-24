@@ -68,8 +68,9 @@ NATS 集群的部署、连接管理和流的生命周期。
 --------
     NATS_SERVERS              NATS 集群地址（默认 nats://nats:4222）
     NATS_STREAM               默认流名称（默认 WORKFLOW）
-    NATS_STREAM_SUBJECTS      默认流主题（默认 workflow.>）
+    NATS_STREAM_SUBJECTS      兼容流主题（默认 legacy.workflow.>）
     NATS_JETSTREAM_DOMAIN     JetStream 域（默认 hub）
+    NATS_WORKFLOW_STREAM_PREFIX 每实例 Stream 名称前缀（默认 WF）
     NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
     NATS_SEND_DELAY_FILE      运行时延迟配置文件（默认 /tmp/nats_send_delay_seconds）
     NATS_CONTROL_MAX_BYTES    NATS 控制消息上限（默认 1MiB）
@@ -84,6 +85,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -92,6 +94,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 from nats.aio.client import Client as NATS
 from nats.errors import TimeoutError as NatsTimeoutError
 from nats.js.api import ConsumerConfig
+from nats.js.errors import NotFoundError
 from runtime_api.jetstream_stream import ensure_jetstream_stream
 
 logger = logging.getLogger(__name__)
@@ -313,6 +316,10 @@ class NatsComm:
         self.stream = stream or os.environ.get("NATS_STREAM", "WORKFLOW")
         self.stream_subjects = stream_subjects or self._stream_subjects_from_env()
         self.jetstream_domain = jetstream_domain or os.environ.get("NATS_JETSTREAM_DOMAIN", "hub")
+        self.workflow_stream_prefix = os.environ.get(
+            "NATS_WORKFLOW_STREAM_PREFIX",
+            "WF",
+        )
         self.send_delay = self._parse_delay_seconds(
             str(send_delay) if send_delay is not None else os.environ.get("NATS_SEND_DELAY_SECONDS"),
             default=0.0,
@@ -356,16 +363,24 @@ class NatsComm:
             raise ValueError("NATS_BINARY_PENDING_BYTES must be positive")
         self._nc = NATS()
         self._js = None
+        self._routed_js: Dict[str, Any] = {}
+        self._routed_streams_ready: Set[str] = set()
         self._connect_lock = asyncio.Lock()
+        self._routed_stream_lock = asyncio.Lock()
         self._pull_subscription_lock = asyncio.Lock()
-        self._pull_subscriptions: Dict[Tuple[str, str], Any] = {}
+        self._pull_subscriptions: Dict[Tuple[str, str, str], Any] = {}
         self._binary_subscription_lock = asyncio.Lock()
         self._binary_subscriptions: Dict[Tuple[str, str], Any] = {}
         self.ephemeral_consumer_inactive_sec = float(
             os.environ.get("NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC", "30")
         )
+        self.stream_provision_timeout_sec = float(
+            os.environ.get("NATS_STREAM_PROVISION_TIMEOUT_SEC", "120")
+        )
         if self.ephemeral_consumer_inactive_sec <= 0:
             raise ValueError("NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC must be positive")
+        if self.stream_provision_timeout_sec <= 0:
+            raise ValueError("NATS_STREAM_PROVISION_TIMEOUT_SEC must be positive")
 
     def _encode_control_payload(self, payload: Dict[str, Any]) -> bytes:
         encoded = json.dumps(payload, separators=(",", ":")).encode()
@@ -409,9 +424,9 @@ class NatsComm:
         返回
         ----
         List[str]
-            主题列表，默认 ["workflow.>"]
+            主题列表，默认 ["legacy.workflow.>"]
         """
-        raw = os.environ.get("NATS_STREAM_SUBJECTS", "workflow.>")
+        raw = os.environ.get("NATS_STREAM_SUBJECTS", "legacy.workflow.>")
         return [item.strip() for item in raw.split(",") if item.strip()]
 
     @staticmethod
@@ -473,6 +488,80 @@ class NatsComm:
         if self.jetstream_domain:
             return self._nc.jetstream(domain=self.jetstream_domain)
         return self._nc.jetstream()
+
+    @staticmethod
+    def _workflow_route(
+        subject: str,
+    ) -> Optional[Tuple[str, str, str, str]]:
+        tokens = subject.split(".")
+        if (
+            len(tokens) < 8
+            or tokens[0] != "workflow"
+            or tokens[1] not in {"local", "global"}
+            or tokens[3] != "agent"
+            or tokens[5] != "instance"
+        ):
+            return None
+        return (
+            tokens[1],
+            _subject_token(tokens[2], "target_cluster"),
+            _subject_token(tokens[4], "agent_id"),
+            NatsComm._instance_id(tokens[6]),
+        )
+
+    @staticmethod
+    def _instance_id(instance_id: Optional[str] = None) -> str:
+        configured = (
+            instance_id
+            or os.environ.get("AGENT_INSTANCE_ID")
+            or os.environ.get("POD_UID")
+            or ""
+        )
+        token = _subject_token(configured, "instance_id")
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", token):
+            raise ValueError(
+                "instance_id may contain only ASCII letters, digits, '-' and '_'"
+            )
+        return token
+
+    def workflow_stream_name(self, instance_id: str) -> str:
+        instance = self._instance_id(instance_id)
+        prefix = self.workflow_stream_prefix.strip()
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", prefix):
+            raise ValueError(
+                "NATS_WORKFLOW_STREAM_PREFIX may contain only ASCII letters, "
+                "digits, '-' and '_'"
+            )
+        return f"{prefix}_{instance}"
+
+    @staticmethod
+    def workflow_stream_subjects(
+        cluster_id: str,
+        agent_id: str,
+        instance_id: str,
+    ) -> Tuple[str, str]:
+        cluster = _subject_token(cluster_id, "cluster_id")
+        agent = _subject_token(agent_id, "agent_id")
+        instance = NatsComm._instance_id(instance_id)
+        return (
+            f"workflow.local.{cluster}.agent.{agent}.instance.{instance}.>",
+            f"workflow.global.{cluster}.agent.{agent}.instance.{instance}.>",
+        )
+
+    async def _jetstream_for_subject(self, subject: str):
+        route = self._workflow_route(subject)
+        if route is None:
+            await self.connect()
+            return self._js, "legacy"
+
+        _, target_cluster, _, instance_id = route
+        await self.connect(ensure_stream=False)
+        async with self._routed_stream_lock:
+            js = self._routed_js.get(target_cluster)
+            if js is None:
+                js = self._nc.jetstream(domain=target_cluster)
+                self._routed_js[target_cluster] = js
+            return js, self.workflow_stream_name(instance_id)
 
     async def connect(self, ensure_stream: bool = True) -> None:
         """
@@ -594,13 +683,13 @@ class NatsComm:
             })
             print(f"已发布: stream={result['stream']}, seq={result['seq']}")
         """
-        await self.connect()
+        js, _ = await self._jetstream_for_subject(subject)
         # 模拟网络时延
         send_delay = self.get_send_delay()
         if send_delay > 0:
             await asyncio.sleep(send_delay)
         encoded = self._encode_control_payload(payload)
-        ack = await self._js.publish(subject, encoded)
+        ack = await js.publish(subject, encoded)
         return {
             "subject": subject,
             "stream": ack.stream,
@@ -655,8 +744,13 @@ class NatsComm:
                 print(f"[{msg.subject}] seq={msg.stream_seq}: {msg.payload}")
                 await msg.ack()  # 手动确认
         """
-        await self.connect()
-        sub = await self._get_pull_subscription(subject, durable)
+        js, namespace = await self._jetstream_for_subject(subject)
+        sub = await self._get_pull_subscription(
+            subject,
+            durable,
+            js=js,
+            namespace=namespace,
+        )
 
         try:
             raw_messages = await sub.fetch(batch, timeout=timeout_sec)
@@ -693,22 +787,29 @@ class NatsComm:
 
         return messages
 
-    async def _get_pull_subscription(self, subject: str, durable: Optional[str]):
+    async def _get_pull_subscription(
+        self,
+        subject: str,
+        durable: Optional[str],
+        js=None,
+        namespace: str = "legacy",
+    ):
+        context = js or self._js
         if durable is None:
             config = ConsumerConfig(
                 inactive_threshold=self.ephemeral_consumer_inactive_sec
             )
-            return await self._js.pull_subscribe(
+            return await context.pull_subscribe(
                 subject,
                 durable=None,
                 config=config,
             )
 
-        key = (subject, durable)
+        key = (namespace, subject, durable)
         async with self._pull_subscription_lock:
             subscription = self._pull_subscriptions.get(key)
             if subscription is None:
-                subscription = await self._js.pull_subscribe(
+                subscription = await context.pull_subscribe(
                     subject,
                     durable=durable,
                 )
@@ -838,6 +939,50 @@ class NatsComm:
             if pending:
                 await asyncio.gather(*pending, return_exceptions=True)
 
+    async def serve_workflow(
+        self,
+        agent_id: str,
+        durable: str,
+        handler: Callable[[Dict[str, Any]], Any],
+        operation: str = "in",
+        local_cluster: Optional[str] = None,
+        instance_id: Optional[str] = None,
+        poll_timeout_sec: float = 5.0,
+        max_inflight: int = 1,
+        ack_progress_interval_sec: float = 10.0,
+    ) -> None:
+        """在同一连接上同时消费本地和跨集群持久化工作流消息。"""
+        await self.wait_workflow_stream(
+            agent_id=agent_id,
+            local_cluster=local_cluster,
+            instance_id=instance_id,
+        )
+        subjects = self.workflow_subscription_subjects(
+            agent_id=agent_id,
+            operation=operation,
+            local_cluster=local_cluster,
+            instance_id=instance_id,
+        )
+        tasks = [
+            asyncio.create_task(
+                self.serve(
+                    subject=subject,
+                    durable=f"{durable}-{scope}",
+                    handler=handler,
+                    poll_timeout_sec=poll_timeout_sec,
+                    max_inflight=max_inflight,
+                    ack_progress_interval_sec=ack_progress_interval_sec,
+                )
+            )
+            for scope, subject in zip(("local", "global"), subjects)
+        ]
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
     @staticmethod
     def _local_cluster(local_cluster: Optional[str] = None) -> str:
         configured = local_cluster or os.environ.get("CLUSTER_ID", "")
@@ -862,6 +1007,170 @@ class NatsComm:
         scope = "local" if target == source_cluster else "global"
         return f"frame.{scope}.{target}.{agent}.{action}"
 
+    def workflow_subject(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        target_instance_id: str,
+        operation: str = "in",
+        local_cluster: Optional[str] = None,
+    ) -> str:
+        """根据目标集群生成本地或跨集群持久化工作流 subject。"""
+        source_cluster = self._local_cluster(local_cluster)
+        target = _subject_token(target_cluster, "target_cluster")
+        agent = _subject_token(agent_id, "agent_id")
+        instance = self._instance_id(target_instance_id)
+        action = _subject_token(operation, "operation")
+        scope = "local" if target == source_cluster else "global"
+        return (
+            f"workflow.{scope}.{target}.agent.{agent}."
+            f"instance.{instance}.{action}"
+        )
+
+    def workflow_subscription_subjects(
+        self,
+        agent_id: str,
+        operation: str = "in",
+        local_cluster: Optional[str] = None,
+        instance_id: Optional[str] = None,
+    ) -> Tuple[str, str]:
+        """返回当前 Agent 应消费的 local/global 持久化工作流 subject。"""
+        cluster = self._local_cluster(local_cluster)
+        agent = _subject_token(agent_id, "agent_id")
+        instance = self._instance_id(instance_id)
+        action = _subject_token(operation, "operation")
+        return (
+            f"workflow.local.{cluster}.agent.{agent}.instance.{instance}.{action}",
+            f"workflow.global.{cluster}.agent.{agent}.instance.{instance}.{action}",
+        )
+
+    async def provision_workflow_stream(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        instance_id: str,
+    ) -> Dict[str, Any]:
+        """由编排器为目标实例创建或复用唯一的持久化 Stream。"""
+        cluster = _subject_token(target_cluster, "target_cluster")
+        agent = _subject_token(agent_id, "agent_id")
+        instance = self._instance_id(instance_id)
+        subject = (
+            f"workflow.global.{cluster}.agent.{agent}."
+            f"instance.{instance}.in"
+        )
+        js, stream = await self._jetstream_for_subject(subject)
+        async with self._routed_stream_lock:
+            subjects = list(
+                self.workflow_stream_subjects(cluster, agent, instance)
+            )
+            await ensure_jetstream_stream(
+                js,
+                name=stream,
+                subjects=subjects,
+                replace_subjects=True,
+            )
+            self._routed_streams_ready.add(stream)
+        return {
+            "stream": stream,
+            "domain": cluster,
+            "agent_id": agent,
+            "instance_id": instance,
+            "subjects": list(
+                self.workflow_stream_subjects(cluster, agent, instance)
+            ),
+        }
+
+    async def wait_workflow_stream(
+        self,
+        agent_id: str,
+        instance_id: Optional[str] = None,
+        local_cluster: Optional[str] = None,
+        timeout_sec: Optional[float] = None,
+        poll_interval_sec: float = 0.5,
+    ) -> Dict[str, Any]:
+        """等待编排器创建当前实例的 Stream，不在 Agent 侧创建资源。"""
+        cluster = self._local_cluster(local_cluster)
+        agent = _subject_token(agent_id, "agent_id")
+        instance = self._instance_id(instance_id)
+        stream = self.workflow_stream_name(instance)
+        expected_subjects = set(
+            self.workflow_stream_subjects(cluster, agent, instance)
+        )
+        timeout = (
+            self.stream_provision_timeout_sec
+            if timeout_sec is None
+            else float(timeout_sec)
+        )
+        if timeout <= 0:
+            raise ValueError("timeout_sec must be positive")
+        if poll_interval_sec <= 0:
+            raise ValueError("poll_interval_sec must be positive")
+
+        await self.connect(ensure_stream=False)
+        async with self._routed_stream_lock:
+            js = self._routed_js.get(cluster)
+            if js is None:
+                js = self._nc.jetstream(domain=cluster)
+                self._routed_js[cluster] = js
+
+        deadline = time.monotonic() + timeout
+        last_error: Optional[Exception] = None
+        while True:
+            try:
+                info = await js.stream_info(stream)
+                actual_subjects = set(info.config.subjects or [])
+                if actual_subjects != expected_subjects:
+                    raise RuntimeError(
+                        f"Stream {stream} subjects mismatch: "
+                        f"expected={sorted(expected_subjects)}, "
+                        f"actual={sorted(actual_subjects)}"
+                    )
+                self._routed_streams_ready.add(stream)
+                return {
+                    "stream": stream,
+                    "domain": cluster,
+                    "agent_id": agent,
+                    "instance_id": instance,
+                    "subjects": sorted(actual_subjects),
+                }
+            except NotFoundError as exc:
+                last_error = exc
+            except RuntimeError:
+                raise
+            except Exception as exc:
+                last_error = exc
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"timed out waiting for orchestrator to provision "
+                    f"Stream {stream} in domain {cluster}"
+                ) from last_error
+            await asyncio.sleep(min(poll_interval_sec, remaining))
+
+    async def delete_workflow_stream(
+        self,
+        target_cluster: str,
+        instance_id: str,
+    ) -> bool:
+        """由编排器删除已结束实例的 Stream、consumer及未处理消息。"""
+        cluster = _subject_token(target_cluster, "target_cluster")
+        instance = self._instance_id(instance_id)
+        await self.connect(ensure_stream=False)
+        async with self._routed_stream_lock:
+            js = self._routed_js.get(cluster)
+            if js is None:
+                js = self._nc.jetstream(domain=cluster)
+                self._routed_js[cluster] = js
+            stream = self.workflow_stream_name(instance)
+            try:
+                await js.delete_stream(stream)
+                deleted = True
+            except NotFoundError:
+                deleted = False
+            self._routed_streams_ready.discard(stream)
+            return deleted
+
     def frame_subscription_subjects(
         self,
         agent_id: str,
@@ -875,6 +1184,51 @@ class NatsComm:
         return (
             f"frame.local.{cluster}.{agent}.{action}",
             f"frame.global.{cluster}.{agent}.{action}",
+        )
+
+    async def send_workflow(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        target_instance_id: str,
+        payload: Dict[str, Any],
+        operation: str = "in",
+        local_cluster: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """自动选择 local/global JetStream 并发送持久化工作流消息。"""
+        subject = self.workflow_subject(
+            target_cluster=target_cluster,
+            agent_id=agent_id,
+            target_instance_id=target_instance_id,
+            operation=operation,
+            local_cluster=local_cluster,
+        )
+        return await self.send(subject, payload)
+
+    async def send_workflow_and_wait(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        target_instance_id: str,
+        payload: Dict[str, Any],
+        operation: str = "in",
+        local_cluster: Optional[str] = None,
+        reply_subject: Optional[str] = None,
+        timeout_sec: float = 30.0,
+    ) -> Dict[str, Any]:
+        """自动选择 local/global JetStream，持久化任务并等待 Core NATS 回复。"""
+        subject = self.workflow_subject(
+            target_cluster=target_cluster,
+            agent_id=agent_id,
+            target_instance_id=target_instance_id,
+            operation=operation,
+            local_cluster=local_cluster,
+        )
+        return await self.send_and_wait(
+            subject=subject,
+            payload=payload,
+            reply_subject=reply_subject,
+            timeout_sec=timeout_sec,
         )
 
     async def publish_bytes(
@@ -1152,7 +1506,7 @@ class NatsComm:
         """
         if timeout_sec <= 0:
             raise ValueError("timeout_sec must be positive")
-        await self.connect()
+        await self.connect(ensure_stream=False)
         reply_subject = reply_subject or self._nc.new_inbox()
         request_payload = dict(payload)
         configured_reply = request_payload.get("reply_subject")

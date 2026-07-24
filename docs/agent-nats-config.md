@@ -1,298 +1,191 @@
-# Agent NATS 接入配置
+# Agent 实例 NATS 配置与编排
 
-本文档说明新的 Agent 如何接入当前的云边 NATS 通信方案。
+## 1. 编排器负责的生命周期
 
-当前通信拓扑：
+一次 Agent 实例启动按以下顺序执行：
 
-```text
-Agent Pod
-  -> 本集群 Service/nats:4222
-  -> 本集群 NATS leafnode
-  -> 云端 NATS Hub
-  -> JetStream domain: hub
-```
+1. 编排器创建 Pod。
+2. 从 Kubernetes API 读取 `metadata.uid`。
+3. 在目标边缘 JetStream domain 创建 `WF_<pod-uid>`。
+4. Stream 同时绑定该实例的 local/global 工作流 subject。
+5. 将实例登记为 Ready，并把
+   `cluster_id + agent_id + pod_uid` 写入工作流路由表。
+6. 调用方按路由表发送到精确实例。
 
-Agent 不需要知道云端 IP，也不需要知道其他集群的 IP。跨集群路由只通过 NATS subject 完成。
+实例结束按以下顺序执行：
 
-## 必需环境变量
+1. 从路由表移除实例，停止新任务进入。
+2. 等待正在执行的任务完成或达到终止期限。
+3. 删除 `WF_<pod-uid>`。
+4. 删除 Pod 和其他实例资源。
 
-每个 Agent 都应配置：
+异常退出时，控制器或定时 reaper 应比较存量 `WF_<uid>` 与当前 Pod UID，
+删除不再存在且超过保护期的孤儿 Stream。
 
-```yaml
-- name: NATS_SERVERS
-  value: "nats://nats:4222"
-- name: NATS_JETSTREAM_DOMAIN
-  value: "hub"
-- name: NATS_STREAM_SUBJECTS
-  value: "workflow.>"
-- name: CLUSTER_ID
-  value: "<edge-cluster-id>"
-- name: AGENT_ID
-  value: "<agent-id>"
-```
+## 2. Python 管理接口
 
-示例：
-
-```yaml
-- name: NATS_SERVERS
-  value: "nats://nats:4222"
-- name: NATS_JETSTREAM_DOMAIN
-  value: "hub"
-- name: NATS_STREAM_SUBJECTS
-  value: "workflow.>"
-- name: CLUSTER_ID
-  value: "edge-a"
-- name: AGENT_ID
-  value: "agent-d"
-```
-
-## Subject 命名
-
-统一格式：
-
-```text
-workflow.<cluster-id>.<agent-id>.in
-```
-
-示例：
-
-```text
-workflow.edge-a.agent.d.in
-workflow.edge-b.agent.d.in
-workflow.edge-a.perception.in
-workflow.edge-b.planner.in
-```
-
-建议 Agent 将自己的输入 subject 配成环境变量：
-
-```yaml
-- name: IN_SUBJECT
-  value: "workflow.edge-a.agent.d.in"
-```
-
-如果 Agent 需要把请求转发给其他 Agent，也把目标 subject 配成环境变量：
-
-```yaml
-- name: NEXT_SUBJECT
-  value: "workflow.edge-a.agent.e.in"
-```
-
-## 回复约定
-
-请求方调用`send_and_wait()`：
+编排器进程复用一个 `NatsComm`：
 
 ```python
-reply = await comm.send_and_wait(
-    "workflow.edge-a.agent.d.in",
-    {"workflow_id": "task-001", "text": "hello"},
-    timeout_sec=120,
-)
-```
-
-封装会自动在payload中加入`_INBOX.*`。处理完成后，Agent通过Core NATS发布到
-收到的`reply_subject`：
-
-```python
-await comm.publish_core(
-    data["reply_subject"],
-    {"workflow_id": data["workflow_id"], "result": "done"},
-)
-```
-
-## Python Agent 示例
-
-```python
-import asyncio
-import os
-
 from runtime_api import NatsComm
 
-IN_SUBJECT = os.environ["IN_SUBJECT"]
-DURABLE = os.environ.get("DURABLE", f"{os.environ.get('AGENT_ID', 'agent')}-consumer")
+comm = NatsComm()
 
+resource = await comm.provision_workflow_stream(
+    target_cluster="edge-a",
+    agent_id="detector",
+    instance_id=pod_uid,
+)
 
-async def main():
-    comm = NatsComm()
-
-    async def handler(data):
-        workflow_id = data["workflow_id"]
-        reply_subject = data.get("reply_subject")
-        text = data.get("text", "")
-
-        result = {
-            "workflow_id": workflow_id,
-            "result": f"processed: {text}",
-        }
-
-        if reply_subject:
-            await comm.publish_core(reply_subject, result)
-
-    try:
-        await comm.serve(
-            subject=IN_SUBJECT,
-            durable=DURABLE,
-            handler=handler,
-        )
-    finally:
-        await comm.close()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+deleted = await comm.delete_workflow_stream(
+    target_cluster="edge-a",
+    instance_id=pod_uid,
+)
 ```
 
-`comm`必须在进程启动时创建一次并由所有任务复用。请求方应使用
-`send_and_wait()`自动生成`_INBOX`，不要为每个工作流创建JetStream临时
-consumer。完整生命周期说明见
-[agent-connection-reuse.md](agent-connection-reuse.md)。
+创建操作按 Stream 名幂等；重复创建会校正 subject 和容量策略。删除操作也
+幂等，返回 `False` 表示 Stream 已不存在。
 
-## Deployment 模板
+## 3. 命令行管理入口
+
+在仓库根目录并激活 `k8s` conda 环境：
+
+```bash
+conda activate k8s
+
+python scripts/workflow_stream_admin.py \
+  --server nats://nats:4222 \
+  provision \
+  --cluster edge-a \
+  --agent detector \
+  --instance 8ecbd76e-84db-4f92-9af7-870de8a62211
+```
+
+删除：
+
+```bash
+python scripts/workflow_stream_admin.py \
+  --server nats://nats:4222 \
+  delete \
+  --cluster edge-a \
+  --instance 8ecbd76e-84db-4f92-9af7-870de8a62211
+```
+
+命令连接当前可达的本地 NATS，再通过 JetStream domain 访问目标边缘
+JetStream。`--cluster` 必须与该边缘 NATS 的 domain 一致。
+
+## 4. Subject 与 Stream
+
+```text
+workflow.local.<cluster>.agent.<agent-id>.instance.<pod-uid>.<operation>
+workflow.global.<cluster>.agent.<agent-id>.instance.<pod-uid>.<operation>
+```
+
+每个实例的 Stream：
+
+```text
+WF_<pod-uid>
+```
+
+绑定：
+
+```text
+workflow.local.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
+workflow.global.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
+```
+
+一个 Agent 类型有多个副本时，每个 Pod UID 对应不同 Stream。工作流调度器
+选择具体副本，不通过多个 Stream 竞争同一个 subject。
+
+## 5. Kubernetes 注入
+
+Agent 自身实例 ID：
 
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: agent-d
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: agent-d
-  template:
-    metadata:
-      labels:
-        app: agent-d
-    spec:
-      containers:
-        - name: agent-d
-          image: agent-d:latest
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: AGENT_ID
-              value: "agent-d"
-            - name: NATS_SERVERS
-              value: "nats://nats:4222"
-            - name: NATS_JETSTREAM_DOMAIN
-              value: "hub"
-            - name: NATS_STREAM_SUBJECTS
-              value: "workflow.>"
-            - name: CLUSTER_ID
-              value: "edge-a"
-            - name: IN_SUBJECT
-              value: "workflow.edge-a.agent.d.in"
-          resources:
-            requests:
-              cpu: "200m"
-              memory: "256Mi"
-            limits:
-              cpu: "1"
-              memory: "1Gi"
+- name: AGENT_ID
+  value: "detector"
+- name: AGENT_INSTANCE_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.uid
+- name: POD_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
 ```
 
-## 验证
+调用下游实例所需信息由编排器或工作流运行时提供：
 
-确认本集群 NATS 能访问云端 JetStream：
-
-```bash
-kubectl exec deploy/nats-box -- \
-  nats req '$JS.hub.API.INFO' '{}' \
-  --server nats://nats:4222
+```yaml
+- name: TARGET_CLUSTER_ID
+  value: "edge-b"
+- name: TARGET_AGENT_ID
+  value: "detector"
+- name: TARGET_INSTANCE_ID
+  value: "<target-pod-uid>"
 ```
 
-返回中应包含：
+示例 Deployment 中的 `__AGENT_B_INSTANCE_ID__`、
+`__AGENT_C_INSTANCE_ID__` 是编排器占位符，不能原样部署。
 
-```json
-"domain":"hub"
-```
+## 6. Stream 容量策略
 
-向 Agent 发测试消息：
-
-```bash
-kubectl exec deploy/nats-box -- \
-  nats pub workflow.edge-a.agent.d.in \
-  '{"workflow_id":"test-001","text":"hello","reply_subject":"manual.reply.test-001"}' \
-  --server nats://nats:4222
-```
-
-接收回复时，要先订阅再发送：
-
-```bash
-kubectl exec -it deploy/nats-box -- \
-  nats sub 'manual.reply.>' \
-  --server nats://nats:4222
-```
-
-如果消息已经发出，普通 `nats sub` 会错过历史消息。需要查历史时，应使用 JetStream consumer。
-
-## 常见问题
-
-### Agent 一直报 ServiceUnavailableError
-
-通常是 Agent 没有设置：
+默认单实例配置：
 
 ```text
-NATS_JETSTREAM_DOMAIN=hub
+max_bytes = 512MiB
+discard = new
+retention = workqueue
+storage = file
 ```
 
-或者镜像里包含的 `runtime_api` 不是最新版。
+工作流消息应小于 1MiB。512MiB 是等待消费和故障恢复的缓冲，不用于存帧。
+ACK 后 WorkQueue 消息删除。Stream 删除时，其消费者和未处理任务一起删除。
 
-处理方式：
-
-```bash
-docker build -f <agent>/Dockerfile -t <agent-image>:<new-tag> .
-minikube image load <agent-image>:<new-tag>
-kubectl set image deployment/<agent> <container>=<agent-image>:<new-tag>
-```
-
-### B 集群发给 A，B 没收到回复
-
-先在 A 集群看目标 Agent 日志：
-
-```bash
-kubectl logs deploy/agent-b --tail=120
-```
-
-如果 A 已经发布到：
+边缘 JetStream PVC 容量必须覆盖同时运行实例的实际积压量，不能简单按
+`实例数 * 512MiB` 全额预留，但必须监控：
 
 ```text
-_INBOX.<unique-token>
+jetstream_storage_used
+stream_bytes
+stream_messages
+consumer_num_pending
+consumer_num_ack_pending
 ```
 
-但 B 没收到，通常是 B 订阅晚了。实时验证时必须：
+## 7. 从旧共享 Stream 迁移
+
+升级前检查云端和边缘是否存在匹配 `workflow.>` 的共享 Stream。新架构中：
+
+- 云端 Hub 不得创建匹配 `workflow.local.>` 或 `workflow.global.>` 的 Stream。
+- 边缘不得保留覆盖所有 Agent 的共享 `WORKFLOW` Stream。
+- 旧 Stream 如继续匹配新 subject，会造成重复存储或发布歧义。
+
+迁移顺序：
+
+1. 暂停新工作流。
+2. 等待旧任务处理完成并备份必要状态。
+3. 删除或改名旧共享 Stream，使其只匹配 `legacy.workflow.>`。
+4. 部署唯一 JetStream domain 和 LeafNode local 隔离配置。
+5. 启动新实例并为每个 Pod UID 创建独立 Stream。
+6. 恢复调度。
+
+## 8. 给另一台机器 Codex 的执行提示词
 
 ```text
-使用 send_and_wait() 在发布任务前自动建立 inbox 订阅
+请更新 K8S_demo 并按仓库 docs/agent-nats-config.md 执行实例级
+JetStream 验证。使用 conda 环境 k8s，不要使用系统 Python。
+
+要求：
+1. 检查边缘 NATS 的 JetStream domain 等于 CLUSTER_ID，云端 domain 为 hub。
+2. 检查 LeafNode 双向拒绝 workflow.local.> 和 frame.local.>。
+3. 不创建云端共享 workflow Stream。
+4. 模拟编排器为两个不同 Pod UID 调用 provision_workflow_stream。
+5. 验证每个 UID 得到独立 WF_<uid>，且只存在于目标边缘 domain。
+6. 分别发送同集群 local 工作流和跨集群 global 工作流，确认精确实例收到并 ACK。
+7. 删除实例 Stream，确认 Stream 和 consumer 一起消失；重复删除不得失败。
+8. 同时验证 15MiB frame.local 和 frame.global 请求响应，发送方收到回复后再发下一帧。
+9. 观察 cloud、edge-a、edge-b 日志和监控，记录吞吐、p95、超时、重连、
+   slow consumer、pending bytes、JetStream 存储位置。
+10. 不要修改或删除与本次任务无关的用户改动。完成后报告命令、结果和异常位置。
 ```
-
-### Service/nats 没有 endpoint
-
-常见原因：集群已用 Helm 部署 NATS，但 AOE 在部署 Agent 时用 `app=nats` patch 了 `svc/nats`，导致 selector 与 Helm Pod 标签不匹配。
-
-先清理并修复：
-
-```bash
-kubectl delete deployment nats --ignore-not-found
-kubectl delete configmap nats-config --ignore-not-found
-kubectl patch svc nats --type=json -p='[{"op":"remove","path":"/spec/selector/app"}]' || true
-kubectl get endpoints nats -o wide
-```
-
-使用 Helm 时，启动 AOE 请设置 `NATS_MANAGED_EXTERNALLY=true`（`scripts/start_cluster_*_aoe.sh` 已默认开启），避免 AOE 再次 patch Service。
-
-检查：
-
-```bash
-kubectl get endpointslice -l kubernetes.io/service-name=nats -o wide
-```
-
-如果仍为空，可能是旧手写 YAML 留下了 `app=nats` selector。重新执行：
-
-```bash
-bash scripts/setup_edge_nats_helm.sh
-# 见 scripts/local/cluster.env.example；部署 NATS 后渲染 subject：
-#   bash scripts/render_agent_subject_env.sh
-# 应用带占位符的 agent/nats YAML：
-#   bash scripts/apply_k8s_with_local_cluster.sh
-```
-
-脚本会清理旧 selector。

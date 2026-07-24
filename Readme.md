@@ -9,7 +9,8 @@
   - 不同 Node 间（通过 Service + 调度策略）
   - 不同集群间（通过 NATS Gateway 示例清单）
 - 提供容器化应用可复用的 NATS 通信 API：`runtime_api.NatsComm`
-- 大帧通过 gRPC streaming 分块传输，NATS 只携带帧引用和工作流控制信息
+- 工作流任务使用实例级 JetStream；实时大帧默认使用 Core NATS bytes
+- gRPC streaming 帧引用链路作为需要分块、校验和暂存时的可选方案
 
 ## 2. 目录说明
 - `agent_gRPC/`: gRPC 接口服务，接收请求并通过 `runtime_api.NatsComm` 发布到 NATS
@@ -49,13 +50,12 @@ minikube start --driver=docker \
 kubectl apply -f k8s/nats-a.yaml
 kubectl rollout status deployment/nats-a --timeout=180s
 
-# 4. 部署应用 Pod
-kubectl apply -f k8s/agent-grpc-deploy.yaml
-kubectl apply -f k8s/agent-grpc-svc.yaml
-kubectl apply -f k8s/agent-b-deploy.yaml
-kubectl apply -f k8s/agent-c-deploy.yaml
-kubectl apply -f k8s/hpa.yaml
+# 4. 由编排器创建 Agent Pod，并按 Pod UID 创建实例 Stream
+# 具体顺序见 docs/agent-nats-config.md
 ```
+
+`k8s/agent-*-deploy.yaml` 含目标实例 UID 占位符，是编排器模板，不能直接
+`kubectl apply`。
 
 验证：
 
@@ -195,14 +195,15 @@ bash scripts/render_agent_subject_env.sh
 
 ```bash
 kubectl exec -it deploy/nats-box -- \
-  nats sub 'workflow.>' --server nats://nats:4222
+  nats sub 'frame.global.edge-a.test.ping' --server nats://nats:4222
 ```
 
 在 edge-b 发布：
 
 ```bash
 kubectl exec deploy/nats-box -- \
-  nats pub workflow.edge-a.test 'hello from edge-b' --server nats://nats:4222
+  nats pub frame.global.edge-a.test.ping 'hello from edge-b' \
+  --server nats://nats:4222
 ```
 
 如果 edge-a 收到消息，说明两个边缘集群已通过云端 Hub 互通。
@@ -227,12 +228,13 @@ minikube image load nats:2.10
 ## 5. 部署
 ```bash
 kubectl apply -f k8s/nats.yaml
-kubectl apply -f k8s/agent-grpc-deploy.yaml
 kubectl apply -f k8s/agent-grpc-svc.yaml
-kubectl apply -f k8s/agent-b-deploy.yaml
-kubectl apply -f k8s/agent-c-deploy.yaml
 kubectl apply -f k8s/hpa.yaml
 ```
+
+Agent Deployment 由编排器基于
+[`docs/agent-nats-config.md`](docs/agent-nats-config.md) 渲染和创建。编排器
+获取 Pod UID 后创建 `WF_<pod-uid>`，再把实例加入工作流路由表。
 
 查看状态：
 ```bash

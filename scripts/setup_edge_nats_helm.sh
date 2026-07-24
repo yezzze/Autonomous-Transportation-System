@@ -30,6 +30,7 @@ trap 'rm -f "${tmp_values}"' EXIT
 
 sed \
   -e "s/CHANGE_ME_CLOUD_HOST/${CLOUD_HOST}/g" \
+  -e "s/CHANGE_ME_EDGE_DOMAIN/${EDGE_CLUSTER_ID}/g" \
   -e "s/change-me-leaf-password/${CLOUD_PASSWORD}/g" \
   "${VALUES_FILE}" > "${tmp_values}"
 
@@ -54,13 +55,11 @@ kubectl create configmap edge-cluster-config \
   -n "${NAMESPACE}" \
   --from-literal=CLUSTER_ID="${EDGE_CLUSTER_ID}" \
   --from-literal=NATS_SERVERS="nats://${RELEASE}:4222" \
-  --from-literal=NATS_JETSTREAM_DOMAIN="" \
-  --from-literal=NATS_CLOUD_JETSTREAM_DOMAIN="hub" \
-  --from-literal=NATS_STREAM_SUBJECTS="workflow.>" \
-  --from-literal=NATS_STREAM="WORKFLOW" \
-  --from-literal=NATS_STREAM_MAX_BYTES="${NATS_STREAM_MAX_BYTES:-5GB}" \
-  --from-literal=NATS_STREAM_DISCARD="${NATS_STREAM_DISCARD:-old}" \
-  --from-literal=NATS_STREAM_RETENTION="${NATS_STREAM_RETENTION:-limits}" \
+  --from-literal=NATS_JETSTREAM_DOMAIN="${EDGE_CLUSTER_ID}" \
+  --from-literal=NATS_WORKFLOW_STREAM_PREFIX="WF" \
+  --from-literal=NATS_STREAM_MAX_BYTES="${NATS_STREAM_MAX_BYTES:-512MiB}" \
+  --from-literal=NATS_STREAM_DISCARD="${NATS_STREAM_DISCARD:-new}" \
+  --from-literal=NATS_STREAM_RETENTION="${NATS_STREAM_RETENTION:-workqueue}" \
   --from-literal=NATS_STREAM_STORAGE="${NATS_STREAM_STORAGE:-file}" \
   --dry-run=client -o yaml | kubectl apply -f -
 

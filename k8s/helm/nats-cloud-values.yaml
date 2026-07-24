@@ -11,7 +11,7 @@ config:
     fileStore:
       pvc:
         enabled: true
-        # Must be >= per-stream NATS_STREAM_MAX_BYTES (default 5GB for WORKFLOW)
+        # Capacity for Hub metadata/legacy streams; instance Streams live at edges.
         size: 10Gi
     merge:
       domain: hub
