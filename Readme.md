@@ -501,10 +501,11 @@ kubectl get pods -o wide
 docs/nats-helm-cloud-edge.md
 ```
 
-新的 Agent 接入 NATS 的环境变量、subject 命名和回复约定见：
+实际 Agent 的 NATS 连接生命周期、环境变量、subject、任务发送、常驻消费和回复
+方式见：
 
 ```text
-docs/agent-nats-config.md
+docs/agent-nats-usage.md
 ```
 
 本轮大帧通信排查、已完成修改、验证结果，以及“同集群本地NATS、跨集群云端
