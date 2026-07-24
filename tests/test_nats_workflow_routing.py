@@ -1,4 +1,6 @@
 import unittest
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from runtime_api.jetstream_stream import ensure_jetstream_stream
@@ -218,6 +220,91 @@ class NatsWorkflowApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(deleted)
         comm._nc.jetstream.assert_called_once_with(domain="edge-a")
         js.delete_stream.assert_awaited_once_with("WF_pod-uid-a")
+
+    async def test_workflow_stream_status_aggregates_consumer_pending(self):
+        comm = NatsComm()
+        comm.connect = AsyncMock()
+        js = Mock()
+        js.stream_info = AsyncMock(
+            return_value=SimpleNamespace(
+                created=datetime(2026, 7, 24, tzinfo=timezone.utc),
+                config=SimpleNamespace(
+                    subjects=[
+                        "workflow.local.edge-a.agent.detector."
+                        "instance.pod-uid-a.>"
+                    ]
+                ),
+                state=SimpleNamespace(messages=4, bytes=1024),
+            )
+        )
+        js.consumers_info = AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    name="worker-local",
+                    num_pending=2,
+                    num_ack_pending=1,
+                    num_redelivered=0,
+                ),
+                SimpleNamespace(
+                    name="worker-global",
+                    num_pending=1,
+                    num_ack_pending=0,
+                    num_redelivered=1,
+                ),
+            ]
+        )
+        comm._nc.jetstream = Mock(return_value=js)
+
+        result = await comm.workflow_stream_status(
+            target_cluster="edge-a",
+            instance_id="pod-uid-a",
+        )
+
+        self.assertTrue(result["exists"])
+        self.assertEqual(result["messages"], 4)
+        self.assertEqual(result["num_pending"], 3)
+        self.assertEqual(result["num_ack_pending"], 1)
+        self.assertEqual(result["consumer_count"], 2)
+
+    async def test_list_workflow_streams_filters_legacy_streams(self):
+        comm = NatsComm()
+        comm.connect = AsyncMock()
+        js = Mock()
+        created = datetime(2026, 7, 24, tzinfo=timezone.utc)
+        js.streams_info = AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    created=created,
+                    config=SimpleNamespace(
+                        name="WF_pod-uid-a",
+                        subjects=["workflow.local.edge-a.>"],
+                    ),
+                    state=SimpleNamespace(
+                        messages=0,
+                        bytes=0,
+                        consumer_count=1,
+                    ),
+                ),
+                SimpleNamespace(
+                    created=created,
+                    config=SimpleNamespace(
+                        name="WORKFLOW_LEGACY",
+                        subjects=["legacy.workflow.>"],
+                    ),
+                    state=SimpleNamespace(
+                        messages=0,
+                        bytes=0,
+                        consumer_count=0,
+                    ),
+                ),
+            ]
+        )
+        comm._nc.jetstream = Mock(return_value=js)
+
+        result = await comm.list_workflow_streams("edge-a")
+
+        self.assertEqual([item["stream"] for item in result], ["WF_pod-uid-a"])
+        self.assertEqual(result[0]["instance_id"], "pod-uid-a")
 
     async def test_agent_waits_for_orchestrator_provisioned_stream(self):
         comm = NatsComm()

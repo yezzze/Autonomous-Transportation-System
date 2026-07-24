@@ -17,7 +17,7 @@
 - `agent_b/`: NATS 消费者，处理后回传结果
 - `runtime_api/`: 给其他容器化应用复用的 NATS 通信 API
 - `examples/`: 外部应用调用 NATS API 的参考示例
-- `control_api/`: 早期 HTTP 管理原型，不作为应用间通信推荐路径
+- `control_api/`: 集群内边缘实例生命周期控制器，管理 Pod、实例 Stream 和健康状态
 - `k8s/`: K8s 清单
   - `agent-grpc-deploy.yaml`
   - `agent-b-deploy.yaml`
@@ -25,6 +25,7 @@
   - `nats.yaml`
   - `hpa.yaml`
   - `orchestrated-app-template.yaml`
+  - `control-api.yaml`
   - `multicluster/` 跨集群 NATS 示例
 
 ## 3. 启动环境
@@ -56,6 +57,9 @@ kubectl rollout status deployment/nats-a --timeout=180s
 
 `k8s/agent-*-deploy.yaml` 含目标实例 UID 占位符，是编排器模板，不能直接
 `kubectl apply`。
+
+外部编排器推荐通过集群内控制器管理 Agent，不直接持有边缘 kubeconfig。部署
+和 API 见 [docs/edge-lifecycle-controller.md](docs/edge-lifecycle-controller.md)。
 
 验证：
 

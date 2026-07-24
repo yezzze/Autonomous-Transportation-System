@@ -36,6 +36,22 @@ async def stream_names(comm: NatsComm, domain: str):
     return sorted(info.config.name for info in await js.streams_info())
 
 
+async def wait_stream_messages(
+    comm: NatsComm,
+    cluster: str,
+    instance_id: str,
+    expected: int,
+):
+    for _ in range(100):
+        status = await comm.workflow_stream_status(cluster, instance_id)
+        if status["messages"] == expected:
+            return status
+        await asyncio.sleep(0.01)
+    raise RuntimeError(
+        f"Stream message count did not become {expected}: {status}"
+    )
+
+
 async def run(args) -> None:
     edge_a = NatsComm(servers=[args.edge_a_nats_url])
     edge_b = NatsComm(servers=[args.edge_b_nats_url])
@@ -82,10 +98,25 @@ async def run(args) -> None:
             payload={"route": "local", "sequence": 1},
             local_cluster=args.edge_a_cluster_id,
         )
+        local_before_ack = await orchestrator.workflow_stream_status(
+            target_cluster=args.edge_a_cluster_id,
+            instance_id=args.instance_a,
+        )
+        if local_before_ack["messages"] != 1:
+            raise RuntimeError(
+                f"local Stream did not retain pending message: "
+                f"{local_before_ack}"
+            )
         local_payload = await receive_one(
             edge_a,
             local_subject,
             f"{args.agent_a}-local-integration",
+        )
+        local_after_ack = await wait_stream_messages(
+            orchestrator,
+            args.edge_a_cluster_id,
+            args.instance_a,
+            0,
         )
 
         await orchestrator.send_workflow(
@@ -100,6 +131,13 @@ async def run(args) -> None:
             global_subject,
             f"{args.agent_b}-global-integration",
         )
+        managed_streams = await orchestrator.list_workflow_streams(
+            args.edge_a_cluster_id
+        )
+        if [item["stream"] for item in managed_streams] != [stream_a["stream"]]:
+            raise RuntimeError(
+                f"managed Stream listing mismatch: {managed_streams}"
+            )
         edge_a_streams = await stream_names(edge_a, args.edge_a_cluster_id)
         edge_b_streams = await stream_names(edge_b, args.edge_b_cluster_id)
         hub_streams = await stream_names(edge_a, "hub")
@@ -150,6 +188,8 @@ async def run(args) -> None:
                         "subject": local_subject,
                         "stream": stream_a,
                         "payload": local_payload,
+                        "before_ack": local_before_ack,
+                        "after_ack": local_after_ack,
                     },
                     "global": {
                         "subject": global_subject,

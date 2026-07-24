@@ -102,6 +102,14 @@ logger = logging.getLogger(__name__)
 BinaryPayload = Union[bytes, bytearray, memoryview]
 
 
+def _iso_timestamp(value) -> Optional[str]:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
 def _binary_payload_bytes(payload: BinaryPayload, field_name: str = "payload") -> bytes:
     if not isinstance(payload, (bytes, bytearray, memoryview)):
         raise TypeError(f"{field_name} must be bytes-like")
@@ -1170,6 +1178,98 @@ class NatsComm:
                 deleted = False
             self._routed_streams_ready.discard(stream)
             return deleted
+
+    async def workflow_stream_status(
+        self,
+        target_cluster: str,
+        instance_id: str,
+    ) -> Dict[str, Any]:
+        """查询一个实例 Stream 的存储量和 Consumer 积压。"""
+        cluster = _subject_token(target_cluster, "target_cluster")
+        instance = self._instance_id(instance_id)
+        await self.connect(ensure_stream=False)
+        async with self._routed_stream_lock:
+            js = self._routed_js.get(cluster)
+            if js is None:
+                js = self._nc.jetstream(domain=cluster)
+                self._routed_js[cluster] = js
+        stream = self.workflow_stream_name(instance)
+        try:
+            info = await js.stream_info(stream)
+        except NotFoundError:
+            return {
+                "exists": False,
+                "stream": stream,
+                "domain": cluster,
+                "instance_id": instance,
+                "messages": 0,
+                "bytes": 0,
+                "consumer_count": 0,
+                "num_pending": 0,
+                "num_ack_pending": 0,
+                "consumers": [],
+            }
+
+        consumer_infos = await js.consumers_info(stream)
+        consumers = [
+            {
+                "name": consumer.name,
+                "num_pending": consumer.num_pending,
+                "num_ack_pending": consumer.num_ack_pending,
+                "num_redelivered": consumer.num_redelivered,
+            }
+            for consumer in consumer_infos
+        ]
+        return {
+            "exists": True,
+            "stream": stream,
+            "domain": cluster,
+            "instance_id": instance,
+            "created": _iso_timestamp(getattr(info, "created", None)),
+            "subjects": list(info.config.subjects or []),
+            "messages": info.state.messages,
+            "bytes": info.state.bytes,
+            "consumer_count": len(consumers),
+            "num_pending": sum(item["num_pending"] for item in consumers),
+            "num_ack_pending": sum(
+                item["num_ack_pending"] for item in consumers
+            ),
+            "consumers": consumers,
+        }
+
+    async def list_workflow_streams(
+        self,
+        target_cluster: str,
+    ) -> List[Dict[str, Any]]:
+        """列出目标 edge domain 中由实例前缀标识的工作流 Stream。"""
+        cluster = _subject_token(target_cluster, "target_cluster")
+        await self.connect(ensure_stream=False)
+        async with self._routed_stream_lock:
+            js = self._routed_js.get(cluster)
+            if js is None:
+                js = self._nc.jetstream(domain=cluster)
+                self._routed_js[cluster] = js
+        prefix = f"{self.workflow_stream_prefix}_"
+        results = []
+        for info in await js.streams_info():
+            name = info.config.name
+            if not name.startswith(prefix):
+                continue
+            results.append(
+                {
+                    "stream": name,
+                    "domain": cluster,
+                    "instance_id": name[len(prefix):],
+                    "created": _iso_timestamp(
+                        getattr(info, "created", None)
+                    ),
+                    "subjects": list(info.config.subjects or []),
+                    "messages": info.state.messages,
+                    "bytes": info.state.bytes,
+                    "consumer_count": info.state.consumer_count,
+                }
+            )
+        return sorted(results, key=lambda item: item["stream"])
 
     def frame_subscription_subjects(
         self,

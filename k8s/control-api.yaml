@@ -2,23 +2,27 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: control-api
+  namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: control-api-role
+  namespace: default
 rules:
-  - apiGroups: ["apps"]
-    resources: ["deployments", "deployments/scale"]
-    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "delete", "get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: control-api-rb
+  namespace: default
 subjects:
   - kind: ServiceAccount
     name: control-api
+    namespace: default
 roleRef:
   kind: Role
   name: control-api-role
@@ -50,46 +54,83 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: control-api
+  namespace: default
+  labels:
+    app: edge-lifecycle-controller
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
-      app: control-api
+      app: edge-lifecycle-controller
   template:
     metadata:
       labels:
-        app: control-api
+        app: edge-lifecycle-controller
     spec:
       serviceAccountName: control-api
       containers:
-        - name: control-api
-          image: k8s-demo-control-api:v1
+        - name: controller
+          image: k8s-demo-control-api:v2
           imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: edge-cluster-config
           env:
-            - name: NODE_NAME
+            - name: CONTROL_API_TOKEN
               valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
+                secretKeyRef:
+                  name: edge-controller-auth
+                  key: token
+            - name: CONTROL_ALLOWED_NAMESPACES
+              value: "default"
+            - name: AGENT_NATS_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: edge-cluster-config
+                  key: NATS_SERVERS
+            - name: CONTROLLER_RECONCILE_INTERVAL_SEC
+              value: "30"
+            - name: CONTROLLER_ORPHAN_GRACE_SEC
+              value: "300"
+            - name: CONTROLLER_DELETE_EMPTY_ORPHAN_STREAMS
+              value: "true"
           ports:
-            - containerPort: 8080
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
           resources:
             requests:
               cpu: "100m"
               memory: "128Mi"
             limits:
-              cpu: "500m"
+              cpu: "1"
               memory: "512Mi"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: control-api
+  namespace: default
 spec:
   selector:
-    app: control-api
+    app: edge-lifecycle-controller
   type: NodePort
   ports:
     - name: http
       port: 8080
-      targetPort: 8080
+      targetPort: http
       nodePort: 30080

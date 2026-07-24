@@ -1,14 +1,14 @@
 # Agent 实例 NATS 配置与编排
 
-## 1. 编排器负责的生命周期
+## 1. 编排器与边缘控制器负责的生命周期
 
 一次 Agent 实例启动按以下顺序执行：
 
-1. 编排器创建 Pod。
-2. 从 Kubernetes API 读取 `metadata.uid`。
-3. 在目标边缘 JetStream domain 创建 `WF_<pod-uid>`。
+1. 外部编排器调用目标集群的边缘生命周期控制器。
+2. 边缘控制器创建 Pod 并读取 `metadata.uid`。
+3. 边缘控制器在本地 JetStream domain 创建 `WF_<pod-uid>`。
 4. Stream 同时绑定该实例的 local/global 工作流 subject。
-5. 将实例登记为 Ready，并把
+5. 编排器将实例登记为 Ready，并把
    `cluster_id + agent_id + pod_uid` 写入工作流路由表。
 6. 调用方按路由表发送到精确实例。
 
@@ -16,11 +16,14 @@
 
 1. 从路由表移除实例，停止新任务进入。
 2. 等待正在执行的任务完成或达到终止期限。
-3. 删除 `WF_<pod-uid>`。
-4. 删除 Pod 和其他实例资源。
+3. 调用边缘控制器的 DELETE API。
+4. 控制器等待消息排空后删除 Pod 和 `WF_<pod-uid>`。
 
-异常退出时，控制器或定时 reaper 应比较存量 `WF_<uid>` 与当前 Pod UID，
-删除不再存在且超过保护期的孤儿 Stream。
+异常退出时，边缘控制器的定时 reconcile 会比较存量 `WF_<uid>` 与当前
+Pod UID；空的孤儿 Stream 超过保护期后自动删除，非空孤儿 Stream 保留并告警。
+
+控制器部署和 API 见
+[`edge-lifecycle-controller.md`](edge-lifecycle-controller.md)。
 
 ## 2. Python 管理接口
 
