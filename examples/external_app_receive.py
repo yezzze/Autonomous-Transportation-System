@@ -7,8 +7,8 @@ async def main():
     comm = NatsComm()
     try:
         messages = await comm.receive(
-            subject="workflow.demo.agent.grpc.reply.*",
-            durable="external-app-reply-consumer",
+            subject="workflow.demo.events.result",
+            durable="external-app-result-consumer",
             batch=10,
             timeout_sec=10,
         )

@@ -38,8 +38,6 @@ spec:
               value: "__EDGE_CLUSTER_ID__"
             - name: REQ_SUBJECT
               value: "workflow.__EDGE_CLUSTER_ID__.agent.b.in"
-            - name: REPLY_SUBJECT_PREFIX
-              value: "workflow.__EDGE_CLUSTER_ID__.agent.grpc.reply"
             - name: NATS_CONTROL_MAX_BYTES
               value: "1048576"
             - name: WORKFLOW_TIMEOUT_SEC

@@ -354,14 +354,13 @@ class FrameComm:
         self.nats = nats or NatsComm()
         self.transport = transport or FrameTransportClient(**transport_kwargs)
 
-    async def send(
+    async def _prepare_payload(
         self,
-        subject: str,
         payload: Dict[str, Any],
         frame_path=None,
         frame_bytes: Optional[bytes] = None,
         content_type: str = "application/octet-stream",
-    ) -> Dict[str, Any]:
+    ):
         if frame_path is not None and frame_bytes is not None:
             raise ValueError("provide frame_path or frame_bytes, not both")
         control_payload = dict(payload)
@@ -385,6 +384,22 @@ class FrameComm:
             )
         if reference:
             control_payload["frame_ref"] = reference
+        return control_payload, reference
+
+    async def send(
+        self,
+        subject: str,
+        payload: Dict[str, Any],
+        frame_path=None,
+        frame_bytes: Optional[bytes] = None,
+        content_type: str = "application/octet-stream",
+    ) -> Dict[str, Any]:
+        control_payload, reference = await self._prepare_payload(
+            payload,
+            frame_path=frame_path,
+            frame_bytes=frame_bytes,
+            content_type=content_type,
+        )
         try:
             result = await self.nats.send(subject, control_payload)
             if reference:
@@ -454,6 +469,38 @@ class FrameComm:
 
     async def request(self, *args, **kwargs):
         return await self.nats.request(*args, **kwargs)
+
+    async def publish_core(self, *args, **kwargs):
+        return await self.nats.publish_core(*args, **kwargs)
+
+    async def send_and_wait(
+        self,
+        subject: str,
+        payload: Dict[str, Any],
+        timeout_sec: float = 30.0,
+        reply_subject: Optional[str] = None,
+        frame_path=None,
+        frame_bytes: Optional[bytes] = None,
+        content_type: str = "application/octet-stream",
+    ) -> Dict[str, Any]:
+        """
+        上传可选帧、持久化任务引用，并通过 Core NATS inbox 等待回复。
+
+        实例应在 Agent 进程启动时创建并在所有请求之间复用，这样 NATS
+        连接和 gRPC channel 都不会按帧重复建立。
+        """
+        control_payload, _reference = await self._prepare_payload(
+            payload,
+            frame_path=frame_path,
+            frame_bytes=frame_bytes,
+            content_type=content_type,
+        )
+        return await self.nats.send_and_wait(
+            subject=subject,
+            payload=control_payload,
+            reply_subject=reply_subject,
+            timeout_sec=timeout_sec,
+        )
 
     async def respond(self, *args, **kwargs):
         return await self.nats.respond(*args, **kwargs)

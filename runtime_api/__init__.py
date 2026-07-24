@@ -46,6 +46,7 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
     NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
     NATS_SEND_DELAY_FILE      运行时延迟配置文件（默认 /tmp/nats_send_delay_seconds）
     NATS_CONTROL_MAX_BYTES    NATS 控制消息上限（默认 1MiB）
+    NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC 临时consumer自动清理时间（默认30秒）
 
 运行时修改发送延迟
 ----------------

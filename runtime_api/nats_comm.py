@@ -77,12 +77,14 @@ import asyncio
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from nats.aio.client import Client as NATS
 from nats.errors import TimeoutError as NatsTimeoutError
+from nats.js.api import ConsumerConfig
 from runtime_api.jetstream_stream import ensure_jetstream_stream
 
 logger = logging.getLogger(__name__)
@@ -276,6 +278,14 @@ class NatsComm:
             raise ValueError("NATS_CONTROL_MAX_BYTES must be positive")
         self._nc = NATS()
         self._js = None
+        self._connect_lock = asyncio.Lock()
+        self._pull_subscription_lock = asyncio.Lock()
+        self._pull_subscriptions: Dict[Tuple[str, str], Any] = {}
+        self.ephemeral_consumer_inactive_sec = float(
+            os.environ.get("NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC", "30")
+        )
+        if self.ephemeral_consumer_inactive_sec <= 0:
+            raise ValueError("NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC must be positive")
 
     def _encode_control_payload(self, payload: Dict[str, Any]) -> bytes:
         encoded = json.dumps(payload, separators=(",", ":")).encode()
@@ -392,21 +402,37 @@ class NatsComm:
             await nc.connect()                    # 连接 + 确保流存在
             await nc.connect(ensure_stream=False)  # 仅连接，不创建流
         """
-        if self._nc.is_connected:
+        async with self._connect_lock:
+            if not self._nc.is_connected:
+                await self._nc.connect(
+                    servers=self.servers,
+                    connect_timeout=5,           # 连接超时 5 秒
+                    reconnect_time_wait=2,       # 重连间隔 2 秒
+                    max_reconnect_attempts=10,   # 最多重试 10 次
+                    error_cb=self._on_error,
+                    disconnected_cb=self._on_disconnected,
+                    reconnected_cb=self._on_reconnected,
+                    closed_cb=self._on_closed,
+                )
+                logger.info("NATS 已连接 servers=%s", self.servers)
             if ensure_stream and self._js is None:
                 self._js = self._jetstream()
                 await self._ensure_stream()
-            return
 
-        await self._nc.connect(
-            servers=self.servers,
-            connect_timeout=5,           # 连接超时 5 秒
-            reconnect_time_wait=2,       # 重连间隔 2 秒
-            max_reconnect_attempts=10,   # 最多重试 10 次
-        )
-        if ensure_stream:
-            self._js = self._jetstream()
-            await self._ensure_stream()
+    async def _on_error(self, exc: Exception) -> None:
+        logger.warning("NATS 异步连接错误: %s", exc)
+
+    async def _on_disconnected(self) -> None:
+        if getattr(self._nc, "is_draining", False) or self._nc.is_closed:
+            logger.info("NATS 连接正在正常关闭")
+        else:
+            logger.warning("NATS 连接已断开，等待自动重连")
+
+    async def _on_reconnected(self) -> None:
+        logger.info("NATS 已重新连接 url=%s", self._nc.connected_url)
+
+    async def _on_closed(self) -> None:
+        logger.info("NATS 连接已关闭")
 
     async def close(self) -> None:
         """
@@ -415,6 +441,14 @@ class NatsComm:
         使用 drain() 优雅关闭，等待所有未完成的消息处理完毕。
         建议在应用退出时调用。
         """
+        async with self._pull_subscription_lock:
+            subscriptions = list(self._pull_subscriptions.values())
+            self._pull_subscriptions.clear()
+        for subscription in subscriptions:
+            try:
+                await subscription.unsubscribe()
+            except Exception:
+                logger.debug("关闭 pull subscription 失败", exc_info=True)
         if self._nc.is_connected:
             await self._nc.drain()
 
@@ -530,12 +564,22 @@ class NatsComm:
                 await msg.ack()  # 手动确认
         """
         await self.connect()
-        sub = await self._js.pull_subscribe(subject, durable=durable)
+        sub = await self._get_pull_subscription(subject, durable)
 
         try:
             raw_messages = await sub.fetch(batch, timeout=timeout_sec)
         except NatsTimeoutError:
             return []
+        finally:
+            if durable is None:
+                try:
+                    await sub.unsubscribe()
+                except Exception:
+                    logger.debug(
+                        "注销临时 pull subscription 失败 subject=%s",
+                        subject,
+                        exc_info=True,
+                    )
 
         messages: List[NatsMessage] = []
         for raw in raw_messages:
@@ -556,6 +600,33 @@ class NatsComm:
                 await raw.ack()
 
         return messages
+
+    async def _get_pull_subscription(self, subject: str, durable: Optional[str]):
+        if durable is None:
+            config = ConsumerConfig(
+                inactive_threshold=self.ephemeral_consumer_inactive_sec
+            )
+            return await self._js.pull_subscribe(
+                subject,
+                durable=None,
+                config=config,
+            )
+
+        key = (subject, durable)
+        async with self._pull_subscription_lock:
+            subscription = self._pull_subscriptions.get(key)
+            if subscription is None:
+                subscription = await self._js.pull_subscribe(
+                    subject,
+                    durable=durable,
+                )
+                self._pull_subscriptions[key] = subscription
+                logger.info(
+                    "已创建并缓存 pull subscription subject=%s durable=%s",
+                    subject,
+                    durable,
+                )
+            return subscription
 
     async def serve(
         self,
@@ -729,6 +800,89 @@ class NatsComm:
             raise TimeoutError(f"请求超时 subject={subject}") from exc
 
         return json.loads(msg.data.decode())
+
+    async def publish_core(
+        self,
+        subject: str,
+        payload: Dict[str, Any],
+        timeout_sec: float = 5.0,
+    ) -> None:
+        """
+        通过 Core NATS 发布短生命周期消息。
+
+        调用方应使用不属于任何 Stream 的 subject（例如 `_INBOX.*`）；
+        如果 subject 被 Stream 捕获，普通 Core NATS publish 仍会被持久化。
+        """
+        await self.connect(ensure_stream=False)
+        encoded = self._encode_control_payload(payload)
+        started = time.monotonic()
+        await self._nc.publish(subject, encoded)
+        await self._nc.flush(timeout=timeout_sec)
+        logger.info(
+            "Core NATS 发布完成 subject=%s bytes=%d elapsed_ms=%.1f",
+            subject,
+            len(encoded),
+            (time.monotonic() - started) * 1000,
+        )
+
+    async def send_and_wait(
+        self,
+        subject: str,
+        payload: Dict[str, Any],
+        reply_subject: Optional[str] = None,
+        timeout_sec: float = 30.0,
+    ) -> Dict[str, Any]:
+        """
+        将任务写入 JetStream，并通过预先建立的 Core NATS 订阅等待回复。
+
+        回复订阅会在任务发布前创建，收到一条回复或超时后自动注销，
+        不会创建 JetStream 临时 consumer。
+        """
+        if timeout_sec <= 0:
+            raise ValueError("timeout_sec must be positive")
+        await self.connect()
+        reply_subject = reply_subject or self._nc.new_inbox()
+        request_payload = dict(payload)
+        configured_reply = request_payload.get("reply_subject")
+        if configured_reply and configured_reply != reply_subject:
+            raise ValueError(
+                "payload reply_subject does not match send_and_wait reply_subject"
+            )
+        request_payload["reply_subject"] = reply_subject
+        subscription = await self._nc.subscribe(reply_subject, max_msgs=1)
+        await self._nc.flush(timeout=min(timeout_sec, 5.0))
+        started = time.monotonic()
+        try:
+            ack = await self.send(subject, request_payload)
+            logger.info(
+                "JetStream 请求已发布 subject=%s reply_subject=%s stream=%s seq=%s",
+                subject,
+                reply_subject,
+                ack["stream"],
+                ack["seq"],
+            )
+            try:
+                message = await subscription.next_msg(timeout=timeout_sec)
+            except NatsTimeoutError as exc:
+                raise TimeoutError(
+                    f"等待回复超时 subject={subject} reply_subject={reply_subject}"
+                ) from exc
+            logger.info(
+                "收到 Core NATS 回复 reply_subject=%s bytes=%d elapsed_ms=%.1f",
+                reply_subject,
+                len(message.data),
+                (time.monotonic() - started) * 1000,
+            )
+            return json.loads(message.data.decode())
+        finally:
+            try:
+                await subscription.unsubscribe()
+            except Exception:
+                logger.debug(
+                    "注销回复 subscription 失败 subject=%s",
+                    reply_subject,
+                    exc_info=True,
+                )
 
     async def respond(
         self,

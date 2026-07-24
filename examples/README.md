@@ -95,6 +95,8 @@ await comm.serve(
 | `send()` | JetStream 发布 | 是 | 否 | 把任务、事件、工作流消息投递给下游，要求消息可追踪、可重放、不因消费者短暂离线而丢失。 |
 | `receive()` | JetStream 拉取消费 | 是 | 否 | 脚本或定时任务一次性拉取一批消息，自己决定何时 `ack()`、`nak()`、`term()`。 |
 | `serve()` | JetStream 常驻消费 | 是 | 否 | 长期运行的 worker 持续处理任务；handler 成功后自动 `ack()`，失败时尝试 `nak()`。 |
+| `send_and_wait()` | JetStream任务 + Core NATS回复 | 仅任务持久化 | 是 | 任务需要重投，但调用方也需要等待本次处理结果。 |
+| `publish_core()` | Core NATS 发布 | 否（使用`_INBOX`时） | 否 | 向请求payload携带的临时reply subject发送短生命周期回复。 |
 | `request()` | Core NATS 请求 | 否 | 是 | 在线查询、健康检查、控制命令等需要立即拿到返回值的同步调用。 |
 | `respond()` | Core NATS 响应 | 否 | 被动回复 | 和 `request()` 配套，启动一个在线 responder，收到请求后返回结果。 |
 
@@ -104,7 +106,8 @@ await comm.serve(
 - 需要“调用方马上拿到结果，超时就算失败”时，使用 `request()` + `respond()`。
 - 只处理一批已有消息、处理逻辑由脚本控制时，用 `receive()`。
 - 要部署成 Kubernetes 中的常驻业务 worker 时，用 `serve()`。
-- `send()` 虽然不等待回复，但可以在 payload 中带 `reply_subject`，让下游处理完后再用 `send(reply_subject, ...)` 发回包；这是当前 `agent_gRPC -> agent_b -> agent_c -> agent_b -> agent_gRPC` 链路使用的模式。
+- 持久任务需要同步等待结果时使用`send_and_wait()`；它会自动生成`_INBOX`并在结束后注销回复订阅。
+- 下游使用`publish_core(payload["reply_subject"], reply)`回包，不要手工创建`workflow.*.reply.*`。
 - `request()/respond()` 不进入 JetStream stream，responder 不在线或超时会直接失败，不适合需要离线堆积和重放的任务。
 
 常见搭配：
@@ -113,7 +116,7 @@ await comm.serve(
 异步任务：send("workflow.demo.agent.b.in", payload) -> serve("workflow.demo.agent.b.in", ...)
 批量消费：send(...) -> receive(..., batch=10) -> message.ack()
 同步查询：request("workflow.demo.request.status", payload) -> respond("workflow.demo.request.status", handler)
-异步回包：send("workflow.demo.agent.b.in", {"reply_subject": reply_subject, ...}) -> receive(reply_subject, ...)
+持久任务回包：send_and_wait("workflow.demo.agent.b.in", payload) -> publish_core(reply_subject, reply)
 ```
 
 ## 4. 发送消息
@@ -125,14 +128,15 @@ from runtime_api import NatsComm
 async def main():
     comm = NatsComm()
     try:
-        ack = await comm.send(
+        reply = await comm.send_and_wait(
             subject="workflow.demo.agent.b.in",
             payload={
                 "workflow_id": "external-app-1",
                 "text": "hello from another container",
             },
+            timeout_sec=120,
         )
-        print("sent:", ack)
+        print("reply:", reply)
     finally:
         await comm.close()
 
@@ -141,11 +145,7 @@ asyncio.run(main())
 
 参考文件：`external_app_send.py`
 
-`send()` 返回值包含：
-
-- `subject`：实际发布的 subject
-- `stream`：写入的 JetStream stream
-- `seq`：stream 内的消息序号
+如果只投递任务、不等待结果，使用`send()`；它返回`subject`、`stream`和`seq`。
 
 ## 5. 接收消息
 
@@ -157,8 +157,8 @@ async def main():
     comm = NatsComm()
     try:
         messages = await comm.receive(
-            subject="workflow.demo.agent.grpc.reply.*",
-            durable="external-app-reply-consumer",
+            subject="workflow.demo.events.result",
+            durable="external-app-result-consumer",
             batch=10,
             timeout_sec=10,
         )
@@ -277,22 +277,20 @@ NATS subjects 不是 POSIX/PCRE 正则表达式，而是点分 token + 通配符
 workflow.demo.<app-or-agent>.<direction>
 workflow.demo.agent.b.in
 workflow.demo.agent.c.in
-workflow.demo.agent.grpc.reply.<workflow_id>
 workflow.demo.request.status
 ```
 
-如果需要按工作流隔离回包，推荐由请求方生成唯一 reply subject：
+如果需要按工作流隔离回包，使用`send_and_wait()`自动生成唯一`_INBOX`：
 
 ```python
-reply_subject = f"workflow.demo.agent.grpc.reply.{workflow_id}"
-await comm.send("workflow.demo.agent.b.in", {
-    "workflow_id": workflow_id,
-    "text": text,
-    "reply_subject": reply_subject,
-})
+reply = await comm.send_and_wait(
+    "workflow.demo.agent.b.in",
+    {"workflow_id": workflow_id, "text": text},
+    timeout_sec=120,
+)
 ```
 
-下游处理完成后发回 `reply_subject`，请求方只监听自己的 subject，避免多个请求互相串包。
+下游处理完成后通过`publish_core()`发回payload中的`reply_subject`。
 
 ## 9. agent_gRPC 调用链路
 
@@ -301,12 +299,12 @@ await comm.send("workflow.demo.agent.b.in", {
 ```text
 client.py
   -> agent_gRPC gRPC :50051
-  -> NatsComm.send("workflow.demo.agent.b.in")
+  -> NatsComm.send_and_wait("workflow.demo.agent.b.in")
   -> agent_b
-  -> NatsComm.send("workflow.demo.agent.c.in")
+  -> NatsComm.send_and_wait("workflow.demo.agent.c.in")
   -> agent_c
   -> agent_b
-  -> NatsComm.send(reply_subject)
+  -> NatsComm.publish_core(_INBOX)
   -> agent_gRPC 返回 gRPC response
 ```
 

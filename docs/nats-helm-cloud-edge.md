@@ -35,7 +35,6 @@ edge-c 集群
 
 ```text
 workflow.<cluster-id>.<agent-id>.in
-workflow.<cluster-id>.<agent-id>.reply.<workflow-id>
 ```
 
 示例：
@@ -44,8 +43,10 @@ workflow.<cluster-id>.<agent-id>.reply.<workflow-id>
 workflow.edge-a.agent.b.in
 workflow.edge-b.agent.c.in
 workflow.edge-c.agent.d.in
-workflow.edge-a.agent.grpc.reply.<workflow-id>
 ```
+
+任务回复由`NatsComm.send_and_wait()`自动生成`_INBOX.*`，不使用
+`workflow.*.reply.*`，避免回复进入WORKFLOW Stream。
 
 ## 前置条件
 
@@ -283,7 +284,6 @@ bash scripts/render_agent_subject_env.sh
 
 ```text
 REQ_SUBJECT=workflow.edge-b.agent.b.in
-REPLY_SUBJECT_PREFIX=workflow.edge-b.agent.grpc.reply
 IN_SUBJECT=workflow.edge-b.agent.b.in
 C_IN_SUBJECT=workflow.edge-b.agent.c.in
 ```

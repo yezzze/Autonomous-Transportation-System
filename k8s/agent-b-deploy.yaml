@@ -40,10 +40,6 @@ spec:
               value: "workflow.__EDGE_CLUSTER_ID__.agent.b.in"
             - name: C_IN_SUBJECT
               value: "workflow.__EDGE_CLUSTER_ID__.agent.c.in"
-            - name: OUT_SUBJECT
-              value: "workflow.__EDGE_CLUSTER_ID__.agent.grpc.reply.default"
-            - name: B_REPLY_PREFIX
-              value: "workflow.__EDGE_CLUSTER_ID__.agent.b.c.reply"
             - name: NATS_CONTROL_MAX_BYTES
               value: "1048576"
             - name: NATS_MAX_INFLIGHT

@@ -25,18 +25,12 @@ cat <<EOF
 # agent-grpc
 - name: REQ_SUBJECT
   value: "workflow.${EDGE_CLUSTER_ID}.agent.b.in"
-- name: REPLY_SUBJECT_PREFIX
-  value: "workflow.${EDGE_CLUSTER_ID}.agent.grpc.reply"
 
 # agent-b
 - name: IN_SUBJECT
   value: "workflow.${EDGE_CLUSTER_ID}.agent.b.in"
 - name: C_IN_SUBJECT
   value: "workflow.${EDGE_CLUSTER_ID}.agent.c.in"
-- name: OUT_SUBJECT
-  value: "workflow.${EDGE_CLUSTER_ID}.agent.grpc.reply.default"
-- name: B_REPLY_PREFIX
-  value: "workflow.${EDGE_CLUSTER_ID}.agent.b.c.reply"
 
 # agent-c
 - name: IN_SUBJECT

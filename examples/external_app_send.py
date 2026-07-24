@@ -6,15 +6,15 @@ from runtime_api import NatsComm
 async def main():
     comm = NatsComm()
     try:
-        ack = await comm.send(
+        reply = await comm.send_and_wait(
             subject="workflow.demo.agent.b.in",
             payload={
                 "workflow_id": "external-app-1",
                 "text": "hello from another container",
-                "reply_subject": "workflow.demo.agent.grpc.reply.external-app-1",
             },
+            timeout_sec=120,
         )
-        print("sent:", ack)
+        print("reply:", reply)
     finally:
         await comm.close()
 

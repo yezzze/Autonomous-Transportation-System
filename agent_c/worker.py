@@ -1,7 +1,13 @@
 import asyncio
+import logging
 import os
 
 from runtime_api import FrameComm
+
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 IN_SUBJECT = os.environ.get("IN_SUBJECT", "workflow.demo.agent.c.in")
 DURABLE = os.environ.get("DURABLE", "agent-c-consumer")
@@ -53,8 +59,8 @@ async def main():
             "workflow_id": workflow_id,
             "result": result,
         }
-        log(f"publishing reply to {reply_subject}: {reply}")
-        await comm.send(reply_subject, reply)
+        log(f"publishing reply to {reply_subject}")
+        await comm.publish_core(reply_subject, reply)
 
     try:
         log(f"subscribing to {IN_SUBJECT}")

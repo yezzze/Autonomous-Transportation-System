@@ -58,6 +58,21 @@ await comm.send(
 )
 ```
 
+发送大帧并等待处理结果：
+
+```python
+reply = await comm.send_and_wait(
+    "workflow.demo.task",
+    {"task_id": "task-1"},
+    frame_path="/data/frame.bin",
+    timeout_sec=120,
+)
+```
+
+`FrameComm`必须在Agent进程启动时创建一次并在所有帧之间复用，这会同时复用
+NATS连接和gRPC channel。完整接入方式见
+[agent-connection-reuse.md](agent-connection-reuse.md)。
+
 消费大帧：
 
 ```python

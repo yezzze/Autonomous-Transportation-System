@@ -297,6 +297,11 @@ python client.py --frame /path/to/frame.bin --text "infer this frame"
 `FRAME_ALLOWED_TARGETS`。当前帧存储使用 `emptyDir`，Pod 重启后不保留；
 需要断点恢复或回放时应再接入 MinIO。
 
+真实Agent必须按进程复用一个`FrameComm/NatsComm`实例，不能在单帧handler中
+重复创建。持久任务等待回复时使用`send_and_wait()`，回复端使用
+`publish_core()`。详见
+[docs/agent-connection-reuse.md](docs/agent-connection-reuse.md)。
+
 固定速率帧压测：
 
 ```bash
@@ -813,6 +818,10 @@ livenessProbe:
 ## 9. 容器化应用可复用的 NATS API
 其他应用不需要关心 NATS 底层连接、JetStream、ack、consumer 等细节，只需要在容器内调用 `runtime_api.NatsComm`。
 
+通信实例必须在进程启动时创建并在所有请求间复用；每个进程一个实例。不要在
+HTTP/gRPC handler或单帧推理函数中重复创建。多进程服务每个worker各自建立一条
+连接。
+
 接入方式：
 - 把 `runtime_api/` 放进应用镜像
 - 安装依赖 `nats-py`
@@ -862,8 +871,8 @@ async def main():
     comm = NatsComm()
     try:
         messages = await comm.receive(
-            subject="workflow.demo.agent.grpc.reply.*",
-            durable="external-app-reply-consumer",
+            subject="workflow.demo.events.result",
+            durable="external-app-result-consumer",
             batch=10,
             timeout_sec=10,
         )

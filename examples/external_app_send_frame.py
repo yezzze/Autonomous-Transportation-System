@@ -13,20 +13,19 @@ async def main():
         "--subject",
         default="workflow.demo.agent.c.in",
     )
-    parser.add_argument("--reply-subject", default="workflow.demo.frame.reply")
     args = parser.parse_args()
 
     comm = FrameComm()
     try:
-        result = await comm.send(
+        result = await comm.send_and_wait(
             subject=args.subject,
             payload={
                 "workflow_id": str(uuid.uuid4()),
                 "text": "frame from external app",
-                "reply_subject": args.reply_subject,
             },
             frame_path=args.frame,
             content_type="application/octet-stream",
+            timeout_sec=120,
         )
         print(result)
     finally:

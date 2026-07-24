@@ -79,45 +79,24 @@ workflow.edge-b.planner.in
 
 ## 回复约定
 
-请求 payload 建议带：
+请求方调用`send_and_wait()`：
 
-```json
-{
-  "workflow_id": "task-001",
-  "text": "hello",
-  "reply_subject": "workflow.edge-b.reply.task-001"
-}
+```python
+reply = await comm.send_and_wait(
+    "workflow.edge-a.agent.d.in",
+    {"workflow_id": "task-001", "text": "hello"},
+    timeout_sec=120,
+)
 ```
 
-处理完成后，Agent 将结果发布到 `reply_subject`：
+封装会自动在payload中加入`_INBOX.*`。处理完成后，Agent通过Core NATS发布到
+收到的`reply_subject`：
 
-```json
-{
-  "workflow_id": "task-001",
-  "result": "done"
-}
-```
-
-推荐回复 subject：
-
-```text
-workflow.<requester-cluster-id>.reply.<workflow-id>
-```
-
-示例：
-
-```text
-workflow.edge-b.reply.task-001
-workflow.edge-a.reply.9f4a2c
-```
-
-这样可以做到：
-
-```text
-edge-b 发任务给 edge-a
-edge-a 处理
-edge-a 回复到 workflow.edge-b.reply.<workflow-id>
-edge-b 接收结果
+```python
+await comm.publish_core(
+    data["reply_subject"],
+    {"workflow_id": data["workflow_id"], "result": "done"},
+)
 ```
 
 ## Python Agent 示例
@@ -146,7 +125,7 @@ async def main():
         }
 
         if reply_subject:
-            await comm.send(reply_subject, result)
+            await comm.publish_core(reply_subject, result)
 
     try:
         await comm.serve(
@@ -161,6 +140,11 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+`comm`必须在进程启动时创建一次并由所有任务复用。请求方应使用
+`send_and_wait()`自动生成`_INBOX`，不要为每个工作流创建JetStream临时
+consumer。完整生命周期说明见
+[agent-connection-reuse.md](agent-connection-reuse.md)。
 
 ## Deployment 模板
 
@@ -226,7 +210,7 @@ kubectl exec deploy/nats-box -- \
 ```bash
 kubectl exec deploy/nats-box -- \
   nats pub workflow.edge-a.agent.d.in \
-  '{"workflow_id":"test-001","text":"hello","reply_subject":"workflow.edge-a.reply.test-001"}' \
+  '{"workflow_id":"test-001","text":"hello","reply_subject":"manual.reply.test-001"}' \
   --server nats://nats:4222
 ```
 
@@ -234,7 +218,7 @@ kubectl exec deploy/nats-box -- \
 
 ```bash
 kubectl exec -it deploy/nats-box -- \
-  nats sub 'workflow.edge-a.reply.>' \
+  nats sub 'manual.reply.>' \
   --server nats://nats:4222
 ```
 
@@ -271,14 +255,13 @@ kubectl logs deploy/agent-b --tail=120
 如果 A 已经发布到：
 
 ```text
-workflow.edge-b.reply.<workflow-id>
+_INBOX.<unique-token>
 ```
 
 但 B 没收到，通常是 B 订阅晚了。实时验证时必须：
 
 ```text
-先在 B 订阅 workflow.edge-b.reply.>
-再从 B 发布请求
+使用 send_and_wait() 在发布任务前自动建立 inbox 订阅
 ```
 
 ### Service/nats 没有 endpoint
