@@ -507,6 +507,13 @@ docs/nats-helm-cloud-edge.md
 docs/agent-nats-config.md
 ```
 
+本轮大帧通信排查、已完成修改、验证结果，以及“同集群本地NATS、跨集群云端
+NATS”的纯NATS目标方案见：
+
+```text
+docs/transport-change-summary.md
+```
+
 跨集群不把多台机器 join 成同一个 Kubernetes 集群。每个集群独立调度自己的 Pod，跨集群只打通两条通道：
 - 数据/业务消息通道：各集群本地 NATS，业务代码统一通过 `NATS_SERVERS` 访问本集群消息总线
 - 编排/控制通道：`K8S-Autonomous` AOE HTTP peer，负责 registry sync 和远端任务分发
