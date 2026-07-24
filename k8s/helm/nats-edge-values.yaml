@@ -8,6 +8,10 @@ config:
       remotes:
         - urls:
             - nats://leaf:change-me-leaf-password@CHANGE_ME_CLOUD_HOST:7422
+          deny_imports:
+            - "frame.local.>"
+          deny_exports:
+            - "frame.local.>"
 
   monitor:
     enabled: true

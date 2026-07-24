@@ -27,6 +27,14 @@ spec:
               value: "hub"
             - name: NATS_STREAM_SUBJECTS
               value: "workflow.>"
+            - name: NATS_BINARY_MAX_BYTES
+              value: "67108864"
+            - name: NATS_PENDING_SIZE_BYTES
+              value: "134217728"
+            - name: NATS_BINARY_PENDING_BYTES
+              value: "134217728"
+            - name: NATS_BINARY_PENDING_MSGS
+              value: "32"
             - name: CLUSTER_ID
               value: "<filled-by-orchestrator>"
             - name: FRAME_UPLOAD_TARGET

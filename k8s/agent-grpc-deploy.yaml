@@ -40,6 +40,14 @@ spec:
               value: "workflow.__EDGE_CLUSTER_ID__.agent.b.in"
             - name: NATS_CONTROL_MAX_BYTES
               value: "1048576"
+            - name: NATS_BINARY_MAX_BYTES
+              value: "67108864"
+            - name: NATS_PENDING_SIZE_BYTES
+              value: "134217728"
+            - name: NATS_BINARY_PENDING_BYTES
+              value: "134217728"
+            - name: NATS_BINARY_PENDING_MSGS
+              value: "32"
             - name: WORKFLOW_TIMEOUT_SEC
               value: "120"
             - name: FRAME_PUBLIC_ADDR

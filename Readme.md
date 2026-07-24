@@ -289,6 +289,10 @@ python client.py --frame /path/to/frame.bin --text "infer this frame"
 | `FRAME_ALLOWED_TARGETS` | `agent-grpc:50051` | Agent C 允许访问的帧服务地址 |
 | `FRAME_RETRY_ATTEMPTS` | `3` | 上传遇到背压或断连时的尝试次数 |
 | `NATS_CONTROL_MAX_BYTES` | `1048576` | NATS 控制消息大小上限 |
+| `NATS_BINARY_MAX_BYTES` | `67108864` | Core NATS 二进制消息大小上限 |
+| `NATS_PENDING_SIZE_BYTES` | `134217728` | nats-py 出站 pending buffer |
+| `NATS_BINARY_PENDING_BYTES` | `134217728` | 二进制订阅待处理字节上限 |
+| `NATS_BINARY_PENDING_MSGS` | `32` | 二进制订阅待处理消息数 |
 | `NATS_MAX_INFLIGHT` | `4` | 每个 worker 的并发消息数 |
 | `NATS_ACK_PROGRESS_INTERVAL_SEC` | `10` | 长任务 ACK 进度上报间隔 |
 
@@ -506,6 +510,20 @@ docs/nats-helm-cloud-edge.md
 
 ```text
 docs/agent-nats-usage.md
+```
+
+二进制帧由`request_frame_bytes()`根据目标集群自动选择路由：
+
+```text
+目标集群 == CLUSTER_ID  -> frame.local.<cluster>.<agent>.<operation>
+目标集群 != CLUSTER_ID  -> frame.global.<cluster>.<agent>.<operation>
+```
+
+边缘 LeafNode 禁止`frame.local.>`导入和导出，因此 local 帧不会经过云端 Hub。
+15 MiB、local/global 各 5 分钟稳定性测试结果和复测 Prompt 见：
+
+```text
+docs/nats-binary-soak-test.md
 ```
 
 本轮大帧通信排查、已完成修改、验证结果，以及“同集群本地NATS、跨集群云端

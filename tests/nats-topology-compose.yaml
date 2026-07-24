@@ -1,0 +1,32 @@
+services:
+  cloud-hub:
+    image: docker.m.daocloud.io/library/nats:2.10
+    command: ["-c", "/etc/nats/nats.conf"]
+    volumes:
+      - ./nats_topology/cloud.conf:/etc/nats/nats.conf:ro
+    ports:
+      - "24222:4222"
+      - "27422:7422"
+      - "28222:8222"
+
+  edge-a:
+    image: docker.m.daocloud.io/library/nats:2.10
+    command: ["-c", "/etc/nats/nats.conf"]
+    depends_on:
+      - cloud-hub
+    volumes:
+      - ./nats_topology/edge-a.conf:/etc/nats/nats.conf:ro
+    ports:
+      - "24223:4222"
+      - "28223:8222"
+
+  edge-b:
+    image: docker.m.daocloud.io/library/nats:2.10
+    command: ["-c", "/etc/nats/nats.conf"]
+    depends_on:
+      - cloud-hub
+    volumes:
+      - ./nats_topology/edge-b.conf:/etc/nats/nats.conf:ro
+    ports:
+      - "24224:4222"
+      - "28224:8222"

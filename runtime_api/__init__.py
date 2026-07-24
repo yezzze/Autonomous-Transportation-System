@@ -10,6 +10,7 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
 --------
 - NatsComm         : 核心通信客户端，支持发布/订阅、请求/响应、流式消费
 - NatsMessage      : 消息封装类，支持 ACK/NACK/进度/终止等 JetStream 操作
+- NatsBinaryMessage: Core NATS 原始二进制消息
 - build_stream_config  : 构建 JetStream Stream 配置（名称、主题、存储策略）
 - ensure_jetstream_stream : 确保 JetStream Stream 存在（自动创建/更新）
 - parse_bytes      : 解析 NATS 风格的大小字符串（如 "5GB" → int）
@@ -46,6 +47,10 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
     NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
     NATS_SEND_DELAY_FILE      运行时延迟配置文件（默认 /tmp/nats_send_delay_seconds）
     NATS_CONTROL_MAX_BYTES    NATS 控制消息上限（默认 1MiB）
+    NATS_BINARY_MAX_BYTES     NATS 二进制消息上限（默认 64MiB）
+    NATS_PENDING_SIZE_BYTES   NATS 客户端发送缓冲上限（默认 128MiB）
+    NATS_BINARY_PENDING_MSGS  二进制订阅待处理消息数（默认 32）
+    NATS_BINARY_PENDING_BYTES 二进制订阅待处理字节数（默认 128MiB）
     NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC 临时consumer自动清理时间（默认30秒）
 
 运行时修改发送延迟
@@ -57,11 +62,12 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
 """
 
 from .jetstream_stream import build_stream_config, ensure_jetstream_stream, parse_bytes
-from .nats_comm import NatsComm, NatsMessage
+from .nats_comm import NatsBinaryMessage, NatsComm, NatsMessage
 
 __all__ = [
     "NatsComm",
     "NatsMessage",
+    "NatsBinaryMessage",
     "FrameComm",
     "FrameTransportClient",
     "DownloadedFrame",

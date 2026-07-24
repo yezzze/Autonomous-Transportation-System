@@ -12,55 +12,92 @@ Agent 镜像需要包含本仓库的 `runtime_api`，并安装：
 nats-py==2.11.0
 ```
 
-## 1. Agent 通信链路
+## 1. Agent 使用的两类消息
 
-Agent 始终连接本集群 Service：
-
-```text
-Agent -> nats://nats:4222
-```
-
-当前 Helm 环境的 JetStream domain 为云端 `hub`。Agent 通过本地 NATS 连接访问
-`hub`中的 `WORKFLOW` Stream，不直接连接云端地址：
+Agent 始终只连接本 Kubernetes 集群的 NATS Service：
 
 ```text
-Agent
-  -> 本地 NATS
-  -> JetStream domain: hub
+NATS_SERVERS=nats://nats:4222
 ```
 
-目标 Agent 位于其他集群时，NATS 通过 LeafNode 完成跨集群路由：
+同一个 `NatsComm`连接同时承载两类消息：
+
+| 消息 | API | 传输方式 | 用途 |
+|---|---|---|---|
+| 工作流控制消息 | `send()`、`send_and_wait()`、`serve()` | JetStream + JSON | 需要持久化的任务 |
+| 帧等大二进制数据 | `request_frame_bytes()`、`subscribe_frame_bytes()` | Core NATS + bytes | 在线请求响应 |
+
+工作流控制消息使用云端 JetStream domain `hub`。二进制帧不进入 JetStream，而是由
+Core NATS 根据 `local/global` subject 路由。
+
+## 2. local/global 路由
+
+发送方必须提供：
+
+- `CLUSTER_ID`：发送 Agent 所属集群。
+- `target_cluster`：接收 Agent 所属集群。
+- `agent_id`：接收 Agent ID。
+
+`request_frame_bytes()`内部执行以下判断：
+
+```python
+if target_cluster == CLUSTER_ID:
+    subject = f"frame.local.{target_cluster}.{agent_id}.infer"
+else:
+    subject = f"frame.global.{target_cluster}.{agent_id}.infer"
+```
+
+同集群链路：
+
+```text
+发送 Agent
+  -> 本集群 NATS
+  -> frame.local.<cluster>.<agent>.infer
+  -> 本集群接收 Agent
+```
+
+跨集群链路：
 
 ```text
 发送 Agent
   -> 发送方本地 NATS
+  -> frame.global.<target-cluster>.<agent>.infer
   -> LeafNode
   -> 云端 NATS Hub
-  -> LeafNode
-  -> 接收方本地 NATS
+  -> 目标集群 LeafNode/NATS
   -> 接收 Agent
 ```
 
-Agent 代码不需要判断目标是否在同一个集群，不需要选择云端地址，也不需要根据目标
-位置切换 `NATS_SERVERS`。发送方只需使用目标 Agent 的完整 subject。
+边缘 NATS 的 LeafNode 配置同时拒绝：
 
-## 2. 必须遵守的使用规则
+```yaml
+deny_imports:
+  - "frame.local.>"
+deny_exports:
+  - "frame.local.>"
+```
+
+因此 `frame.local.>`不会传播到云端；`frame.global.>`可以通过 LeafNode 跨集群路由。
+Agent 不切换 NATS 地址，只通过 `target_cluster`选择路由。
+
+## 3. 连接生命周期
 
 每个 Agent 进程必须：
 
-1. 创建一个长期使用的 `NatsComm` 实例。
+1. 创建一个长期使用的 `NatsComm`实例。
 2. 在进程启动时连接 NATS。
-3. 所有任务和帧循环复用同一个实例。
-4. 一个常驻消费者只调用一次 `serve()`。
-5. 在进程退出时调用 `close()`。
+3. 所有控制任务和帧循环复用同一个实例。
+4. 二进制接收端只调用一次`subscribe_frame_bytes()`。
+5. JetStream 消费端只调用一次`serve()`。
+6. 在进程退出时调用`close()`。
 
-不要在单帧处理函数、模型推理函数或网络请求 handler 中重复执行 `NatsComm()`，
-也不要为每条消息执行一次 `asyncio.run()`。
+不要在单帧处理函数、模型推理函数或网络请求 handler 中重复执行`NatsComm()`，
+也不要为每条消息执行一次`asyncio.run()`。
 
-一个 Pod 如果运行多个 worker 进程，每个进程分别创建一个 `NatsComm`。连接对象
+一个 Pod 如果运行多个 worker 进程，每个进程分别创建一个`NatsComm`。连接对象
 不能跨进程或跨 asyncio 事件循环共享。
 
-## 3. Agent 环境变量
+## 4. Agent 环境变量
 
 推荐配置：
 
@@ -68,6 +105,18 @@ Agent 代码不需要判断目标是否在同一个集群，不需要选择云�
 env:
   - name: NATS_SERVERS
     value: "nats://nats:4222"
+  - name: CLUSTER_ID
+    value: "edge-a"
+  - name: NATS_BINARY_MAX_BYTES
+    value: "67108864"
+  - name: NATS_PENDING_SIZE_BYTES
+    value: "134217728"
+  - name: NATS_BINARY_PENDING_BYTES
+    value: "134217728"
+  - name: NATS_BINARY_PENDING_MSGS
+    value: "32"
+  - name: NATS_MAX_INFLIGHT
+    value: "1"
   - name: NATS_JETSTREAM_DOMAIN
     value: "hub"
   - name: NATS_STREAM
@@ -76,79 +125,212 @@ env:
     value: "workflow.>"
   - name: NATS_CONTROL_MAX_BYTES
     value: "1048576"
-  - name: NATS_MAX_INFLIGHT
-    value: "1"
   - name: NATS_ACK_PROGRESS_INTERVAL_SEC
     value: "10"
   - name: WORKFLOW_TIMEOUT_SEC
     value: "120"
-  - name: CLUSTER_ID
-    value: "edge-a"
   - name: IN_SUBJECT
     value: "workflow.edge-a.agent.detector.in"
   - name: DURABLE
     value: "edge-a-agent-detector"
 ```
 
-变量含义：
-
 | 变量 | 用途 |
 |---|---|
-| `NATS_SERVERS` | 当前 Agent 连接的本地 NATS 地址，多个地址使用逗号分隔 |
-| `NATS_JETSTREAM_DOMAIN` | 当前统一使用的 JetStream domain，Helm 环境为 `hub` |
-| `NATS_STREAM` | 持久任务所在 Stream，默认 `WORKFLOW` |
-| `NATS_STREAM_SUBJECTS` | Stream 接收的 subject，默认 `workflow.>` |
-| `NATS_CONTROL_MAX_BYTES` | `NatsComm` JSON 消息的最大字节数，默认 1 MiB |
-| `NATS_MAX_INFLIGHT` | 单个 Agent 进程允许并发处理的任务数 |
-| `NATS_ACK_PROGRESS_INTERVAL_SEC` | 长任务处理期间发送 ACK 进度的间隔 |
-| `WORKFLOW_TIMEOUT_SEC` | 调用下游 Agent 时等待回复的时间 |
-| `CLUSTER_ID` | Agent 所属集群标识 |
-| `IN_SUBJECT` | Agent 接收任务的 subject |
+| `NATS_SERVERS` | 当前集群的 NATS Service，Helm 环境统一为`nats://nats:4222` |
+| `CLUSTER_ID` | 当前 Agent 所属集群，是 local/global 判断依据 |
+| `NATS_BINARY_MAX_BYTES` | 单条 Core NATS 二进制消息上限，默认 64 MiB |
+| `NATS_PENDING_SIZE_BYTES` | nats-py 出站 pending buffer，默认 128 MiB |
+| `NATS_BINARY_PENDING_BYTES` | 单个二进制订阅的待处理字节上限，默认 128 MiB |
+| `NATS_BINARY_PENDING_MSGS` | 单个二进制订阅的待处理消息数，默认 32 |
+| `NATS_MAX_INFLIGHT` | 一个 Agent 进程允许同时处理的任务或帧数量 |
+| `NATS_JETSTREAM_DOMAIN` | 工作流控制消息使用的 JetStream domain |
+| `NATS_STREAM` | 工作流控制消息所在 Stream |
+| `NATS_STREAM_SUBJECTS` | Stream 接收的 subject |
+| `NATS_CONTROL_MAX_BYTES` | JSON 控制消息上限，默认 1 MiB |
+| `NATS_ACK_PROGRESS_INTERVAL_SEC` | JetStream 长任务 ACK 进度间隔 |
+| `WORKFLOW_TIMEOUT_SEC` | 调用下游 Agent 的等待时间 |
+| `IN_SUBJECT` | Agent 接收 JSON 控制任务的 subject |
 | `DURABLE` | JetStream 持久消费者名称 |
 
-`NATS_SERVERS` 必须写本地 Service。使用当前 Helm 部署时，各集群内统一为：
+NATS Server 的`max_payload`为 64 MiB。Protobuf 等协议封装后的完整 bytes 必须不超过
+`NATS_BINARY_MAX_BYTES`和服务端`max_payload`。
 
-```text
-nats://nats:4222
-```
+## 5. Subject 命名
 
-## 4. Subject 命名
-
-Agent 任务 subject 使用：
+工作流控制消息：
 
 ```text
 workflow.<cluster-id>.<agent-id>.in
 ```
 
-示例：
+二进制帧：
+
+```text
+frame.local.<target-cluster-id>.<agent-id>.<operation>
+frame.global.<target-cluster-id>.<agent-id>.<operation>
+```
+
+例如：
 
 ```text
 workflow.edge-a.agent.detector.in
-workflow.edge-a.agent.tracker.in
-workflow.edge-b.agent.planner.in
+frame.local.edge-a.detector.infer
+frame.global.edge-b.detector.infer
 ```
 
-要求：
+`cluster-id`、`agent-id`和`operation`必须是单个 NATS subject token，不能包含点号、
+空白、`*`或`>`。
 
-- `cluster-id` 使用目标 Agent 所属集群 ID。
-- `agent-id` 在目标集群内保持唯一。
-- subject 通过环境变量注入，不在公共 Agent 代码中写死。
-- 接收端 `IN_SUBJECT` 与发送端使用的目标 subject 必须完全一致。
+业务代码不需要手工拼接 frame subject。发送端使用`request_frame_bytes()`，接收端
+使用`subscribe_frame_bytes()`。
 
-回复 subject 不需要业务代码生成。发送方调用 `send_and_wait()` 时会自动创建
-`_INBOX.*`，并把它放入请求的 `reply_subject` 字段。
+## 6. 接收二进制帧
 
-## 5. 消息结构
+每个接收 Agent 在进程启动时注册一次。该方法使用同一个连接同时订阅本集群对应的
+local 和 global subject：
 
-当前 `NatsComm` 接收 Python `dict`，并将其编码为 JSON。
+```python
+import asyncio
+import os
 
-推荐的任务结构：
+from runtime_api import NatsBinaryMessage, NatsComm
+
+
+CLUSTER_ID = os.environ["CLUSTER_ID"]
+AGENT_ID = os.environ.get("AGENT_ID", "detector")
+MAX_INFLIGHT = int(os.environ.get("NATS_MAX_INFLIGHT", "1"))
+
+
+async def main():
+    comm = NatsComm()
+
+    async def infer(message: NatsBinaryMessage) -> bytes:
+        request = FrameRequest.FromString(message.data)
+        result = await run_model(request.frame)
+        return FrameResponse(
+            workflow_id=request.workflow_id,
+            result=result,
+        ).SerializeToString()
+
+    try:
+        await comm.connect(ensure_stream=False)
+        await comm.subscribe_frame_bytes(
+            agent_id=AGENT_ID,
+            handler=infer,
+            operation="infer",
+            local_cluster=CLUSTER_ID,
+            queue=f"{CLUSTER_ID}-{AGENT_ID}",
+            max_inflight=MAX_INFLIGHT,
+        )
+        await asyncio.Event().wait()
+    finally:
+        await comm.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+handler 接收`NatsBinaryMessage`，其中：
+
+- `message.data`是发送方的原始 bytes。
+- `message.subject`是实际命中的 local/global subject。
+- `message.reply_subject`是 Core NATS 自动生成的回复地址。
+- handler 返回 bytes 时，`subscribe_frame_bytes()`自动回复。
+- handler 也可以调用`await message.respond(response_bytes)`后返回`None`。
+
+`max_inflight`在 local/global 两个订阅之间共享。模型必须逐帧处理时设置为 1。
+
+## 7. 发送二进制帧
+
+发送方只传目标集群和目标 Agent，不自行决定 local/global：
+
+```python
+import asyncio
+import os
+
+from runtime_api import NatsComm
+
+
+CLUSTER_ID = os.environ["CLUSTER_ID"]
+TARGET_CLUSTER = os.environ["TARGET_CLUSTER"]
+TARGET_AGENT_ID = os.environ.get("TARGET_AGENT_ID", "detector")
+
+
+async def main():
+    comm = NatsComm()
+    try:
+        await comm.connect(ensure_stream=False)
+
+        for frame in frame_source():
+            request = FrameRequest(
+                workflow_id=frame.workflow_id,
+                source_cluster=CLUSTER_ID,
+                target_cluster=TARGET_CLUSTER,
+                frame=frame.data,
+            ).SerializeToString()
+
+            response_bytes = await comm.request_frame_bytes(
+                target_cluster=TARGET_CLUSTER,
+                agent_id=TARGET_AGENT_ID,
+                payload=request,
+                operation="infer",
+                local_cluster=CLUSTER_ID,
+                timeout_sec=120,
+            )
+            response = FrameResponse.FromString(response_bytes)
+            await handle_result(response)
+    finally:
+        await comm.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+路由结果可以提前查看：
+
+```python
+subject = comm.frame_subject(
+    target_cluster=TARGET_CLUSTER,
+    agent_id=TARGET_AGENT_ID,
+    local_cluster=CLUSTER_ID,
+)
+```
+
+结果为：
+
+```text
+目标集群等于 CLUSTER_ID    -> frame.local.<target>.<agent>.infer
+目标集群不等于 CLUSTER_ID  -> frame.global.<target>.<agent>.infer
+```
+
+`request_frame_bytes()`是 Core NATS 在线请求响应，不写入 JetStream。目标 Agent 必须
+已经在线并完成订阅；调用超时由发送 Agent 决定是否使用同一个`workflow_id`重试。
+
+## 8. 通用二进制接口
+
+不使用 frame 路由规则时，可以直接使用：
+
+| 方法 | 用途 |
+|---|---|
+| `request_bytes(subject, payload, timeout_sec)` | 发送 bytes 并等待 bytes 回复 |
+| `publish_bytes(subject, payload)` | 发布一条 Core NATS bytes 消息 |
+| `respond_bytes(reply_subject, payload)` | 向指定回复地址发布 bytes |
+| `subscribe_bytes(subject, handler, queue)` | 注册一个长期复用的 bytes 订阅 |
+
+这些方法不执行 JSON 编码，不受`NATS_CONTROL_MAX_BYTES`限制，也不创建 JetStream
+consumer。
+
+## 9. JSON 工作流消息结构
+
+JSON 工作流消息由`NatsComm`编码为 JSON，推荐结构：
 
 ```python
 {
     "workflow_id": "workflow-001",
     "request_id": "request-001",
-    "timestamp_ms": 1784860800000,
     "payload": {
         "camera_id": "camera-01",
         "operation": "detect",
@@ -156,34 +338,13 @@ workflow.edge-b.agent.planner.in
 }
 ```
 
-接收方返回：
+`send_and_wait()`会自动增加`reply_subject`。处理方读取该字段并原样交给
+`publish_core()`，不要自行拼接回复 subject。
 
-```python
-{
-    "workflow_id": "workflow-001",
-    "request_id": "request-001",
-    "result": {
-        "objects": [],
-    },
-}
-```
+JSON 消息受`NATS_CONTROL_MAX_BYTES`限制。二进制帧使用第 6、7 节的 bytes API，
+不要转换成 Base64 放入 JSON。
 
-`send_and_wait()`会自动增加：
-
-```python
-{
-    "reply_subject": "_INBOX.<generated-token>"
-}
-```
-
-处理方必须读取请求中的 `reply_subject`，并原样交给 `publish_core()`。不要自行拼接
-回复 subject。
-
-当前 `NatsComm` 用于 JSON 消息，消息大小受 `NATS_CONTROL_MAX_BYTES` 限制。二进制
-内容不能放入 JSON 或转换成 Base64 后发送；任务消息中应只传业务字段和外部数据
-引用。
-
-## 6. 接收任务并回复
+## 10. 接收 JSON 任务并回复
 
 下面是一个完整的异步 Agent worker：
 
@@ -250,7 +411,7 @@ if __name__ == "__main__":
 
 `serve()`是常驻方法。每个进程、每个 `(subject, durable)` 组合只启动一次。
 
-## 7. 发送任务并等待回复
+## 11. 发送 JSON 任务并等待回复
 
 发送方使用 `send_and_wait()`：
 
@@ -302,7 +463,7 @@ if __name__ == "__main__":
 3. 等待接收端通过 `publish_core()`返回一条结果。
 4. 收到结果或超时后注销本次 `_INBOX` 订阅。
 
-## 8. Agent 调用下游 Agent
+## 12. Agent 调用下游 Agent
 
 一个 Agent 同时消费上游任务并调用下游 Agent 时，继续复用同一个 `NatsComm`：
 
@@ -337,7 +498,7 @@ async def handler(message):
 
 不要把上游的 `reply_subject`直接传给下游。
 
-## 9. 单向任务
+## 13. 单向 JSON 任务
 
 只需要将任务写入 JetStream、不等待回复时，使用 `send()`：
 
@@ -363,7 +524,7 @@ await comm.send(
 
 接收端仍使用 `serve()`或`receive()`消费该消息。
 
-## 10. 手动拉取消息
+## 14. 手动拉取 JSON 消息
 
 常驻 Agent 优先使用 `serve()`。需要自行控制批次和 ACK 时可以使用 `receive()`：
 
@@ -399,7 +560,7 @@ for message in messages:
 持久消费必须提供稳定且唯一的 `durable`。同一个队列中的多个副本需要共享任务时，
 各副本使用同一个 durable；不同业务消费者需要各自消费一份时，使用不同 durable。
 
-## 11. Core NATS 请求响应
+## 15. Core NATS JSON 请求响应
 
 只需要在线实时调用、不需要 JetStream 持久化时，可以使用
 `request()`和`respond()`：
@@ -433,17 +594,19 @@ reply = await comm.request(
 Agent 工作流任务默认使用 `send_and_wait()`和`serve()`。只有业务明确允许接收端不在线
 时直接失败，才使用 `request()`和`respond()`。
 
-## 12. 方法选择
+## 16. 方法选择
 
 | 业务场景 | 发送端 | 接收端 | 消息是否持久化 |
 |---|---|---|---|
+| local/global 二进制帧 | `request_frame_bytes()` | `subscribe_frame_bytes()` | 不持久化 |
+| 自定义 Core NATS bytes | `request_bytes()` | `subscribe_bytes()` | 不持久化 |
 | 发送任务并等待结果 | `send_and_wait()` | `serve()` + `publish_core()` | 任务持久化，回复不持久化 |
 | 只发送任务 | `send()` | `serve()`或`receive()` | 持久化 |
 | 手动批量拉取 | `send()` | `receive()` | 持久化 |
 | 在线实时 RPC | `request()` | `respond()` | 不持久化 |
 | 向指定回复地址返回结果 | - | `publish_core()` | 不持久化 |
 
-## 13. 并发配置
+## 17. 并发配置
 
 模型必须逐帧处理时：
 
@@ -457,8 +620,8 @@ NATS_MAX_INFLIGHT=1
 NATS_MAX_INFLIGHT=4
 ```
 
-`max_inflight`限制单个 `serve()`当前同时运行的 handler 数量。一个 Pod 有多个进程
-时，总并发量约为：
+`max_inflight`同时用于`serve()`的 JSON handler 和`subscribe_frame_bytes()`的
+二进制 handler。一个 Pod 有多个进程时，总并发量约为：
 
 ```text
 进程数 * NATS_MAX_INFLIGHT
@@ -470,7 +633,7 @@ NATS_MAX_INFLIGHT=4
 NATS_ACK_PROGRESS_INTERVAL_SEC=10
 ```
 
-## 14. 同步框架接入
+## 18. 同步框架接入
 
 `NatsComm`是异步客户端，必须始终在创建它的 asyncio 事件循环中使用。
 
@@ -505,12 +668,19 @@ app = FastAPI(lifespan=lifespan)
 asyncio.run(NatsComm().send_and_wait(...))
 ```
 
-## 15. 多副本和多进程
+二进制帧接口同样不能在同步 handler 中临时创建：
+
+```python
+asyncio.run(NatsComm().request_frame_bytes(...))
+```
+
+## 19. 多副本和多进程
 
 部署多个 Agent Pod 副本时：
 
 - 所有副本订阅相同 `IN_SUBJECT`。
 - 需要竞争消费同一批任务时，所有副本使用相同 `DURABLE`。
+- 二进制接收副本使用相同`agent_id`、`operation`和`queue`。
 - 每个进程创建并维护自己的 `NatsComm`。
 - 每个进程退出时关闭自己的连接。
 
@@ -523,12 +693,80 @@ Pod 2 / worker 1 -> NatsComm connection 3
 Pod 2 / worker 2 -> NatsComm connection 4
 ```
 
-## 16. Agent 接入检查清单
+## 20. 二进制压力测试
+
+仓库提供`tests/nats_binary_load.py`，必须在 Conda `k8s`环境并从仓库根目录运行。
+
+同集群 loopback：
+
+```bash
+conda activate k8s
+PYTHONPATH=. python tests/nats_binary_load.py \
+  --mode loopback \
+  --servers nats://nats:4222 \
+  --local-cluster edge-a \
+  --target-cluster edge-a \
+  --size-mib 10 \
+  --fps 10 \
+  --duration-sec 10
+```
+
+跨机器测试时，在目标集群先启动接收端：
+
+```bash
+conda activate k8s
+PYTHONPATH=. python tests/nats_binary_load.py \
+  --mode server \
+  --servers nats://nats:4222 \
+  --local-cluster edge-b \
+  --agent-id binary-load
+```
+
+在源集群启动发送端：
+
+```bash
+conda activate k8s
+PYTHONPATH=. python tests/nats_binary_load.py \
+  --mode client \
+  --servers nats://nats:4222 \
+  --local-cluster edge-a \
+  --target-cluster edge-b \
+  --agent-id binary-load \
+  --size-mib 10 \
+  --fps 10 \
+  --duration-sec 10
+```
+
+服务端输出应包含：
+
+```text
+frame.local.edge-b.binary-load.infer
+frame.global.edge-b.binary-load.infer
+```
+
+客户端输出的`START subject`应为：
+
+```text
+frame.global.edge-b.binary-load.infer
+```
+
+成功标准为`completed`等于`sent`且`errors=0`。
+
+完整的三节点 local/global 5 分钟稳定性测试、NATS 监控方法、结果和可交给 Codex
+子 Agent 的测试 Prompt 见
+[NATS 二进制帧 local/global 稳定性测试](nats-binary-soak-test.md)。
+
+## 21. Agent 接入检查清单
 
 - Agent 只连接本集群 `NATS_SERVERS`。
-- subject 通过环境变量注入。
+- 每个 Agent 正确设置本机`CLUSTER_ID`。
 - 每个进程只创建一个长期使用的 `NatsComm`。
 - 所有消息处理复用同一个实例和 asyncio 事件循环。
+- 二进制发送使用`request_frame_bytes()`并传入目标集群。
+- 二进制接收在启动时调用一次`subscribe_frame_bytes()`。
+- 同集群生成`frame.local.*`，跨集群生成`frame.global.*`。
+- Agent 不把帧编码成 Base64 或放入 JSON。
+- 完整二进制消息不超过`NATS_BINARY_MAX_BYTES`。
 - 常驻任务消费使用 `serve()`和稳定的 durable。
 - 需要回复的任务使用 `send_and_wait()`发送。
 - 接收端使用请求中的 `reply_subject`调用`publish_core()`。

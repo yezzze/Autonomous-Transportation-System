@@ -156,7 +156,7 @@ await comm.publish_core(...)
 
 实际 Agent 已明确以NATS作为帧数据通道，因此不要求迁移到该gRPC链路。
 
-## 5. 实际 Agent 的纯NATS目标链路
+## 5. 实际 Agent 的纯NATS已实现链路
 
 ### 5.1 同集群
 
@@ -169,7 +169,7 @@ await comm.publish_core(...)
 
 帧不需要到达云端，也不需要经过gRPC frame service。
 
-推荐subject：
+使用subject：
 
 ```text
 frame.local.<cluster-id>.<agent-id>.infer
@@ -181,8 +181,8 @@ frame.local.<cluster-id>.<agent-id>.infer
 frame.local.edge-a.perception.infer
 ```
 
-`frame.local.>`应限制在本地NATS网络中，不通过LeafNode导出，确保本地帧不会被
-云端订阅或Stream捕获。
+边缘LeafNode已通过`deny_imports`和`deny_exports`把`frame.local.>`限制在本地
+NATS网络中，确保本地帧不会被云端订阅或Stream捕获。
 
 ### 5.2 跨集群
 
@@ -196,7 +196,7 @@ frame.local.edge-a.perception.infer
   -> Core NATS reply原路返回
 ```
 
-推荐subject：
+使用subject：
 
 ```text
 frame.global.<target-cluster-id>.<agent-id>.infer
@@ -279,28 +279,46 @@ await nc.subscribe(subject, queue=agent_id, cb=on_frame)
 - 为每帧创建JetStream consumer。
 - 打印完整帧payload。
 
-## 7. 当前接口边界
+## 7. 二进制接口
 
-当前`runtime_api.NatsComm.send()`是控制消息API：
+`runtime_api.NatsComm.send()`仍是控制消息API：
 
 - 参数类型为`Dict`。
 - 会进行JSON序列化。
 - 默认受`NATS_CONTROL_MAX_BYTES=1048576`保护。
-- 不能直接用于发送10 MiB帧。
+- 不用于发送10 MiB帧。
 
-当前`FrameComm`实现的是gRPC帧传输，也不是纯NATS帧接口。
+纯NATS二进制接口现已实现：
 
-因此，实际Agent切换到纯NATS前，还需要增加独立的二进制接口，例如：
-
-```text
-request_bytes()
-respond_bytes()
-publish_bytes()
-subscribe_bytes()
+```python
+await comm.request_bytes(subject, payload, timeout_sec=120)
+await comm.publish_bytes(subject, payload)
+await comm.respond_bytes(reply_subject, payload)
+await comm.subscribe_bytes(subject, handler, queue="workers")
 ```
 
-这些接口应直接调用Core NATS，不经过JSON编码、控制消息大小检查或JetStream。
-在该接口完成前，不应删除现有gRPC能力，以免Demo和现有测试链路失效。
+帧路由接口：
+
+```python
+await comm.request_frame_bytes(
+    target_cluster="edge-b",
+    agent_id="perception",
+    payload=frame_request_bytes,
+)
+
+await comm.subscribe_frame_bytes(
+    agent_id="perception",
+    handler=handler,
+    queue="perception-workers",
+)
+```
+
+发送端比较`target_cluster`和本机`CLUSTER_ID`，自动选择`frame.local.*`或
+`frame.global.*`。接收端在同一条连接上同时订阅两类subject。接口直接调用
+Core NATS，不经过JSON编码、控制消息大小检查或JetStream。
+
+边缘LeafNode通过`deny_imports`和`deny_exports`阻止`frame.local.>`跨集群传播。
+现有gRPC能力继续保留给原Demo使用，不影响纯NATS Agent接入。
 
 ## 8. 可靠性与限制
 
@@ -372,8 +390,24 @@ total P95=107.9ms
 completed_fps=10.004
 ```
 
-该结果验证的是当前gRPC帧数据面和NATS控制面链路，不代表尚未实现的纯NATS
-二进制帧接口已经完成压力测试。
+新增Core NATS二进制接口后，本机临时NATS 64 MiB环境验证结果：
+
+```text
+local:
+sent=100 completed=100 errors=0
+payload_bytes=10485760
+completed_fps=10.058
+latency_p95_ms=65.9
+
+global subject:
+sent=30 completed=30 errors=0
+payload_bytes=10485760
+completed_fps=10.132
+latency_p95_ms=64.7
+```
+
+global结果验证了subject选择和二进制请求响应；完整跨机器LeafNode链路仍需在两台
+实际机器更新部署后执行`tests/nats_binary_load.py`的server/client模式。
 
 ## 10. 实际Agent接入清单
 
@@ -385,19 +419,20 @@ completed_fps=10.004
 - 多进程服务每个worker各维护一个连接。
 - 禁止在单帧handler中创建连接或事件循环。
 
-纯NATS帧接口完成后执行：
+纯NATS Agent执行：
 
-- 发送方改用`request_bytes()`。
-- 接收方改用常驻`subscribe_bytes()`。
+- 发送方改用`request_frame_bytes()`。
+- 接收方在启动时调用一次`subscribe_frame_bytes()`。
 - 帧改为Protobuf原始bytes，不再使用Base64/JSON。
-- 根据目标集群选择`frame.local.*`或`frame.global.*`。
-- LeafNode只允许`frame.global.>`跨集群传播。
+- 由`target_cluster`和`CLUSTER_ID`自动选择`frame.local.*`或`frame.global.*`。
+- 更新边缘Helm release，使LeafNode隔离`frame.local.>`。
 - 分别执行同集群和跨集群10 MiB连续压力测试。
 
 ## 11. 相关文档
 
 - [实际Agent连接复用](agent-connection-reuse.md)
+- [Agent NATS接入指南](agent-nats-usage.md)
+- [NATS二进制帧local/global稳定性测试](nats-binary-soak-test.md)
 - [gRPC FrameComm跨机器部署与压测](frame-transport-handoff.md)
 - [Agent NATS配置](agent-nats-config.md)
 - [Helm云端Hub与边端LeafNode部署](nats-helm-cloud-edge.md)
-

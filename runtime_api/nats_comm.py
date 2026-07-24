@@ -11,11 +11,13 @@ NATS 集群的部署、连接管理和流的生命周期。
 1. 发布-订阅 (Pub/Sub)        : send() + receive()
 2. 请求-响应 (Request/Reply)  : request() + respond()
 3. 流式消费 (Stream Consumer)  : serve()   — 长轮询拉模式
+4. 二进制帧 (Core NATS)        : request_frame_bytes() + subscribe_frame_bytes()
 
 类说明
 ------
 - NatsComm    : 核心通信客户端类
 - NatsMessage : 消息封装类，提供 ACK/NACK/进度/终止等操作
+- NatsBinaryMessage : Core NATS 原始二进制消息
 
 快速示例
 --------
@@ -71,16 +73,21 @@ NATS 集群的部署、连接管理和流的生命周期。
     NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
     NATS_SEND_DELAY_FILE      运行时延迟配置文件（默认 /tmp/nats_send_delay_seconds）
     NATS_CONTROL_MAX_BYTES    NATS 控制消息上限（默认 1MiB）
+    NATS_BINARY_MAX_BYTES     NATS 二进制消息上限（默认 64MiB）
+    NATS_PENDING_SIZE_BYTES   NATS 客户端发送缓冲上限（默认 128MiB）
+    NATS_BINARY_PENDING_MSGS  二进制订阅待处理消息数（默认 32）
+    NATS_BINARY_PENDING_BYTES 二进制订阅待处理字节数（默认 128MiB）
 """
 
 import asyncio
+import inspect
 import json
 import logging
 import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from nats.aio.client import Client as NATS
 from nats.errors import TimeoutError as NatsTimeoutError
@@ -88,6 +95,23 @@ from nats.js.api import ConsumerConfig
 from runtime_api.jetstream_stream import ensure_jetstream_stream
 
 logger = logging.getLogger(__name__)
+
+BinaryPayload = Union[bytes, bytearray, memoryview]
+
+
+def _binary_payload_bytes(payload: BinaryPayload, field_name: str = "payload") -> bytes:
+    if not isinstance(payload, (bytes, bytearray, memoryview)):
+        raise TypeError(f"{field_name} must be bytes-like")
+    return bytes(payload)
+
+
+def _subject_token(value: str, field_name: str) -> str:
+    token = str(value).strip()
+    if not token or any(char.isspace() for char in token) or "." in token:
+        raise ValueError(f"{field_name} must be one non-empty NATS subject token")
+    if "*" in token or ">" in token:
+        raise ValueError(f"{field_name} cannot contain NATS wildcards")
+    return token
 
 
 @dataclass
@@ -192,6 +216,34 @@ class NatsMessage:
         await self._raw.term()
 
 
+@dataclass
+class NatsBinaryMessage:
+    """Core NATS 原始二进制消息。"""
+
+    subject: str
+    data: bytes
+    reply_subject: str = ""
+    headers: Optional[Dict[str, str]] = None
+    _raw: Any = field(default=None, repr=False)
+    _max_payload_bytes: Optional[int] = field(default=None, repr=False)
+
+    async def respond(self, payload: BinaryPayload) -> None:
+        if not self.reply_subject:
+            raise ValueError("binary message does not contain a reply subject")
+        if self._raw is None:
+            raise RuntimeError("binary message does not contain a NATS reply handle")
+        encoded = _binary_payload_bytes(payload)
+        if (
+            self._max_payload_bytes is not None
+            and len(encoded) > self._max_payload_bytes
+        ):
+            raise ValueError(
+                f"NATS binary response is {len(encoded)} bytes, exceeding "
+                f"NATS_BINARY_MAX_BYTES={self._max_payload_bytes}"
+            )
+        await self._raw.respond(encoded)
+
+
 class NatsComm:
     """
     NATS 运行时通信客户端。
@@ -241,6 +293,7 @@ class NatsComm:
         send_delay: Optional[float] = None,
         send_delay_file: Optional[str] = None,
         max_control_payload_bytes: Optional[int] = None,
+        max_binary_payload_bytes: Optional[int] = None,
     ):
         """
         初始化 NatsComm 实例。
@@ -276,11 +329,38 @@ class NatsComm:
         )
         if self.max_control_payload_bytes <= 0:
             raise ValueError("NATS_CONTROL_MAX_BYTES must be positive")
+        self.max_binary_payload_bytes = (
+            max_binary_payload_bytes
+            if max_binary_payload_bytes is not None
+            else int(os.environ.get("NATS_BINARY_MAX_BYTES", str(64 * 1024 * 1024)))
+        )
+        if self.max_binary_payload_bytes <= 0:
+            raise ValueError("NATS_BINARY_MAX_BYTES must be positive")
+        self.pending_size_bytes = int(
+            os.environ.get("NATS_PENDING_SIZE_BYTES", str(128 * 1024 * 1024))
+        )
+        self.binary_pending_msgs = int(
+            os.environ.get("NATS_BINARY_PENDING_MSGS", "32")
+        )
+        self.binary_pending_bytes = int(
+            os.environ.get(
+                "NATS_BINARY_PENDING_BYTES",
+                str(128 * 1024 * 1024),
+            )
+        )
+        if self.pending_size_bytes <= 0:
+            raise ValueError("NATS_PENDING_SIZE_BYTES must be positive")
+        if self.binary_pending_msgs <= 0:
+            raise ValueError("NATS_BINARY_PENDING_MSGS must be positive")
+        if self.binary_pending_bytes <= 0:
+            raise ValueError("NATS_BINARY_PENDING_BYTES must be positive")
         self._nc = NATS()
         self._js = None
         self._connect_lock = asyncio.Lock()
         self._pull_subscription_lock = asyncio.Lock()
         self._pull_subscriptions: Dict[Tuple[str, str], Any] = {}
+        self._binary_subscription_lock = asyncio.Lock()
+        self._binary_subscriptions: Dict[Tuple[str, str], Any] = {}
         self.ephemeral_consumer_inactive_sec = float(
             os.environ.get("NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC", "30")
         )
@@ -293,7 +373,16 @@ class NatsComm:
             raise ValueError(
                 f"NATS control payload is {len(encoded)} bytes, exceeding "
                 f"NATS_CONTROL_MAX_BYTES={self.max_control_payload_bytes}; "
-                "send large binary data over gRPC and publish only its reference"
+                "use request_frame_bytes() or request_bytes() for binary data"
+            )
+        return encoded
+
+    def _encode_binary_payload(self, payload: BinaryPayload) -> bytes:
+        encoded = _binary_payload_bytes(payload)
+        if len(encoded) > self.max_binary_payload_bytes:
+            raise ValueError(
+                f"NATS binary payload is {len(encoded)} bytes, exceeding "
+                f"NATS_BINARY_MAX_BYTES={self.max_binary_payload_bytes}"
             )
         return encoded
 
@@ -409,6 +498,7 @@ class NatsComm:
                     connect_timeout=5,           # 连接超时 5 秒
                     reconnect_time_wait=2,       # 重连间隔 2 秒
                     max_reconnect_attempts=10,   # 最多重试 10 次
+                    pending_size=self.pending_size_bytes,
                     error_cb=self._on_error,
                     disconnected_cb=self._on_disconnected,
                     reconnected_cb=self._on_reconnected,
@@ -449,6 +539,8 @@ class NatsComm:
                 await subscription.unsubscribe()
             except Exception:
                 logger.debug("关闭 pull subscription 失败", exc_info=True)
+        async with self._binary_subscription_lock:
+            self._binary_subscriptions.clear()
         if self._nc.is_connected:
             await self._nc.drain()
 
@@ -745,6 +837,226 @@ class NatsComm:
                 task.cancel()
             if pending:
                 await asyncio.gather(*pending, return_exceptions=True)
+
+    @staticmethod
+    def _local_cluster(local_cluster: Optional[str] = None) -> str:
+        configured = local_cluster or os.environ.get("CLUSTER_ID", "")
+        if not configured:
+            raise ValueError(
+                "local cluster is required; pass local_cluster or set CLUSTER_ID"
+            )
+        return _subject_token(configured, "local_cluster")
+
+    def frame_subject(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        operation: str = "infer",
+        local_cluster: Optional[str] = None,
+    ) -> str:
+        """根据目标集群生成本地或跨集群帧 subject。"""
+        source_cluster = self._local_cluster(local_cluster)
+        target = _subject_token(target_cluster, "target_cluster")
+        agent = _subject_token(agent_id, "agent_id")
+        action = _subject_token(operation, "operation")
+        scope = "local" if target == source_cluster else "global"
+        return f"frame.{scope}.{target}.{agent}.{action}"
+
+    def frame_subscription_subjects(
+        self,
+        agent_id: str,
+        operation: str = "infer",
+        local_cluster: Optional[str] = None,
+    ) -> Tuple[str, str]:
+        """返回当前 Agent 应同时监听的 local/global 帧 subject。"""
+        cluster = self._local_cluster(local_cluster)
+        agent = _subject_token(agent_id, "agent_id")
+        action = _subject_token(operation, "operation")
+        return (
+            f"frame.local.{cluster}.{agent}.{action}",
+            f"frame.global.{cluster}.{agent}.{action}",
+        )
+
+    async def publish_bytes(
+        self,
+        subject: str,
+        payload: BinaryPayload,
+        timeout_sec: float = 5.0,
+    ) -> None:
+        """通过 Core NATS 发布原始 bytes，不执行 JSON 编码或 JetStream 持久化。"""
+        if timeout_sec <= 0:
+            raise ValueError("timeout_sec must be positive")
+        await self.connect(ensure_stream=False)
+        encoded = self._encode_binary_payload(payload)
+        started = time.monotonic()
+        await self._nc.publish(subject, encoded)
+        await self._nc.flush(timeout=timeout_sec)
+        logger.info(
+            "Core NATS 二进制发布完成 subject=%s bytes=%d elapsed_ms=%.1f",
+            subject,
+            len(encoded),
+            (time.monotonic() - started) * 1000,
+        )
+
+    async def respond_bytes(
+        self,
+        reply_subject: str,
+        payload: BinaryPayload,
+        timeout_sec: float = 5.0,
+    ) -> None:
+        """向 Core NATS request 携带的回复 subject 返回原始 bytes。"""
+        if not reply_subject:
+            raise ValueError("reply_subject is required")
+        await self.publish_bytes(reply_subject, payload, timeout_sec=timeout_sec)
+
+    async def request_bytes(
+        self,
+        subject: str,
+        payload: BinaryPayload,
+        timeout_sec: float = 30.0,
+    ) -> bytes:
+        """通过 Core NATS 发送原始 bytes，并等待一条原始 bytes 回复。"""
+        if timeout_sec <= 0:
+            raise ValueError("timeout_sec must be positive")
+        await self.connect(ensure_stream=False)
+        encoded = self._encode_binary_payload(payload)
+        started = time.monotonic()
+        try:
+            message = await self._nc.request(
+                subject,
+                encoded,
+                timeout=timeout_sec,
+            )
+        except NatsTimeoutError as exc:
+            raise TimeoutError(f"二进制请求超时 subject={subject}") from exc
+        response = self._encode_binary_payload(message.data)
+        logger.info(
+            "Core NATS 二进制请求完成 subject=%s request_bytes=%d "
+            "response_bytes=%d elapsed_ms=%.1f",
+            subject,
+            len(encoded),
+            len(response),
+            (time.monotonic() - started) * 1000,
+        )
+        return response
+
+    async def subscribe_bytes(
+        self,
+        subject: str,
+        handler: Callable[[NatsBinaryMessage], Any],
+        queue: Optional[str] = None,
+    ):
+        """
+        在复用连接上注册一个常驻 Core NATS 二进制订阅。
+
+        handler 可以直接调用 message.respond()，也可以返回 bytes 由本方法自动回复。
+        相同 subject 和 queue 的重复调用会返回已创建的订阅。
+        """
+        await self.connect(ensure_stream=False)
+        queue_name = queue or ""
+        key = (subject, queue_name)
+        async with self._binary_subscription_lock:
+            subscription = self._binary_subscriptions.get(key)
+            if subscription is not None:
+                return subscription
+
+            async def callback(raw_message):
+                message = NatsBinaryMessage(
+                    subject=raw_message.subject,
+                    data=bytes(raw_message.data),
+                    reply_subject=raw_message.reply or "",
+                    headers=raw_message.headers,
+                    _raw=raw_message,
+                    _max_payload_bytes=self.max_binary_payload_bytes,
+                )
+                try:
+                    result = handler(message)
+                    if inspect.isawaitable(result):
+                        result = await result
+                    if result is not None:
+                        await message.respond(self._encode_binary_payload(result))
+                except Exception:
+                    logger.exception(
+                        "Core NATS 二进制消息处理失败 subject=%s",
+                        subject,
+                    )
+
+            subscription = await self._nc.subscribe(
+                subject,
+                queue=queue_name,
+                cb=callback,
+                pending_msgs_limit=self.binary_pending_msgs,
+                pending_bytes_limit=self.binary_pending_bytes,
+            )
+            await self._nc.flush(timeout=5.0)
+            self._binary_subscriptions[key] = subscription
+            logger.info(
+                "已创建并缓存 Core NATS 二进制订阅 subject=%s queue=%s",
+                subject,
+                queue_name or "-",
+            )
+            return subscription
+
+    async def request_frame_bytes(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        payload: BinaryPayload,
+        operation: str = "infer",
+        local_cluster: Optional[str] = None,
+        timeout_sec: float = 30.0,
+    ) -> bytes:
+        """按目标集群自动选择 local/global subject 并发送二进制帧请求。"""
+        subject = self.frame_subject(
+            target_cluster=target_cluster,
+            agent_id=agent_id,
+            operation=operation,
+            local_cluster=local_cluster,
+        )
+        return await self.request_bytes(subject, payload, timeout_sec=timeout_sec)
+
+    async def subscribe_frame_bytes(
+        self,
+        agent_id: str,
+        handler: Callable[[NatsBinaryMessage], Any],
+        operation: str = "infer",
+        local_cluster: Optional[str] = None,
+        queue: Optional[str] = None,
+        max_inflight: Optional[int] = None,
+    ) -> Tuple[Any, Any]:
+        """在同一连接上同时监听当前 Agent 的 local/global 二进制帧 subject。"""
+        concurrency = (
+            max_inflight
+            if max_inflight is not None
+            else int(os.environ.get("NATS_MAX_INFLIGHT", "1"))
+        )
+        if concurrency <= 0:
+            raise ValueError("max_inflight must be positive")
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def routed_handler(message: NatsBinaryMessage):
+            async with semaphore:
+                result = handler(message)
+                if inspect.isawaitable(result):
+                    result = await result
+                return result
+
+        subjects = self.frame_subscription_subjects(
+            agent_id=agent_id,
+            operation=operation,
+            local_cluster=local_cluster,
+        )
+        local_subscription = await self.subscribe_bytes(
+            subjects[0],
+            handler=routed_handler,
+            queue=queue,
+        )
+        global_subscription = await self.subscribe_bytes(
+            subjects[1],
+            handler=routed_handler,
+            queue=queue,
+        )
+        return local_subscription, global_subscription
 
     async def request(
         self,

@@ -48,6 +48,24 @@ workflow.edge-c.agent.d.in
 任务回复由`NatsComm.send_and_wait()`自动生成`_INBOX.*`，不使用
 `workflow.*.reply.*`，避免回复进入WORKFLOW Stream。
 
+二进制帧使用：
+
+```text
+frame.local.<target-cluster-id>.<agent-id>.<operation>
+frame.global.<target-cluster-id>.<agent-id>.<operation>
+```
+
+边缘 values 在 LeafNode remote 上配置：
+
+```yaml
+deny_imports:
+  - "frame.local.>"
+deny_exports:
+  - "frame.local.>"
+```
+
+`frame.local.>`只在当前边缘集群内传输，`frame.global.>`允许通过云端 Hub 路由。
+
 ## 前置条件
 
 云端机器：
@@ -272,6 +290,10 @@ NATS_STREAM_SUBJECTS=workflow.>
 NATS_STREAM_MAX_BYTES=5GB
 NATS_STREAM_DISCARD=old
 CLUSTER_ID=<edge-cluster-id>
+NATS_BINARY_MAX_BYTES=67108864
+NATS_PENDING_SIZE_BYTES=134217728
+NATS_BINARY_PENDING_BYTES=134217728
+NATS_BINARY_PENDING_MSGS=32
 ```
 
 生成某个集群的 Agent subject env：
@@ -287,6 +309,20 @@ REQ_SUBJECT=workflow.edge-b.agent.b.in
 IN_SUBJECT=workflow.edge-b.agent.b.in
 C_IN_SUBJECT=workflow.edge-b.agent.c.in
 ```
+
+验证最终 NATS 配置包含本地帧隔离：
+
+```bash
+helm template nats nats/nats \
+  --version 2.14.0 \
+  -f k8s/helm/nats-edge-values.yaml |
+  grep -A8 -B2 'deny_exports'
+```
+
+渲染结果必须同时包含`deny_imports`、`deny_exports`和`frame.local.>`。
+
+Agent 二进制帧收发和 local/global 路由用法见
+[Agent 使用 NATS 接入指南](agent-nats-usage.md)。
 
 ## 常见问题
 
