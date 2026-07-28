@@ -13,6 +13,10 @@ CHART_VERSION="${NATS_CHART_VERSION:-2.14.0}"
 VALUES_FILE="${NATS_EDGE_VALUES:-${REPO_ROOT}/k8s/helm/nats-edge-values.yaml}"
 CLOUD_HOST="${NATS_CLOUD_HOST}"
 CLOUD_PASSWORD="${NATS_CLOUD_PASSWORD}"
+RECREATE_STS_ON_IMMUTABLE="$(
+  printf '%s' "${NATS_RECREATE_STATEFULSET_ON_IMMUTABLE:-false}" \
+    | tr '[:upper:]' '[:lower:]'
+)"
 
 echo "[edge-nats] local_cluster=${LOCAL_CLUSTER} cloud_host=${CLOUD_HOST} edge_cluster_id=${EDGE_CLUSTER_ID} namespace=${NAMESPACE}"
 
@@ -46,10 +50,48 @@ if kubectl get svc "${RELEASE}" -n "${NAMESPACE}" \
   kubectl delete service "${RELEASE}" -n "${NAMESPACE}" --ignore-not-found
 fi
 
-"${HELM}" upgrade --install "${RELEASE}" nats/nats \
-  --namespace "${NAMESPACE}" \
-  --version "${CHART_VERSION}" \
-  -f "${tmp_values}"
+helm_upgrade() {
+  "${HELM}" upgrade --install "${RELEASE}" nats/nats \
+    --namespace "${NAMESPACE}" \
+    --version "${CHART_VERSION}" \
+    -f "${tmp_values}"
+}
+
+upgrade_output=""
+if ! upgrade_output="$(helm_upgrade 2>&1)"; then
+  printf '%s\n' "${upgrade_output}" >&2
+  if grep -q \
+    'updates to statefulset spec for fields other than' \
+    <<<"${upgrade_output}"; then
+    if [[ "${RECREATE_STS_ON_IMMUTABLE}" != "true" ]]; then
+      cat >&2 <<EOF
+[edge-nats] Existing StatefulSet has immutable fields that differ from
+the current Helm chart, usually an older volumeClaimTemplates layout.
+
+Stop new tasks, drain JetStream messages, then rerun with:
+  NATS_RECREATE_STATEFULSET_ON_IMMUTABLE=true \
+    ./scripts/setup_edge_nats_helm.sh
+
+This recreates only the StatefulSet controller with --cascade=orphan.
+Existing PVCs are retained, but the NATS Pod may restart and Memory
+Streams are not preserved across that restart.
+EOF
+      exit 1
+    fi
+
+    echo "[edge-nats] recreating immutable StatefulSet controller"
+    kubectl delete statefulset "${RELEASE}" \
+      -n "${NAMESPACE}" \
+      --cascade=orphan \
+      --wait=true
+    helm_upgrade
+    kubectl rollout restart \
+      -n "${NAMESPACE}" \
+      statefulset/"${RELEASE}"
+  else
+    exit 1
+  fi
+fi
 
 kubectl create configmap edge-cluster-config \
   -n "${NAMESPACE}" \

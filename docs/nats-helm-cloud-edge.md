@@ -163,3 +163,24 @@ nats --server nats://nats:4222 \
 6. Agent 必须在 readiness 成功前启动 `serve_workflow()` /
    `serve_memory_frames()` 创建 Stream，并在实例结束时调用 `close()` 删除。
 7. 示例清单中的目标实例 UID 占位符必须由编排器替换。
+
+### 8.1 StatefulSet 不可变字段
+
+从未启用 JetStream PVC 的旧 release 升级时，新增
+`volumeClaimTemplates` 会被 Kubernetes 拒绝：
+
+```text
+UPGRADE FAILED: cannot patch "nats" with kind StatefulSet
+updates to statefulset spec ... are forbidden
+```
+
+先停止新任务并等待 WF/FRAME 消息排空，再执行一次显式迁移：
+
+```bash
+NATS_RECREATE_STATEFULSET_ON_IMMUTABLE=true \
+  ./scripts/setup_edge_nats_helm.sh
+```
+
+脚本第一次检测到该错误后会以 `--cascade=orphan` 删除旧 StatefulSet 控制器，
+保留 Pod 和已有 PVC，再由 Helm 创建新 StatefulSet 并滚动 Pod。File Store
+PVC 不会被脚本删除；Memory Stream 在 NATS Pod 重启后不会保留。
