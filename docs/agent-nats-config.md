@@ -1,100 +1,91 @@
 # Agent 实例 NATS 配置与编排
 
-## 1. 编排器与边缘控制器负责的生命周期
+## 1. 编排器、Pod 与 Agent 生命周期
 
 一次 Agent 实例启动按以下顺序执行：
 
-1. 外部编排器调用目标集群的边缘生命周期控制器。
-2. 边缘控制器创建 Pod 并读取 `metadata.uid`。
-3. 边缘控制器在本地 JetStream domain 创建 File 类型
-   `WF_<pod-uid>` 和 Memory 类型 `FRAME_<pod-uid>`。
-4. 两条 Stream 分别绑定该实例的 local/global 工作流和帧 subject。
-5. 编排器将实例登记为 Ready，并把
+1. 编排器直接创建目标集群中的 Pod。
+2. Kubernetes 通过 Downward API 注入 `AGENT_INSTANCE_ID=metadata.uid`。
+3. Agent 创建一个进程级 `NatsComm`。
+4. `serve_workflow()` 创建 File 类型 `WF_<pod-uid>`；
+   `serve_memory_frames()` 创建 Memory 类型 `FRAME_<pod-uid>`。
+5. Agent 建立 local/global Consumer 并通过 readiness 表示可接收任务。
+6. 编排器将实例登记为 Ready，并把
    `cluster_id + agent_id + pod_uid` 写入工作流路由表。
-6. 调用方按路由表发送到精确实例。
+7. 调用方按路由表发送到精确实例。
 
 实例结束按以下顺序执行：
 
 1. 从路由表移除实例，停止新任务进入。
 2. 等待正在执行的任务完成或达到终止期限。
-3. 调用边缘控制器的 DELETE API。
-4. 控制器等待消息排空后删除 Pod、`WF_<pod-uid>` 和
-   `FRAME_<pod-uid>`。
+3. 编排器正常终止 Pod。
+4. Agent 在 `finally`/`async with` 中调用 `NatsComm.close()`。
+5. `close()` 删除 `WF_<pod-uid>`、`FRAME_<pod-uid>` 和 Consumer。
 
-异常退出时，边缘控制器的定时 reconcile 会比较存量 `WF_<uid>`、
-`FRAME_<uid>` 与当前 Pod UID；空的孤儿 Stream 超过保护期后自动删除，
-非空孤儿 Stream 保留并告警。
+`SIGKILL` 或节点掉电不会执行 Agent 清理代码。编排器必须保存被删除 Pod 的
+UID，并在确认 Pod 不存在后直接调用 NATS 删除接口兜底清理残留 Stream。
 
-控制器部署和 API 见
-[`edge-lifecycle-controller.md`](edge-lifecycle-controller.md)。
-
-## 2. Python 管理接口
-
-编排器进程复用一个 `NatsComm`：
+## 2. Agent 自主管理接口
 
 ```python
 from runtime_api import NatsComm
 
-comm = NatsComm()
-
-resource = await comm.provision_workflow_stream(
-    target_cluster="edge-a",
-    agent_id="detector",
-    instance_id=pod_uid,
-)
-frame_resource = await comm.provision_memory_frame_stream(
-    target_cluster="edge-a",
-    agent_id="detector",
-    instance_id=pod_uid,
-)
-
-deleted = await comm.delete_workflow_stream(
-    target_cluster="edge-a",
-    instance_id=pod_uid,
-)
-frame_deleted = await comm.delete_memory_frame_stream(
-    target_cluster="edge-a",
-    instance_id=pod_uid,
-)
-```
-
-创建操作按 Stream 名幂等；重复创建会校正 subject 和容量策略。删除操作也
-幂等，返回 `False` 表示 Stream 已不存在。
-
-### 2.1 Agent 自主管理 Memory Stream
-
-不经过编排器运行的 Agent 不需要单独调用上述底层管理接口。接收端调用：
-
-```python
 async with NatsComm() as comm:
-    await comm.serve_memory_frames(
-        agent_id=agent_id,
-        instance_id=instance_id,
-        local_cluster=cluster_id,
-        handler=handler,
+    await asyncio.gather(
+        comm.serve_workflow(
+            agent_id=agent_id,
+            durable=instance_id,
+            local_cluster=cluster_id,
+            handler=workflow_handler,
+        ),
+        comm.serve_memory_frames(
+            agent_id=agent_id,
+            local_cluster=cluster_id,
+            handler=frame_handler,
+        ),
     )
 ```
 
-默认会在启动时调用 `start_memory_frame_stream()` 创建并登记
-`FRAME_<instance-id>`。退出 `async with` 时会强制调用同一个
-`NatsComm.close()`，自动执行 `stop_memory_frame_stream()` 的等价删除逻辑。
-无法使用上下文管理器时，必须在 `finally` 中调用 `await comm.close()`。
+两个 `serve_*` 方法都会从 `AGENT_INSTANCE_ID` 读取实例 ID。只使用一种消息
+类型时，只启动对应服务。`close()` 只删除当前 `NatsComm` 实际登记管理的
+Stream。
 
-如果 Pod 仍由边缘控制器创建，但希望帧 Stream 跟随 Agent 通信实例管理，创建
-Pod 时设置：
+编排器处理异常退出的兜底清理：
 
-```json
-{
-  "workflow_stream": true,
-  "frame_stream": false
-}
+```python
+cleanup = NatsComm()
+try:
+    await cleanup.delete_workflow_stream(
+        target_cluster=cluster_id,
+        instance_id=pod_uid,
+    )
+    await cleanup.delete_memory_frame_stream(
+        target_cluster=cluster_id,
+        instance_id=pod_uid,
+    )
+finally:
+    await cleanup.close()
 ```
 
-这样 `WF_<pod-uid>` 仍由控制器管理，`FRAME_<pod-uid>` 由 Agent 的
-`NatsComm` 管理。
+创建和删除均幂等。正常生命周期不需要显式调用这些底层方法。
 
-如果创建请求使用 `"frame_stream": true`，接收端必须传入
-`manage_stream_lifecycle=False`，由控制器独占 Stream 生命周期。
+旧控制器兼容模式才传入：
+
+```python
+await comm.serve_workflow(
+    agent_id=agent_id,
+    durable=instance_id,
+    local_cluster=cluster_id,
+    handler=workflow_handler,
+    manage_stream_lifecycle=False,
+)
+await comm.serve_memory_frames(
+        agent_id=agent_id,
+        local_cluster=cluster_id,
+        handler=frame_handler,
+        manage_stream_lifecycle=False,
+)
+```
 
 ## 3. 命令行管理入口
 
@@ -235,7 +226,7 @@ consumer_num_ack_pending
 2. 等待旧任务处理完成并备份必要状态。
 3. 删除或改名旧共享 Stream，使其只匹配 `legacy.workflow.>`。
 4. 部署唯一 JetStream domain 和 LeafNode local 隔离配置。
-5. 启动新实例并为每个 Pod UID 创建独立 Stream。
+5. 启动新实例，由 Agent 按每个 Pod UID 创建独立 Stream。
 6. 恢复调度。
 
 ## 8. 给另一台机器 Codex 的执行提示词
@@ -248,10 +239,11 @@ JetStream 验证。使用 conda 环境 k8s，不要使用系统 Python。
 1. 检查边缘 NATS 的 JetStream domain 等于 CLUSTER_ID，云端 domain 为 hub。
 2. 检查 LeafNode 双向拒绝 workflow.local.> 和 frame.local.>。
 3. 不创建云端共享 workflow Stream。
-4. 模拟编排器为两个不同 Pod UID 调用 provision_workflow_stream。
+4. 模拟两个 Agent 使用不同 Pod UID 调用 start_workflow_stream。
 5. 验证每个 UID 得到独立 WF_<uid>，且只存在于目标边缘 domain。
 6. 分别发送同集群 local 工作流和跨集群 global 工作流，确认精确实例收到并 ACK。
-7. 删除实例 Stream，确认 Stream 和 consumer 一起消失；重复删除不得失败。
+7. 关闭两个 Agent 的 NatsComm，确认 Stream 和 consumer 一起消失；
+   重复 close 不得失败。
 8. 同时验证 15MiB frame.local 和 frame.global 请求响应，发送方收到回复后再发下一帧。
 9. 观察 cloud、edge-a、edge-b 日志和监控，记录吞吐、p95、超时、重连、
    slow consumer、pending bytes、JetStream 存储位置。

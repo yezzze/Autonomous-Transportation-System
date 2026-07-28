@@ -155,7 +155,7 @@ class NatsWorkflowApiTest(unittest.IsolatedAsyncioTestCase):
             {"workflow_id": "wf-1"},
         )
 
-    async def test_orchestrator_provisions_instance_stream(self):
+    async def test_provisions_instance_stream(self):
         comm = NatsComm()
         js = AsyncMock()
         comm._jetstream_for_subject = AsyncMock(
@@ -206,7 +206,7 @@ class NatsWorkflowApiTest(unittest.IsolatedAsyncioTestCase):
                 },
             )
 
-    async def test_orchestrator_deletes_finished_instance_stream(self):
+    async def test_deletes_finished_instance_stream(self):
         comm = NatsComm()
         comm.connect = AsyncMock()
         js = AsyncMock()
@@ -306,7 +306,7 @@ class NatsWorkflowApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item["stream"] for item in result], ["WF_pod-uid-a"])
         self.assertEqual(result[0]["instance_id"], "pod-uid-a")
 
-    async def test_agent_waits_for_orchestrator_provisioned_stream(self):
+    async def test_waits_for_controller_provisioned_stream(self):
         comm = NatsComm()
         comm.connect = AsyncMock()
         js = Mock()
@@ -331,7 +331,7 @@ class NatsWorkflowApiTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_serve_workflow_registers_instance_local_and_global(self):
         comm = NatsComm()
-        comm.wait_workflow_stream = AsyncMock()
+        comm.start_workflow_stream = AsyncMock()
         comm.serve = AsyncMock()
         handler = AsyncMock()
 
@@ -344,7 +344,7 @@ class NatsWorkflowApiTest(unittest.IsolatedAsyncioTestCase):
             max_inflight=2,
         )
 
-        comm.wait_workflow_stream.assert_awaited_once_with(
+        comm.start_workflow_stream.assert_awaited_once_with(
             agent_id="detector",
             local_cluster="edge-a",
             instance_id="pod-uid-a",
@@ -364,6 +364,63 @@ class NatsWorkflowApiTest(unittest.IsolatedAsyncioTestCase):
             },
             {"pod-uid-a-local", "pod-uid-a-global"},
         )
+
+    async def test_start_registers_workflow_stream_for_close_cleanup(self):
+        comm = NatsComm()
+        comm.provision_workflow_stream = AsyncMock(
+            return_value={
+                "stream": "WF_pod-uid-a",
+                "domain": "edge-a",
+            }
+        )
+
+        result = await comm.start_workflow_stream(
+            agent_id="detector",
+            instance_id="pod-uid-a",
+            local_cluster="edge-a",
+        )
+
+        self.assertEqual(result["stream"], "WF_pod-uid-a")
+        self.assertEqual(
+            comm._managed_workflow_streams,
+            {("edge-a", "pod-uid-a")},
+        )
+
+    async def test_close_deletes_managed_workflow_stream(self):
+        comm = NatsComm()
+        comm._managed_workflow_streams.add(("edge-a", "pod-uid-a"))
+        comm.delete_workflow_stream = AsyncMock(return_value=True)
+
+        await comm.close()
+        await comm.close()
+
+        comm.delete_workflow_stream.assert_awaited_once_with(
+            target_cluster="edge-a",
+            instance_id="pod-uid-a",
+        )
+        self.assertEqual(comm._managed_workflow_streams, set())
+
+    async def test_controller_managed_workflow_only_waits(self):
+        comm = NatsComm()
+        comm.wait_workflow_stream = AsyncMock()
+        comm.start_workflow_stream = AsyncMock()
+        comm.serve = AsyncMock()
+
+        await comm.serve_workflow(
+            agent_id="detector",
+            durable="pod-uid-a",
+            handler=AsyncMock(),
+            local_cluster="edge-a",
+            instance_id="pod-uid-a",
+            manage_stream_lifecycle=False,
+        )
+
+        comm.wait_workflow_stream.assert_awaited_once_with(
+            agent_id="detector",
+            local_cluster="edge-a",
+            instance_id="pod-uid-a",
+        )
+        comm.start_workflow_stream.assert_not_awaited()
 
 
 if __name__ == "__main__":

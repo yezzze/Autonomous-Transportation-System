@@ -434,6 +434,8 @@ class NatsComm:
         self._pull_subscriptions: Dict[Tuple[str, str, str], Any] = {}
         self._binary_subscription_lock = asyncio.Lock()
         self._binary_subscriptions: Dict[Tuple[str, str], Any] = {}
+        self._managed_workflow_stream_lock = asyncio.Lock()
+        self._managed_workflow_streams: Set[Tuple[str, str]] = set()
         self._managed_frame_stream_lock = asyncio.Lock()
         self._managed_frame_streams: Set[Tuple[str, str]] = set()
         self._close_lock = asyncio.Lock()
@@ -733,7 +735,7 @@ class NatsComm:
             if self._ever_connected and not self._closed:
                 logger.error(
                     "NatsComm 在未调用 close() 的情况下被回收；"
-                    "自主管理的 Memory Stream 可能残留"
+                    "自主管理的实例 Stream 可能残留"
                 )
         except Exception:
             pass
@@ -748,9 +750,16 @@ class NatsComm:
         async with self._close_lock:
             if self._closed:
                 return
+            async with self._managed_workflow_stream_lock:
+                self._closing = True
+                managed_workflow_streams = list(
+                    self._managed_workflow_streams
+                )
             async with self._managed_frame_stream_lock:
                 self._closing = True
-                managed_streams = list(self._managed_frame_streams)
+                managed_frame_streams = list(
+                    self._managed_frame_streams
+                )
             async with self._pull_subscription_lock:
                 subscriptions = list(self._pull_subscriptions.values())
                 self._pull_subscriptions.clear()
@@ -764,7 +773,31 @@ class NatsComm:
                     )
             async with self._binary_subscription_lock:
                 self._binary_subscriptions.clear()
-            for cluster, instance_id in managed_streams:
+            for cluster, instance_id in managed_workflow_streams:
+                try:
+                    await self.delete_workflow_stream(
+                        target_cluster=cluster,
+                        instance_id=instance_id,
+                    )
+                    logger.info(
+                        "NatsComm 关闭时已删除自主管理的 Workflow Stream "
+                        "cluster=%s instance_id=%s",
+                        cluster,
+                        instance_id,
+                    )
+                except Exception:
+                    logger.exception(
+                        "NatsComm 关闭时删除自主管理的 Workflow Stream 失败 "
+                        "cluster=%s instance_id=%s",
+                        cluster,
+                        instance_id,
+                    )
+                finally:
+                    async with self._managed_workflow_stream_lock:
+                        self._managed_workflow_streams.discard(
+                            (cluster, instance_id)
+                        )
+            for cluster, instance_id in managed_frame_streams:
                 try:
                     await self.delete_memory_frame_stream(
                         target_cluster=cluster,
@@ -1109,18 +1142,33 @@ class NatsComm:
         poll_timeout_sec: float = 5.0,
         max_inflight: int = 1,
         ack_progress_interval_sec: float = 10.0,
+        manage_stream_lifecycle: bool = True,
     ) -> None:
-        """在同一连接上同时消费本地和跨集群持久化工作流消息。"""
-        await self.wait_workflow_stream(
-            agent_id=agent_id,
-            local_cluster=local_cluster,
-            instance_id=instance_id,
-        )
+        """
+        在同一连接上同时消费本地和跨集群持久化工作流消息。
+
+        默认创建当前实例的 WF Stream，并在 close() 时删除。兼容旧控制器
+        管理方式时传入 manage_stream_lifecycle=False。
+        """
+        cluster = self._local_cluster(local_cluster)
+        instance = self._instance_id(instance_id)
+        if manage_stream_lifecycle:
+            await self.start_workflow_stream(
+                agent_id=agent_id,
+                local_cluster=cluster,
+                instance_id=instance,
+            )
+        else:
+            await self.wait_workflow_stream(
+                agent_id=agent_id,
+                local_cluster=cluster,
+                instance_id=instance,
+            )
         subjects = self.workflow_subscription_subjects(
             agent_id=agent_id,
             operation=operation,
-            local_cluster=local_cluster,
-            instance_id=instance_id,
+            local_cluster=cluster,
+            instance_id=instance,
         )
         tasks = [
             asyncio.create_task(
@@ -1229,7 +1277,7 @@ class NatsComm:
         agent_id: str,
         instance_id: str,
     ) -> Dict[str, Any]:
-        """由编排器为目标实例创建或复用唯一的持久化 Stream。"""
+        """为目标实例创建或复用唯一的持久化 Workflow Stream。"""
         cluster = _subject_token(target_cluster, "target_cluster")
         agent = _subject_token(agent_id, "agent_id")
         instance = self._instance_id(instance_id)
@@ -1259,6 +1307,52 @@ class NatsComm:
             ),
         }
 
+    async def start_workflow_stream(
+        self,
+        agent_id: str,
+        instance_id: Optional[str] = None,
+        local_cluster: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """创建当前实例的 WF Stream，并绑定到本客户端生命周期。"""
+        cluster = self._local_cluster(local_cluster)
+        instance = self._instance_id(instance_id)
+        async with self._managed_workflow_stream_lock:
+            if self._closing:
+                raise RuntimeError("NatsComm is closing")
+
+        result = await self.provision_workflow_stream(
+            target_cluster=cluster,
+            agent_id=agent_id,
+            instance_id=instance,
+        )
+        async with self._managed_workflow_stream_lock:
+            closing = self._closing
+            if not closing:
+                self._managed_workflow_streams.add((cluster, instance))
+        if closing:
+            await self.delete_workflow_stream(
+                target_cluster=cluster,
+                instance_id=instance,
+            )
+            raise RuntimeError("NatsComm is closing")
+        return result
+
+    async def stop_workflow_stream(
+        self,
+        instance_id: Optional[str] = None,
+        local_cluster: Optional[str] = None,
+    ) -> bool:
+        """提前删除并解除当前客户端管理的 Workflow Stream。"""
+        cluster = self._local_cluster(local_cluster)
+        instance = self._instance_id(instance_id)
+        deleted = await self.delete_workflow_stream(
+            target_cluster=cluster,
+            instance_id=instance,
+        )
+        async with self._managed_workflow_stream_lock:
+            self._managed_workflow_streams.discard((cluster, instance))
+        return deleted
+
     async def wait_workflow_stream(
         self,
         agent_id: str,
@@ -1267,7 +1361,7 @@ class NatsComm:
         timeout_sec: Optional[float] = None,
         poll_interval_sec: float = 0.5,
     ) -> Dict[str, Any]:
-        """等待编排器创建当前实例的 Stream，不在 Agent 侧创建资源。"""
+        """兼容控制器管理模式，等待当前实例 Workflow Stream 就绪。"""
         cluster = self._local_cluster(local_cluster)
         agent = _subject_token(agent_id, "agent_id")
         instance = self._instance_id(instance_id)

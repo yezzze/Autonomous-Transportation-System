@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""验证编排器管理的每实例 JetStream local/global 路由与清理。"""
+"""验证 Agent 自主管理的每实例 JetStream local/global 路由与清理。"""
 
 import argparse
 import asyncio
@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from runtime_api import NatsComm
+from runtime_api import NatsComm  # noqa: E402
 
 
 async def receive_one(
@@ -57,25 +57,25 @@ async def run(args) -> None:
     edge_b = NatsComm(servers=[args.edge_b_nats_url])
     orchestrator = NatsComm(servers=[args.edge_a_nats_url])
     try:
-        stream_a = await orchestrator.provision_workflow_stream(
-            target_cluster=args.edge_a_cluster_id,
+        stream_a = await edge_a.start_workflow_stream(
             agent_id=args.agent_a,
             instance_id=args.instance_a,
+            local_cluster=args.edge_a_cluster_id,
         )
-        stream_a_repeated = await orchestrator.provision_workflow_stream(
-            target_cluster=args.edge_a_cluster_id,
+        stream_a_repeated = await edge_a.start_workflow_stream(
             agent_id=args.agent_a,
             instance_id=args.instance_a,
+            local_cluster=args.edge_a_cluster_id,
         )
         if stream_a_repeated != stream_a:
             raise RuntimeError(
                 f"repeated provision changed instance stream: "
                 f"{stream_a_repeated} != {stream_a}"
             )
-        stream_b = await orchestrator.provision_workflow_stream(
-            target_cluster=args.edge_b_cluster_id,
+        stream_b = await edge_b.start_workflow_stream(
             agent_id=args.agent_b,
             instance_id=args.instance_b,
+            local_cluster=args.edge_b_cluster_id,
         )
 
         local_subject = orchestrator.workflow_subject(
@@ -151,30 +151,36 @@ async def run(args) -> None:
         if hub_streams:
             raise RuntimeError(f"cloud hub must not store workflow: {hub_streams}")
 
-        deleted_a = await orchestrator.delete_workflow_stream(
-            target_cluster=args.edge_a_cluster_id,
-            instance_id=args.instance_a,
-        )
-        deleted_b = await orchestrator.delete_workflow_stream(
-            target_cluster=args.edge_b_cluster_id,
-            instance_id=args.instance_b,
-        )
+        await edge_a.close()
+        await edge_b.close()
+        deleted_a = not (
+            await orchestrator.workflow_stream_status(
+                target_cluster=args.edge_a_cluster_id,
+                instance_id=args.instance_a,
+            )
+        )["exists"]
+        deleted_b = not (
+            await orchestrator.workflow_stream_status(
+                target_cluster=args.edge_b_cluster_id,
+                instance_id=args.instance_b,
+            )
+        )["exists"]
         deleted_again = await orchestrator.delete_workflow_stream(
             target_cluster=args.edge_a_cluster_id,
             instance_id=args.instance_a,
         )
         if not deleted_a or not deleted_b or deleted_again:
             raise RuntimeError(
-                "instance stream delete is not idempotent: "
+                "Agent-owned Stream cleanup is not idempotent: "
                 f"first=({deleted_a}, {deleted_b}), again={deleted_again}"
             )
         cleanup = {
             args.edge_a_cluster_id: await stream_names(
-                edge_a,
+                orchestrator,
                 args.edge_a_cluster_id,
             ),
             args.edge_b_cluster_id: await stream_names(
-                edge_b,
+                orchestrator,
                 args.edge_b_cluster_id,
             ),
         }
@@ -202,10 +208,10 @@ async def run(args) -> None:
                         "hub": hub_streams,
                     },
                     "after_instance_cleanup": cleanup,
-                    "delete_idempotency": {
-                        "first_edge_a": deleted_a,
-                        "first_edge_b": deleted_b,
-                        "second_edge_a": deleted_again,
+                    "agent_lifecycle": {
+                        "edge_a_deleted_on_close": deleted_a,
+                        "edge_b_deleted_on_close": deleted_b,
+                        "delete_missing_edge_a": deleted_again,
                     },
                 },
                 ensure_ascii=False,

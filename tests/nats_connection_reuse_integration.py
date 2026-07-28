@@ -7,7 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from runtime_api import NatsComm
+from runtime_api import NatsComm  # noqa: E402
 
 
 REQUEST_COUNT = int(os.environ.get("NATS_REUSE_TEST_REQUESTS", "200"))
@@ -47,11 +47,6 @@ async def main() -> None:
             },
         )
 
-    await requester.provision_workflow_stream(
-        target_cluster=CLUSTER_ID,
-        agent_id=AGENT_ID,
-        instance_id=INSTANCE_ID,
-    )
     serve_task = asyncio.create_task(
         worker.serve_workflow(
             agent_id=AGENT_ID,
@@ -66,7 +61,7 @@ async def main() -> None:
 
     try:
         await wait_for_worker(worker)
-        requester_subscription_baseline = len(requester._nc._subs)
+        requester_subscription_baseline = None
         worker_subscription_baseline = len(worker._nc._subs)
 
         for index in range(REQUEST_COUNT):
@@ -80,7 +75,9 @@ async def main() -> None:
             )
             if reply.get("result") != "ok":
                 raise AssertionError(f"unexpected reply at index={index}: {reply}")
-            if len(requester._nc._subs) != requester_subscription_baseline:
+            if requester_subscription_baseline is None:
+                requester_subscription_baseline = len(requester._nc._subs)
+            elif len(requester._nc._subs) != requester_subscription_baseline:
                 raise AssertionError(
                     "requester subscription count grew: "
                     f"baseline={requester_subscription_baseline}, "
@@ -128,10 +125,6 @@ async def main() -> None:
     finally:
         serve_task.cancel()
         await asyncio.gather(serve_task, return_exceptions=True)
-        await requester.delete_workflow_stream(
-            target_cluster=CLUSTER_ID,
-            instance_id=INSTANCE_ID,
-        )
         await requester.close()
         await worker.close()
 

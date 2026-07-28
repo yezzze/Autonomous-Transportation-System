@@ -62,6 +62,10 @@ FRAME_<pod-uid>  Memory，二进制帧
 不要 deny `$JS.>` 或 `_INBOX.>`。跨边缘 Memory 帧需要通过 `$JS` Domain API
 写入目标 Stream，并通过 `_INBOX.*` 返回处理结果。
 
+边缘 JetStream Memory Store 总上限为 `1Gi`，由该边缘 NATS 上所有
+`FRAME_<pod-uid>` 共享。每实例 `512MiB` 是上限而非预分配，实际内存按当前
+未 ACK 帧占用。
+
 ## 4. 64MiB 传输配置
 
 所有云端和边缘 NATS 保持一致：
@@ -156,5 +160,6 @@ nats --server nats://nats:4222 \
 3. 云端不能有匹配新 workflow subject 的共享 Stream。
 4. Agent 镜像必须包含实例级 subject 运行时。
 5. Pod 必须注入 `AGENT_INSTANCE_ID=metadata.uid`。
-6. 编排器必须在实例 Ready 前创建 Stream，并在实例结束后删除。
+6. Agent 必须在 readiness 成功前启动 `serve_workflow()` /
+   `serve_memory_frames()` 创建 Stream，并在实例结束时调用 `close()` 删除。
 7. 示例清单中的目标实例 UID 占位符必须由编排器替换。

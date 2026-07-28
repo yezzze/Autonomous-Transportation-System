@@ -30,7 +30,7 @@ config:
     memoryStore:
       enabled: true
       # Shared capacity for all memory-backed streams on this NATS server.
-      maxSize: 8Gi
+      maxSize: 1Gi
 
 service:
   merge:

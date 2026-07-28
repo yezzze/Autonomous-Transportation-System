@@ -17,7 +17,7 @@
 - `agent_b/`: NATS 消费者，处理后回传结果
 - `runtime_api/`: 给其他容器化应用复用的 NATS 通信 API
 - `examples/`: 外部应用调用 NATS API 的参考示例
-- `control_api/`: 集群内边缘实例生命周期控制器，管理 Pod、实例 Stream 和健康状态
+- `control_api/`: 旧环境兼容的边缘生命周期控制器，新流程不依赖
 - `k8s/`: K8s 清单
   - `agent-grpc-deploy.yaml`
   - `agent-b-deploy.yaml`
@@ -51,15 +51,15 @@ minikube start --driver=docker \
 kubectl apply -f k8s/nats-a.yaml
 kubectl rollout status deployment/nats-a --timeout=180s
 
-# 4. 由编排器创建 Agent Pod，并按 Pod UID 创建实例 Stream
+# 4. 编排器创建 Agent Pod；Agent 按 Pod UID 创建自己的实例 Stream
 # 具体顺序见 docs/agent-nats-config.md
 ```
 
 `k8s/agent-*-deploy.yaml` 含目标实例 UID 占位符，是编排器模板，不能直接
 `kubectl apply`。
 
-外部编排器推荐通过集群内控制器管理 Agent，不直接持有边缘 kubeconfig。部署
-和 API 见 [docs/edge-lifecycle-controller.md](docs/edge-lifecycle-controller.md)。
+编排器直接管理 Pod 和实例路由。Pod 内的 `NatsComm` 管理该实例的
+`WF_<pod-uid>` 与 `FRAME_<pod-uid>`，不需要部署 `control_api`。
 
 验证：
 
@@ -530,9 +530,8 @@ docs/agent-nats-usage.md
 
 边缘 LeafNode 禁止`frame.local.>`导入和导出，因此 local 帧不会经过云端 Hub。
 允许丢帧的低延迟场景仍可使用 Core NATS `request_frame_bytes()`。
-独立 Agent 调用 `serve_memory_frames()` 时会自动创建实例 Stream，并在
-`NatsComm.close()` 时删除；控制器管理模式使用
-`manage_stream_lifecycle=False`。
+Agent 调用 `serve_workflow()` / `serve_memory_frames()` 时会自动创建对应
+实例 Stream，并在 `NatsComm.close()` 时删除。
 15 MiB、local/global 各 5 分钟稳定性测试结果和复测 Prompt 见：
 
 ```text
