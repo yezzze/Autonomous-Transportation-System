@@ -225,6 +225,11 @@ def build_stream_config(
     name: str,
     subjects: List[str],
     storage: Optional[str] = None,
+    max_bytes: Optional[int] = None,
+    max_age: Optional[float] = None,
+    max_msg_size: Optional[int] = None,
+    retention: Optional[RetentionPolicy] = None,
+    discard: Optional[DiscardPolicy] = None,
 ) -> StreamConfig:
     """
     基于环境变量构建完整的 StreamConfig。
@@ -252,10 +257,20 @@ def build_stream_config(
     return StreamConfig(
         name=name,
         subjects=subjects,
-        retention=_retention_from_env(),
-        max_bytes=parse_bytes(os.getenv("NATS_STREAM_MAX_BYTES", _DEFAULT_MAX_BYTES)),
-        discard=_discard_from_env(),
+        retention=retention or _retention_from_env(),
+        max_bytes=(
+            max_bytes
+            if max_bytes is not None
+            else parse_bytes(
+                os.getenv("NATS_STREAM_MAX_BYTES", _DEFAULT_MAX_BYTES)
+            )
+        ),
+        discard=discard or _discard_from_env(),
         storage=_storage_from_env(storage),
+        max_age=max_age if max_age is not None else 0,
+        max_msg_size=(
+            max_msg_size if max_msg_size is not None else -1
+        ),
     )
 
 
@@ -306,6 +321,11 @@ async def ensure_jetstream_stream(
     subjects: Optional[List[str]] = None,
     storage: Optional[str] = None,
     replace_subjects: bool = False,
+    max_bytes: Optional[int] = None,
+    max_age: Optional[float] = None,
+    max_msg_size: Optional[int] = None,
+    retention: Optional[RetentionPolicy] = None,
+    discard: Optional[DiscardPolicy] = None,
 ) -> Dict[str, Any]:
     """
     确保 JetStream 流存在，不存在则自动创建，存在则更新配置。
@@ -367,7 +387,15 @@ async def ensure_jetstream_stream(
     """
     stream = name or stream_name_from_env()
     required = subjects or stream_subjects_from_env()
-    config = build_stream_config(stream, required, storage=storage)
+    config_kwargs = {
+        "storage": storage,
+        "max_bytes": max_bytes,
+        "max_age": max_age,
+        "max_msg_size": max_msg_size,
+        "retention": retention,
+        "discard": discard,
+    }
+    config = build_stream_config(stream, required, **config_kwargs)
 
     try:
         info = await js.stream_info(stream)
@@ -387,6 +415,9 @@ async def ensure_jetstream_stream(
             "subjects": required,
             "max_bytes": config.max_bytes,
             "discard": str(config.discard),
+            "storage": str(config.storage),
+            "max_age": config.max_age,
+            "max_msg_size": config.max_msg_size,
         }
 
     # 流已存在 → 检查并更新配置
@@ -395,12 +426,16 @@ async def ensure_jetstream_stream(
         current,
         required,
     )
-    config = build_stream_config(stream, final_subjects, storage=storage)
+    config = build_stream_config(stream, final_subjects, **config_kwargs)
 
     await apply_stream_config(js, config)
     updated = final_subjects != current or (
         getattr(info.config, "max_bytes", None) != config.max_bytes
         or str(getattr(info.config, "discard", "")) != str(config.discard)
+        or str(getattr(info.config, "storage", "")) != str(config.storage)
+        or getattr(info.config, "max_age", None) != config.max_age
+        or getattr(info.config, "max_msg_size", None) != config.max_msg_size
+        or str(getattr(info.config, "retention", "")) != str(config.retention)
     )
     if updated:
         logger.info(
@@ -416,4 +451,7 @@ async def ensure_jetstream_stream(
         "subjects": final_subjects,
         "max_bytes": config.max_bytes,
         "discard": str(config.discard),
+        "storage": str(config.storage),
+        "max_age": config.max_age,
+        "max_msg_size": config.max_msg_size,
     }

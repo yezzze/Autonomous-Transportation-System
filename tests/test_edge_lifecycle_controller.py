@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from control_api.lifecycle import (
     AGENT_ID_LABEL,
+    FRAME_STREAM_ENABLED_LABEL,
     MANAGED_BY_LABEL,
     MANAGED_BY_VALUE,
     STREAM_ENABLED_LABEL,
@@ -33,6 +34,7 @@ def ready_pod(name="detector-1", uid="pod-uid-a", agent_id="detector"):
                 MANAGED_BY_LABEL: MANAGED_BY_VALUE,
                 AGENT_ID_LABEL: agent_id,
                 STREAM_ENABLED_LABEL: "true",
+                FRAME_STREAM_ENABLED_LABEL: "true",
             },
         ),
         spec=client.V1PodSpec(
@@ -101,6 +103,11 @@ def settings(**overrides):
         "image_pull_secrets": [],
         "stream_prefix": "WF",
         "stream_max_bytes": "512MiB",
+        "frame_stream_prefix": "FRAME",
+        "frame_stream_max_bytes": "512MiB",
+        "frame_stream_max_age_sec": 120,
+        "frame_ack_wait_sec": 60,
+        "frame_max_deliver": 3,
         "stream_provision_timeout_sec": 120,
         "reconcile_interval_sec": 0,
         "orphan_grace_sec": 0,
@@ -133,8 +140,20 @@ class EdgeLifecycleControllerTest(unittest.IsolatedAsyncioTestCase):
             "stream": "WF_uid-detector-1",
             "domain": "edge-a",
         }
+        self.nats.provision_memory_frame_stream.return_value = {
+            "stream": "FRAME_uid-detector-1",
+            "domain": "edge-a",
+            "storage": "memory",
+        }
         self.nats.workflow_stream_status.return_value = stream_status()
+        self.nats.memory_frame_stream_status.return_value = {
+            **stream_status(),
+            "stream": "FRAME_pod-uid-a",
+            "storage": "memory",
+        }
         self.nats.delete_workflow_stream.return_value = True
+        self.nats.delete_memory_frame_stream.return_value = True
+        self.nats.list_memory_frame_streams.return_value = []
         self.controller = EdgeLifecycleController(
             core_api=self.core,
             nats=self.nats,
@@ -183,6 +202,11 @@ class EdgeLifecycleControllerTest(unittest.IsolatedAsyncioTestCase):
             agent_id="detector",
             instance_id="uid-detector-1",
         )
+        self.nats.provision_memory_frame_stream.assert_awaited_once_with(
+            target_cluster="edge-a",
+            agent_id="detector",
+            instance_id="uid-detector-1",
+        )
 
     async def test_repeated_create_reuses_same_pod_and_stream(self):
         pod = ready_pod()
@@ -201,6 +225,10 @@ class EdgeLifecycleControllerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first["instance_id"], second["instance_id"])
         self.assertEqual(
             self.nats.provision_workflow_stream.await_count,
+            2,
+        )
+        self.assertEqual(
+            self.nats.provision_memory_frame_stream.await_count,
             2,
         )
 
@@ -251,8 +279,13 @@ class EdgeLifecycleControllerTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(result["pod_deleted"])
         self.assertTrue(result["stream_deleted"])
+        self.assertTrue(result["frame_stream_deleted"])
         self.assertEqual(result["dropped_messages"], 3)
         self.nats.delete_workflow_stream.assert_awaited_once_with(
+            target_cluster="edge-a",
+            instance_id="pod-uid-a",
+        )
+        self.nats.delete_memory_frame_stream.assert_awaited_once_with(
             target_cluster="edge-a",
             instance_id="pod-uid-a",
         )
@@ -289,6 +322,11 @@ class EdgeLifecycleControllerTest(unittest.IsolatedAsyncioTestCase):
             agent_id="detector",
             instance_id="pod-uid-a",
         )
+        self.nats.provision_memory_frame_stream.assert_awaited_once_with(
+            target_cluster="edge-a",
+            agent_id="detector",
+            instance_id="pod-uid-a",
+        )
         self.nats.delete_workflow_stream.assert_awaited_once_with(
             target_cluster="edge-a",
             instance_id="orphan-empty",
@@ -320,7 +358,7 @@ class EdgeLifecycleControllerTest(unittest.IsolatedAsyncioTestCase):
         self.nats.delete_workflow_stream.assert_not_awaited()
         self.assertLess(first["orphan_streams"][0]["age_sec"], 1)
 
-        self.controller._orphan_first_seen["orphan-empty"] = (
+        self.controller._orphan_first_seen["workflow:orphan-empty"] = (
             datetime.now(timezone.utc) - timedelta(seconds=301)
         )
         second = await self.controller.reconcile_once()

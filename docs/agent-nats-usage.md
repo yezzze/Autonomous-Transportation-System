@@ -7,21 +7,25 @@
 | 类型 | Subject | NATS 模式 | 用途 |
 | --- | --- | --- | --- |
 | 工作流任务 | `workflow.local.*` / `workflow.global.*` | JetStream | 需要 ACK、重投和离线保留的 JSON 小消息 |
-| 帧数据 | `frame.local.*` / `frame.global.*` | Core NATS bytes | 实时大帧，不持久化 |
+| 可靠帧数据 | `frame.local.*` / `frame.global.*` | JetStream Memory | 大帧 ACK、重投、处理回复 |
+| 实时帧数据 | `frame.local.*` / `frame.global.*` | Core NATS bytes | 允许丢帧的低延迟兼容模式 |
 | 工作流回复 | `_INBOX.*` | Core NATS JSON | 请求响应，不持久化 |
 
-不要把 10MiB 至 15MiB 的帧放入 JSON 工作流消息。帧使用二进制接口或
-gRPC 帧传输，工作流消息只携带元数据或 `frame_ref`。
+不要把 10MiB 至 15MiB 的帧放入 JSON 工作流消息。帧使用 Memory 二进制
+接口、Core 二进制兼容接口或 gRPC，工作流消息只携带元数据或 `frame_ref`。
 
 ## 2. 实例级工作流 Stream
 
-每个 Kubernetes Agent Pod 独享一个 Stream：
+每个 Kubernetes Agent Pod 默认独享两个 Stream：
 
 ```text
 Stream: WF_<pod-uid>
-
 workflow.local.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
 workflow.global.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
+
+Stream: FRAME_<pod-uid>
+frame.local.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
+frame.global.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
 ```
 
 Pod UID 是实例身份。Deployment 名、Pod 名和 Agent 类型不能代替 Pod UID，
@@ -39,6 +43,8 @@ Agent 启动后只等待该 Stream 就绪。
   value: "edge-a"
 - name: NATS_WORKFLOW_STREAM_PREFIX
   value: "WF"
+- name: NATS_FRAME_STREAM_PREFIX
+  value: "FRAME"
 - name: CLUSTER_ID
   value: "edge-a"
 - name: AGENT_ID
@@ -74,6 +80,14 @@ Agent 启动后只等待该 Stream 就绪。
   value: "134217728"
 - name: NATS_BINARY_PENDING_BYTES
   value: "134217728"
+- name: NATS_FRAME_STREAM_MAX_BYTES
+  value: "512MiB"
+- name: NATS_FRAME_STREAM_MAX_AGE_SEC
+  value: "120"
+- name: NATS_FRAME_ACK_WAIT_SEC
+  value: "60"
+- name: NATS_FRAME_MAX_DELIVER
+  value: "3"
 ```
 
 `NATS_JETSTREAM_DOMAIN` 与 `CLUSTER_ID` 必须等于当前边缘集群 ID。
@@ -153,14 +167,16 @@ workflow.global.<target-cluster>.agent.<agent-id>.instance.<pod-uid>.in
 
 只发送、不等待回复时使用 `send_workflow()`。
 
-## 6. 发送实时帧
+## 6. 发送 JetStream Memory 帧
 
-帧不使用 JetStream：
+发送端必须使用编排器提供的目标 Pod UID。方法返回时代表目标 Agent 已完成
+处理并返回结果，不只是帧写入 Stream：
 
 ```python
-reply_bytes = await comm.request_frame_bytes(
+reply_bytes = await comm.request_memory_frame(
     target_cluster="edge-b",
     agent_id="detector",
+    target_instance_id=target_instance_id,
     payload=frame_bytes,
     operation="infer",
     local_cluster=os.environ["CLUSTER_ID"],
@@ -173,16 +189,28 @@ reply_bytes = await comm.request_frame_bytes(
 ```python
 async def infer(message):
     result = run_model(message.data)
-    await message.respond(result)
+    return result
 
-await comm.serve_frame_bytes(
+await comm.serve_memory_frames(
     agent_id=os.environ["AGENT_ID"],
+    instance_id=os.environ["AGENT_INSTANCE_ID"],
     handler=infer,
     local_cluster=os.environ["CLUSTER_ID"],
+    max_inflight=1,
 )
 ```
 
-同集群自动使用 `frame.local.*`，跨集群自动使用 `frame.global.*`。
+`serve_memory_frames()` 会等待控制器创建 `FRAME_<pod-uid>`，并同时建立
+local/global Pull Consumer。处理成功后先通过 Core Inbox 回复，再 ACK 并从
+Memory Stream 删除输入帧；异常时 NAK，最多重投 `NATS_FRAME_MAX_DELIVER`
+次。业务 handler 必须按 `message.request_id` 保证幂等。
+
+允许丢帧且不需要重投时，可继续使用旧接口：
+
+```python
+reply = await comm.request_frame_bytes(...)
+await comm.subscribe_frame_bytes(...)
+```
 
 ## 7. gRPC 帧引用
 
@@ -222,8 +250,8 @@ await comm.serve_workflow(
 2. 不要在每帧、每次推理或每个 HTTP 请求中重新创建对象。
 3. 常驻消费者只启动一次。
 4. 进程退出时调用 `close()`。
-5. 不要自行调用 `provision_workflow_stream()` 或
-   `delete_workflow_stream()`；这两个接口属于编排器。
+5. 不要自行调用 `provision_*_stream()` 或 `delete_*_stream()`；这些接口
+   属于编排器和边缘控制器。
 
 ## 9. 失败语义
 
@@ -231,5 +259,9 @@ await comm.serve_workflow(
   `NATS_STREAM_PROVISION_TIMEOUT_SEC`，超时后启动失败。
 - Stream 满：`discard=new` 使发布方明确收到错误，不静默删除旧任务。
 - handler 异常：任务 NACK，后续重新投递。
-- 长任务：`serve_workflow()` 定期发送 ACK progress，避免处理中重复投递。
-- 实例结束：编排器先停止向该 UID 路由，再删除 `WF_<pod-uid>`。
+- 长任务：`serve_workflow()` 和 `serve_memory_frames()` 定期发送 ACK
+  progress，避免处理中重复投递。
+- Memory 帧超过 `NATS_FRAME_STREAM_MAX_AGE_SEC` 尚未完成时自动过期。
+- NATS Pod 重启会丢失尚未消费的 Memory 帧，调用方必须允许超时重试。
+- 实例结束：编排器先停止向该 UID 路由，再删除 `WF_<pod-uid>` 和
+  `FRAME_<pod-uid>`。

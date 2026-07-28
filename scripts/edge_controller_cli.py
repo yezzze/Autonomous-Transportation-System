@@ -87,6 +87,7 @@ def command_create(args) -> None:
         "node_selector": key_values(args.node_selector),
         "resources": {"requests": requests, "limits": limits},
         "workflow_stream": not args.no_workflow_stream,
+        "frame_stream": not args.no_frame_stream,
         "wait_ready_timeout_sec": args.wait_ready_timeout_sec,
     }
     print_json(
@@ -186,6 +187,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--memory-limit")
     create.add_argument("--gpu", type=int)
     create.add_argument("--no-workflow-stream", action="store_true")
+    create.add_argument("--no-frame-stream", action="store_true")
     create.add_argument("--wait-ready-timeout-sec", type=float, default=0)
     create.set_defaults(func=command_create)
 

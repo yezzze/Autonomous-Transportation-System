@@ -6,8 +6,9 @@
 
 1. 外部编排器调用目标集群的边缘生命周期控制器。
 2. 边缘控制器创建 Pod 并读取 `metadata.uid`。
-3. 边缘控制器在本地 JetStream domain 创建 `WF_<pod-uid>`。
-4. Stream 同时绑定该实例的 local/global 工作流 subject。
+3. 边缘控制器在本地 JetStream domain 创建 File 类型
+   `WF_<pod-uid>` 和 Memory 类型 `FRAME_<pod-uid>`。
+4. 两条 Stream 分别绑定该实例的 local/global 工作流和帧 subject。
 5. 编排器将实例登记为 Ready，并把
    `cluster_id + agent_id + pod_uid` 写入工作流路由表。
 6. 调用方按路由表发送到精确实例。
@@ -17,10 +18,12 @@
 1. 从路由表移除实例，停止新任务进入。
 2. 等待正在执行的任务完成或达到终止期限。
 3. 调用边缘控制器的 DELETE API。
-4. 控制器等待消息排空后删除 Pod 和 `WF_<pod-uid>`。
+4. 控制器等待消息排空后删除 Pod、`WF_<pod-uid>` 和
+   `FRAME_<pod-uid>`。
 
-异常退出时，边缘控制器的定时 reconcile 会比较存量 `WF_<uid>` 与当前
-Pod UID；空的孤儿 Stream 超过保护期后自动删除，非空孤儿 Stream 保留并告警。
+异常退出时，边缘控制器的定时 reconcile 会比较存量 `WF_<uid>`、
+`FRAME_<uid>` 与当前 Pod UID；空的孤儿 Stream 超过保护期后自动删除，
+非空孤儿 Stream 保留并告警。
 
 控制器部署和 API 见
 [`edge-lifecycle-controller.md`](edge-lifecycle-controller.md)。
@@ -39,8 +42,17 @@ resource = await comm.provision_workflow_stream(
     agent_id="detector",
     instance_id=pod_uid,
 )
+frame_resource = await comm.provision_memory_frame_stream(
+    target_cluster="edge-a",
+    agent_id="detector",
+    instance_id=pod_uid,
+)
 
 deleted = await comm.delete_workflow_stream(
+    target_cluster="edge-a",
+    instance_id=pod_uid,
+)
+frame_deleted = await comm.delete_memory_frame_stream(
     target_cluster="edge-a",
     instance_id=pod_uid,
 )
@@ -88,6 +100,7 @@ workflow.global.<cluster>.agent.<agent-id>.instance.<pod-uid>.<operation>
 
 ```text
 WF_<pod-uid>
+FRAME_<pod-uid>
 ```
 
 绑定：
@@ -95,6 +108,8 @@ WF_<pod-uid>
 ```text
 workflow.local.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
 workflow.global.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
+frame.local.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
+frame.global.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
 ```
 
 一个 Agent 类型有多个副本时，每个 Pod UID 对应不同 Stream。工作流调度器
@@ -133,7 +148,7 @@ Agent 自身实例 ID：
 
 ## 6. Stream 容量策略
 
-默认单实例配置：
+默认单实例工作流配置：
 
 ```text
 max_bytes = 512MiB
@@ -144,6 +159,21 @@ storage = file
 
 工作流消息应小于 1MiB。512MiB 是等待消费和故障恢复的缓冲，不用于存帧。
 ACK 后 WorkQueue 消息删除。Stream 删除时，其消费者和未处理任务一起删除。
+
+默认单实例帧配置：
+
+```text
+max_bytes = 512MiB
+max_age = 120s
+max_msg_size = NATS_BINARY_MAX_BYTES + 64KiB
+discard = new
+retention = workqueue
+storage = memory
+```
+
+Memory 容量由同一边缘 NATS 的所有 `FRAME_<uid>` 共享。正常串行消费时通常
+只短暂保留一帧；NATS Pod 重启时未 ACK 的 Memory 帧会丢失，调用方需超时
+重试并按 `request_id` 保证幂等。
 
 边缘 JetStream PVC 容量必须覆盖同时运行实例的实际积压量，不能简单按
 `实例数 * 512MiB` 全额预留，但必须监控：

@@ -10,10 +10,10 @@ kubeconfig，也不需要直接连接边缘 NATS。
   -> HTTP Bearer Token
   -> edge-lifecycle-controller:30080
        -> Kubernetes API：创建、查询、删除 Agent Pod
-       -> 本地 NATS：创建、查询、删除 WF_<pod-uid>
+       -> 本地 NATS：管理 WF_<pod-uid> 和 FRAME_<pod-uid>
 ```
 
-一次创建请求对应一个直接管理的 Pod 和一个可选的实例 Stream。
+一次创建请求对应一个直接管理的 Pod，以及可独立启用的工作流和帧 Stream。
 
 ## 2. 部署
 
@@ -90,6 +90,7 @@ Content-Type: application/json
     }
   },
   "workflow_stream": true,
+  "frame_stream": true,
   "wait_ready_timeout_sec": 120
 }
 ```
@@ -98,9 +99,10 @@ Content-Type: application/json
 
 1. 创建 Pod。
 2. 读取 Kubernetes 返回的 Pod UID。
-3. 在当前 edge domain 创建 `WF_<pod-uid>`。
-4. 返回 Pod、Stream 和健康状态。
-5. Stream 创建失败时删除本次新建的 Pod。
+3. 创建 File 类型 `WF_<pod-uid>`。
+4. 创建 Memory 类型 `FRAME_<pod-uid>`。
+5. 返回 Pod、两条 Stream 和健康状态。
+6. 任一 Stream 创建失败时回滚已创建的资源和本次新建的 Pod。
 
 响应中的路由身份：
 
@@ -112,6 +114,11 @@ Content-Type: application/json
   "stream": {
     "stream": "WF_d22fda58-7f47-4a0c-9d44-54d079514bd7",
     "domain": "edge-a"
+  },
+  "frame_stream": {
+    "stream": "FRAME_d22fda58-7f47-4a0c-9d44-54d079514bd7",
+    "domain": "edge-a",
+    "storage": "memory"
   }
 }
 ```
@@ -131,8 +138,8 @@ python scripts/edge_controller_cli.py create \
   --wait-ready-timeout-sec 120
 ```
 
-相同 `name + agent_id + image + workflow_stream` 的重复创建会返回同一个 Pod
-UID，并幂等校正同一个 Stream。参数不一致时返回 `409`。
+相同 `name + agent_id + image + workflow_stream + frame_stream` 的重复创建会
+返回同一个 Pod UID，并幂等校正两条 Stream。参数不一致时返回 `409`。
 
 ## 4. 查询状态
 
@@ -178,8 +185,8 @@ python scripts/edge_controller_cli.py delete detector-01 \
   --drain-timeout-sec 60
 ```
 
-控制器等待 Stream 中的消息数变为 0。超时后仍有消息时返回 `409`，Pod 和
-Stream 都保留。
+控制器等待两条 Stream 中的消息数都变为 0。超时后仍有消息时返回 `409`，
+Pod 和 Stream 都保留。
 
 明确接受消息丢失时才使用：
 
@@ -190,15 +197,15 @@ python scripts/edge_controller_cli.py delete detector-01 \
 ```
 
 强制删除响应包含 `dropped_messages`。控制器先请求删除 Pod，再删除实例
-Stream；Stream 删除失败时会留下可回收的孤儿 Stream，不会重新创建 Pod。
+两条 Stream；Stream 删除失败时会留下可回收的孤儿 Stream，不会重新创建 Pod。
 
 ## 6. 后台校正
 
 控制器默认每 30 秒执行一次：
 
 1. 列出由控制器管理的 Pod。
-2. 为存活 Pod 幂等校正实例 Stream。
-3. 找出没有对应 Pod 的 `WF_<uid>`。
+2. 为存活 Pod 幂等校正工作流和 Memory 帧 Stream。
+3. 找出没有对应 Pod 的 `WF_<uid>` 和 `FRAME_<uid>`。
 4. 只自动删除超过保护期且消息数为 0 的孤儿 Stream。
 5. 非空孤儿 Stream 保留，并在健康信息中报告。
 
@@ -250,3 +257,17 @@ python scripts/edge_controller_cli.py reconcile
 | `POST` | `/v1/reconcile` | 手动执行一次校正 |
 
 除 `/healthz` 和 `/readyz` 外，所有接口都要求 Bearer Token。
+
+## 9. Stream 生命周期集成测试
+
+启动仓库测试拓扑后，通过真实控制器 HTTP 路由和真实 JetStream 验证：
+
+```bash
+conda activate k8s
+docker compose -f tests/nats-topology-compose.yaml up -d --wait
+python tests/edge_controller_stream_integration.py
+docker compose -f tests/nats-topology-compose.yaml down -v
+```
+
+测试会验证创建 `WF_<uid>` 和 `FRAME_<uid>`、重复创建幂等复用、GET 状态查询、
+DELETE 删除 Pod 和两条 Stream，以及删除后 Stream 确实不存在。

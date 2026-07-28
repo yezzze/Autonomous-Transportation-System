@@ -518,14 +518,18 @@ docs/nats-helm-cloud-edge.md
 docs/agent-nats-usage.md
 ```
 
-二进制帧由`request_frame_bytes()`根据目标集群自动选择路由：
+需要 ACK 和重投的二进制帧使用 `request_memory_frame()`，目标实例使用独立
+`FRAME_<pod-uid>` Memory Stream：
 
 ```text
-目标集群 == CLUSTER_ID  -> frame.local.<cluster>.<agent>.<operation>
-目标集群 != CLUSTER_ID  -> frame.global.<cluster>.<agent>.<operation>
+目标集群 == CLUSTER_ID
+  -> frame.local.<cluster>.agent.<agent>.instance.<pod-uid>.<operation>
+目标集群 != CLUSTER_ID
+  -> frame.global.<cluster>.agent.<agent>.instance.<pod-uid>.<operation>
 ```
 
 边缘 LeafNode 禁止`frame.local.>`导入和导出，因此 local 帧不会经过云端 Hub。
+允许丢帧的低延迟场景仍可使用 Core NATS `request_frame_bytes()`。
 15 MiB、local/global 各 5 分钟稳定性测试结果和复测 Prompt 见：
 
 ```text

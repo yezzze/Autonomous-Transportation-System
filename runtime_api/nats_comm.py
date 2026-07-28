@@ -12,6 +12,7 @@ NATS 集群的部署、连接管理和流的生命周期。
 2. 请求-响应 (Request/Reply)  : request() + respond()
 3. 流式消费 (Stream Consumer)  : serve()   — 长轮询拉模式
 4. 二进制帧 (Core NATS)        : request_frame_bytes() + subscribe_frame_bytes()
+5. 可靠帧 (JetStream Memory)   : request_memory_frame() + serve_memory_frames()
 
 类说明
 ------
@@ -71,6 +72,11 @@ NATS 集群的部署、连接管理和流的生命周期。
     NATS_STREAM_SUBJECTS      兼容流主题（默认 legacy.workflow.>）
     NATS_JETSTREAM_DOMAIN     JetStream 域（默认 hub）
     NATS_WORKFLOW_STREAM_PREFIX 每实例 Stream 名称前缀（默认 WF）
+    NATS_FRAME_STREAM_PREFIX    每实例 Memory 帧 Stream 前缀（默认 FRAME）
+    NATS_FRAME_STREAM_MAX_BYTES 每实例 Memory 帧 Stream 上限（默认 512MiB）
+    NATS_FRAME_STREAM_MAX_AGE_SEC Memory 帧最长保留秒数（默认 120）
+    NATS_FRAME_ACK_WAIT_SEC     Memory 帧 Consumer ACK 等待秒数（默认 60）
+    NATS_FRAME_MAX_DELIVER      Memory 帧最大投递次数（默认 3）
     NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
     NATS_SEND_DELAY_FILE      运行时延迟配置文件（默认 /tmp/nats_send_delay_seconds）
     NATS_CONTROL_MAX_BYTES    NATS 控制消息上限（默认 1MiB）
@@ -87,19 +93,23 @@ import logging
 import os
 import re
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from nats.aio.client import Client as NATS
 from nats.errors import TimeoutError as NatsTimeoutError
-from nats.js.api import ConsumerConfig
+from nats.js.api import ConsumerConfig, DiscardPolicy, RetentionPolicy
 from nats.js.errors import NotFoundError
-from runtime_api.jetstream_stream import ensure_jetstream_stream
+from runtime_api.jetstream_stream import ensure_jetstream_stream, parse_bytes
 
 logger = logging.getLogger(__name__)
 
 BinaryPayload = Union[bytes, bytearray, memoryview]
+
+_FRAME_REPLY_HEADER = "X-Frame-Reply"
+_FRAME_REQUEST_ID_HEADER = "X-Frame-Request-Id"
 
 
 def _iso_timestamp(value) -> Optional[str]:
@@ -255,6 +265,27 @@ class NatsBinaryMessage:
         await self._raw.respond(encoded)
 
 
+@dataclass
+class NatsMemoryFrameMessage:
+    """JetStream Memory 中的一帧二进制消息。"""
+
+    subject: str
+    data: bytes
+    reply_subject: str
+    request_id: str
+    headers: Optional[Dict[str, str]] = None
+    stream: Optional[str] = None
+    consumer: Optional[str] = None
+    stream_seq: Optional[int] = None
+    delivered: int = 1
+    _raw: Any = field(default=None, repr=False)
+
+    async def in_progress(self) -> None:
+        if self._raw is None:
+            raise RuntimeError("memory frame does not contain an ACK handle")
+        await self._raw.in_progress()
+
+
 class NatsComm:
     """
     NATS 运行时通信客户端。
@@ -328,6 +359,22 @@ class NatsComm:
             "NATS_WORKFLOW_STREAM_PREFIX",
             "WF",
         )
+        self.frame_stream_prefix = os.environ.get(
+            "NATS_FRAME_STREAM_PREFIX",
+            "FRAME",
+        )
+        self.frame_stream_max_bytes = parse_bytes(
+            os.environ.get("NATS_FRAME_STREAM_MAX_BYTES", "512MiB")
+        )
+        self.frame_stream_max_age_sec = float(
+            os.environ.get("NATS_FRAME_STREAM_MAX_AGE_SEC", "120")
+        )
+        self.frame_ack_wait_sec = float(
+            os.environ.get("NATS_FRAME_ACK_WAIT_SEC", "60")
+        )
+        self.frame_max_deliver = int(
+            os.environ.get("NATS_FRAME_MAX_DELIVER", "3")
+        )
         self.send_delay = self._parse_delay_seconds(
             str(send_delay) if send_delay is not None else os.environ.get("NATS_SEND_DELAY_SECONDS"),
             default=0.0,
@@ -369,6 +416,14 @@ class NatsComm:
             raise ValueError("NATS_BINARY_PENDING_MSGS must be positive")
         if self.binary_pending_bytes <= 0:
             raise ValueError("NATS_BINARY_PENDING_BYTES must be positive")
+        if self.frame_stream_max_bytes <= 0:
+            raise ValueError("NATS_FRAME_STREAM_MAX_BYTES must be positive")
+        if self.frame_stream_max_age_sec <= 0:
+            raise ValueError("NATS_FRAME_STREAM_MAX_AGE_SEC must be positive")
+        if self.frame_ack_wait_sec <= 0:
+            raise ValueError("NATS_FRAME_ACK_WAIT_SEC must be positive")
+        if self.frame_max_deliver <= 0:
+            raise ValueError("NATS_FRAME_MAX_DELIVER must be positive")
         self._nc = NATS()
         self._js = None
         self._routed_js: Dict[str, Any] = {}
@@ -542,6 +597,17 @@ class NatsComm:
             )
         return f"{prefix}_{instance}"
 
+    def memory_frame_stream_name(self, instance_id: str) -> str:
+        """返回一个 Agent 实例独享的 Memory 帧 Stream 名称。"""
+        instance = self._instance_id(instance_id)
+        prefix = self.frame_stream_prefix.strip()
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", prefix):
+            raise ValueError(
+                "NATS_FRAME_STREAM_PREFIX may contain only ASCII letters, "
+                "digits, '-' and '_'"
+            )
+        return f"{prefix}_{instance}"
+
     @staticmethod
     def workflow_stream_subjects(
         cluster_id: str,
@@ -554,6 +620,21 @@ class NatsComm:
         return (
             f"workflow.local.{cluster}.agent.{agent}.instance.{instance}.>",
             f"workflow.global.{cluster}.agent.{agent}.instance.{instance}.>",
+        )
+
+    @staticmethod
+    def memory_frame_stream_subjects(
+        cluster_id: str,
+        agent_id: str,
+        instance_id: str,
+    ) -> Tuple[str, str]:
+        """返回实例级 Memory 帧 Stream 的 local/global Subject 范围。"""
+        cluster = _subject_token(cluster_id, "cluster_id")
+        agent = _subject_token(agent_id, "agent_id")
+        instance = NatsComm._instance_id(instance_id)
+        return (
+            f"frame.local.{cluster}.agent.{agent}.instance.{instance}.>",
+            f"frame.global.{cluster}.agent.{agent}.instance.{instance}.>",
         )
 
     async def _jetstream_for_subject(self, subject: str):
@@ -570,6 +651,16 @@ class NatsComm:
                 js = self._nc.jetstream(domain=target_cluster)
                 self._routed_js[target_cluster] = js
             return js, self.workflow_stream_name(instance_id)
+
+    async def _jetstream_for_domain(self, cluster_id: str):
+        cluster = _subject_token(cluster_id, "cluster_id")
+        await self.connect(ensure_stream=False)
+        async with self._routed_stream_lock:
+            js = self._routed_js.get(cluster)
+            if js is None:
+                js = self._nc.jetstream(domain=cluster)
+                self._routed_js[cluster] = js
+            return js
 
     async def connect(self, ensure_stream: bool = True) -> None:
         """
@@ -1015,6 +1106,26 @@ class NatsComm:
         scope = "local" if target == source_cluster else "global"
         return f"frame.{scope}.{target}.{agent}.{action}"
 
+    def memory_frame_subject(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        target_instance_id: str,
+        operation: str = "infer",
+        local_cluster: Optional[str] = None,
+    ) -> str:
+        """生成指向一个实例级 Memory Stream 的帧 Subject。"""
+        source_cluster = self._local_cluster(local_cluster)
+        target = _subject_token(target_cluster, "target_cluster")
+        agent = _subject_token(agent_id, "agent_id")
+        instance = self._instance_id(target_instance_id)
+        action = _subject_token(operation, "operation")
+        scope = "local" if target == source_cluster else "global"
+        return (
+            f"frame.{scope}.{target}.agent.{agent}."
+            f"instance.{instance}.{action}"
+        )
+
     def workflow_subject(
         self,
         target_cluster: str,
@@ -1271,6 +1382,232 @@ class NatsComm:
             )
         return sorted(results, key=lambda item: item["stream"])
 
+    async def provision_memory_frame_stream(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        instance_id: str,
+    ) -> Dict[str, Any]:
+        """由编排器为目标实例创建或更新独享的 Memory 帧 Stream。"""
+        cluster = _subject_token(target_cluster, "target_cluster")
+        agent = _subject_token(agent_id, "agent_id")
+        instance = self._instance_id(instance_id)
+        stream = self.memory_frame_stream_name(instance)
+        subjects = list(
+            self.memory_frame_stream_subjects(cluster, agent, instance)
+        )
+        js = await self._jetstream_for_domain(cluster)
+        await ensure_jetstream_stream(
+            js,
+            name=stream,
+            subjects=subjects,
+            storage="memory",
+            replace_subjects=True,
+            max_bytes=self.frame_stream_max_bytes,
+            max_age=self.frame_stream_max_age_sec,
+            max_msg_size=self.max_binary_payload_bytes + 64 * 1024,
+            retention=RetentionPolicy.WORK_QUEUE,
+            discard=DiscardPolicy.NEW,
+        )
+        self._routed_streams_ready.add(stream)
+        return {
+            "stream": stream,
+            "domain": cluster,
+            "storage": "memory",
+            "agent_id": agent,
+            "instance_id": instance,
+            "subjects": subjects,
+            "max_bytes": self.frame_stream_max_bytes,
+            "max_age_sec": self.frame_stream_max_age_sec,
+            "max_msg_size": self.max_binary_payload_bytes + 64 * 1024,
+        }
+
+    async def wait_memory_frame_stream(
+        self,
+        agent_id: str,
+        instance_id: Optional[str] = None,
+        local_cluster: Optional[str] = None,
+        timeout_sec: Optional[float] = None,
+        poll_interval_sec: float = 0.5,
+    ) -> Dict[str, Any]:
+        """等待编排器创建当前实例的 Memory 帧 Stream。"""
+        cluster = self._local_cluster(local_cluster)
+        agent = _subject_token(agent_id, "agent_id")
+        instance = self._instance_id(instance_id)
+        stream = self.memory_frame_stream_name(instance)
+        expected_subjects = set(
+            self.memory_frame_stream_subjects(cluster, agent, instance)
+        )
+        timeout = (
+            self.stream_provision_timeout_sec
+            if timeout_sec is None
+            else float(timeout_sec)
+        )
+        if timeout <= 0:
+            raise ValueError("timeout_sec must be positive")
+        if poll_interval_sec <= 0:
+            raise ValueError("poll_interval_sec must be positive")
+
+        js = await self._jetstream_for_domain(cluster)
+        deadline = time.monotonic() + timeout
+        last_error: Optional[Exception] = None
+        while True:
+            try:
+                info = await js.stream_info(stream)
+                actual_subjects = set(info.config.subjects or [])
+                if actual_subjects != expected_subjects:
+                    raise RuntimeError(
+                        f"Stream {stream} subjects mismatch: "
+                        f"expected={sorted(expected_subjects)}, "
+                        f"actual={sorted(actual_subjects)}"
+                    )
+                storage = getattr(
+                    getattr(info.config, "storage", None),
+                    "value",
+                    getattr(info.config, "storage", None),
+                )
+                if storage != "memory":
+                    raise RuntimeError(
+                        f"Stream {stream} must use memory storage, "
+                        f"actual={storage}"
+                    )
+                self._routed_streams_ready.add(stream)
+                return {
+                    "stream": stream,
+                    "domain": cluster,
+                    "storage": storage,
+                    "agent_id": agent,
+                    "instance_id": instance,
+                    "subjects": sorted(actual_subjects),
+                }
+            except NotFoundError as exc:
+                last_error = exc
+            except RuntimeError:
+                raise
+            except Exception as exc:
+                last_error = exc
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"timed out waiting for orchestrator to provision "
+                    f"Memory Stream {stream} in domain {cluster}"
+                ) from last_error
+            await asyncio.sleep(min(poll_interval_sec, remaining))
+
+    async def delete_memory_frame_stream(
+        self,
+        target_cluster: str,
+        instance_id: str,
+    ) -> bool:
+        """删除实例结束后不再需要的 Memory 帧 Stream。"""
+        cluster = _subject_token(target_cluster, "target_cluster")
+        instance = self._instance_id(instance_id)
+        stream = self.memory_frame_stream_name(instance)
+        js = await self._jetstream_for_domain(cluster)
+        try:
+            await js.delete_stream(stream)
+            deleted = True
+        except NotFoundError:
+            deleted = False
+        self._routed_streams_ready.discard(stream)
+        return deleted
+
+    async def memory_frame_stream_status(
+        self,
+        target_cluster: str,
+        instance_id: str,
+    ) -> Dict[str, Any]:
+        """查询一个实例 Memory 帧 Stream 的消息和 Consumer 积压。"""
+        cluster = _subject_token(target_cluster, "target_cluster")
+        instance = self._instance_id(instance_id)
+        stream = self.memory_frame_stream_name(instance)
+        js = await self._jetstream_for_domain(cluster)
+        try:
+            info = await js.stream_info(stream)
+        except NotFoundError:
+            return {
+                "exists": False,
+                "stream": stream,
+                "domain": cluster,
+                "storage": "memory",
+                "instance_id": instance,
+                "messages": 0,
+                "bytes": 0,
+                "consumer_count": 0,
+                "num_pending": 0,
+                "num_ack_pending": 0,
+                "consumers": [],
+            }
+
+        consumer_infos = await js.consumers_info(stream)
+        consumers = [
+            {
+                "name": consumer.name,
+                "num_pending": consumer.num_pending,
+                "num_ack_pending": consumer.num_ack_pending,
+                "num_redelivered": consumer.num_redelivered,
+            }
+            for consumer in consumer_infos
+        ]
+        storage = getattr(
+            getattr(info.config, "storage", None),
+            "value",
+            getattr(info.config, "storage", None),
+        )
+        return {
+            "exists": True,
+            "stream": stream,
+            "domain": cluster,
+            "storage": storage,
+            "instance_id": instance,
+            "created": _iso_timestamp(getattr(info, "created", None)),
+            "subjects": list(info.config.subjects or []),
+            "messages": info.state.messages,
+            "bytes": info.state.bytes,
+            "consumer_count": len(consumers),
+            "num_pending": sum(item["num_pending"] for item in consumers),
+            "num_ack_pending": sum(
+                item["num_ack_pending"] for item in consumers
+            ),
+            "consumers": consumers,
+        }
+
+    async def list_memory_frame_streams(
+        self,
+        target_cluster: str,
+    ) -> List[Dict[str, Any]]:
+        """列出目标 edge domain 中的实例级 Memory 帧 Stream。"""
+        cluster = _subject_token(target_cluster, "target_cluster")
+        js = await self._jetstream_for_domain(cluster)
+        prefix = f"{self.frame_stream_prefix}_"
+        results = []
+        for info in await js.streams_info():
+            name = info.config.name
+            if not name.startswith(prefix):
+                continue
+            storage = getattr(
+                getattr(info.config, "storage", None),
+                "value",
+                getattr(info.config, "storage", None),
+            )
+            results.append(
+                {
+                    "stream": name,
+                    "domain": cluster,
+                    "storage": storage,
+                    "instance_id": name[len(prefix):],
+                    "created": _iso_timestamp(
+                        getattr(info, "created", None)
+                    ),
+                    "subjects": list(info.config.subjects or []),
+                    "messages": info.state.messages,
+                    "bytes": info.state.bytes,
+                    "consumer_count": info.state.consumer_count,
+                }
+            )
+        return sorted(results, key=lambda item: item["stream"])
+
     def frame_subscription_subjects(
         self,
         agent_id: str,
@@ -1284,6 +1621,25 @@ class NatsComm:
         return (
             f"frame.local.{cluster}.{agent}.{action}",
             f"frame.global.{cluster}.{agent}.{action}",
+        )
+
+    def memory_frame_subscription_subjects(
+        self,
+        agent_id: str,
+        operation: str = "infer",
+        local_cluster: Optional[str] = None,
+        instance_id: Optional[str] = None,
+    ) -> Tuple[str, str]:
+        """返回当前实例应拉取的 local/global Memory 帧 Subject。"""
+        cluster = self._local_cluster(local_cluster)
+        agent = _subject_token(agent_id, "agent_id")
+        instance = self._instance_id(instance_id)
+        action = _subject_token(operation, "operation")
+        return (
+            f"frame.local.{cluster}.agent.{agent}."
+            f"instance.{instance}.{action}",
+            f"frame.global.{cluster}.agent.{agent}."
+            f"instance.{instance}.{action}",
         )
 
     async def send_workflow(
@@ -1330,6 +1686,281 @@ class NatsComm:
             reply_subject=reply_subject,
             timeout_sec=timeout_sec,
         )
+
+    async def request_memory_frame(
+        self,
+        target_cluster: str,
+        agent_id: str,
+        target_instance_id: str,
+        payload: BinaryPayload,
+        operation: str = "infer",
+        local_cluster: Optional[str] = None,
+        timeout_sec: float = 30.0,
+        request_id: Optional[str] = None,
+    ) -> bytes:
+        """
+        将二进制帧写入目标实例的 JetStream Memory Stream，并等待处理回复。
+
+        JetStream PubAck 只确认帧已进入目标 Stream；本方法随后继续等待接收
+        Agent 通过 Core NATS Inbox 返回业务处理结果。
+        """
+        if timeout_sec <= 0:
+            raise ValueError("timeout_sec must be positive")
+        encoded = self._encode_binary_payload(payload)
+        subject = self.memory_frame_subject(
+            target_cluster=target_cluster,
+            agent_id=agent_id,
+            target_instance_id=target_instance_id,
+            operation=operation,
+            local_cluster=local_cluster,
+        )
+        frame_id = _subject_token(
+            request_id or uuid.uuid4().hex,
+            "request_id",
+        )
+        await self.connect(ensure_stream=False)
+        js = await self._jetstream_for_domain(target_cluster)
+        reply_subject = self._nc.new_inbox()
+        subscription = await self._nc.subscribe(
+            reply_subject,
+            max_msgs=1,
+            pending_msgs_limit=1,
+            pending_bytes_limit=self.binary_pending_bytes,
+        )
+        await self._nc.flush(timeout=min(5.0, timeout_sec))
+
+        started = time.monotonic()
+        try:
+            await js.publish(
+                subject,
+                encoded,
+                timeout=timeout_sec,
+                stream=self.memory_frame_stream_name(target_instance_id),
+                headers={
+                    _FRAME_REPLY_HEADER: reply_subject,
+                    _FRAME_REQUEST_ID_HEADER: frame_id,
+                },
+            )
+            remaining = timeout_sec - (time.monotonic() - started)
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"Memory 帧处理超时 subject={subject} request_id={frame_id}"
+                )
+            try:
+                response = await subscription.next_msg(timeout=remaining)
+            except NatsTimeoutError as exc:
+                raise TimeoutError(
+                    f"Memory 帧处理超时 subject={subject} request_id={frame_id}"
+                ) from exc
+        finally:
+            try:
+                await subscription.unsubscribe()
+            except Exception:
+                logger.debug("注销 Memory 帧回复订阅失败", exc_info=True)
+
+        response_id = ""
+        if response.headers:
+            response_id = response.headers.get(
+                _FRAME_REQUEST_ID_HEADER,
+                "",
+            )
+        if response_id and response_id != frame_id:
+            raise RuntimeError(
+                f"Memory 帧回复 ID 不匹配: expected={frame_id}, "
+                f"actual={response_id}"
+            )
+        result = self._encode_binary_payload(response.data)
+        logger.info(
+            "JetStream Memory 帧请求完成 subject=%s request_id=%s "
+            "request_bytes=%d response_bytes=%d elapsed_ms=%.1f",
+            subject,
+            frame_id,
+            len(encoded),
+            len(result),
+            (time.monotonic() - started) * 1000,
+        )
+        return result
+
+    async def serve_memory_frames(
+        self,
+        agent_id: str,
+        handler: Callable[[NatsMemoryFrameMessage], Any],
+        operation: str = "infer",
+        local_cluster: Optional[str] = None,
+        instance_id: Optional[str] = None,
+        durable: Optional[str] = None,
+        poll_timeout_sec: float = 5.0,
+        max_inflight: int = 1,
+        ack_progress_interval_sec: float = 10.0,
+        reply_timeout_sec: float = 5.0,
+    ) -> None:
+        """
+        持续拉取当前实例的 local/global Memory 帧，处理后回复并 ACK。
+
+        handler 返回 bytes-like 响应。handler、回复发布或 ACK 任一环节失败
+        都会 NAK 输入帧，由 JetStream 按 Consumer 策略重新投递。
+        """
+        if poll_timeout_sec <= 0:
+            raise ValueError("poll_timeout_sec must be positive")
+        if max_inflight <= 0:
+            raise ValueError("max_inflight must be positive")
+        if ack_progress_interval_sec <= 0:
+            raise ValueError("ack_progress_interval_sec must be positive")
+        if reply_timeout_sec <= 0:
+            raise ValueError("reply_timeout_sec must be positive")
+
+        cluster = self._local_cluster(local_cluster)
+        instance = self._instance_id(instance_id)
+        await self.wait_memory_frame_stream(
+            agent_id=agent_id,
+            instance_id=instance,
+            local_cluster=cluster,
+        )
+        js = await self._jetstream_for_domain(cluster)
+        stream = self.memory_frame_stream_name(instance)
+        subjects = self.memory_frame_subscription_subjects(
+            agent_id=agent_id,
+            operation=operation,
+            local_cluster=cluster,
+            instance_id=instance,
+        )
+        durable_base = durable or f"{self.frame_stream_prefix}_{instance}"
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", durable_base):
+            raise ValueError(
+                "durable may contain only ASCII letters, digits, '-' and '_'"
+            )
+        subscriptions = []
+        for scope, subject in zip(("local", "global"), subjects):
+            subscriptions.append(
+                await js.pull_subscribe(
+                    subject,
+                    durable=f"{durable_base}-{scope}",
+                    stream=stream,
+                    config=ConsumerConfig(
+                        ack_wait=self.frame_ack_wait_sec,
+                        max_deliver=self.frame_max_deliver,
+                        max_ack_pending=max_inflight,
+                    ),
+                    pending_msgs_limit=max(1, max_inflight),
+                    pending_bytes_limit=self.binary_pending_bytes,
+                )
+            )
+
+        semaphore = asyncio.Semaphore(max_inflight)
+
+        async def report_progress(raw_message) -> None:
+            while True:
+                await asyncio.sleep(ack_progress_interval_sec)
+                await raw_message.in_progress()
+
+        async def process(raw_message) -> None:
+            async with semaphore:
+                metadata = raw_message.metadata
+                headers = raw_message.headers or {}
+                reply_subject = headers.get(_FRAME_REPLY_HEADER, "")
+                request_id = headers.get(_FRAME_REQUEST_ID_HEADER, "")
+                message = NatsMemoryFrameMessage(
+                    subject=raw_message.subject,
+                    data=bytes(raw_message.data),
+                    reply_subject=reply_subject,
+                    request_id=request_id,
+                    headers=headers,
+                    stream=metadata.stream,
+                    consumer=metadata.consumer,
+                    stream_seq=metadata.sequence.stream,
+                    delivered=metadata.num_delivered,
+                    _raw=raw_message,
+                )
+                progress_task = asyncio.create_task(
+                    report_progress(raw_message)
+                )
+                try:
+                    result = handler(message)
+                    if inspect.isawaitable(result):
+                        result = await result
+                    encoded = self._encode_binary_payload(
+                        b"" if result is None else result
+                    )
+                    if reply_subject:
+                        await self._nc.publish(
+                            reply_subject,
+                            encoded,
+                            headers={
+                                _FRAME_REQUEST_ID_HEADER: request_id,
+                            },
+                        )
+                        await self._nc.flush(timeout=reply_timeout_sec)
+                    await raw_message.ack_sync(timeout=reply_timeout_sec)
+                    logger.info(
+                        "Memory 帧处理完成 subject=%s request_id=%s "
+                        "bytes=%d delivered=%d",
+                        raw_message.subject,
+                        request_id or "-",
+                        len(raw_message.data),
+                        metadata.num_delivered,
+                    )
+                except asyncio.CancelledError:
+                    try:
+                        await raw_message.nak()
+                    except Exception:
+                        logger.debug(
+                            "取消 Memory 帧处理后 NAK 失败",
+                            exc_info=True,
+                        )
+                    raise
+                except Exception:
+                    logger.exception(
+                        "Memory 帧处理失败，等待 JetStream 重投 "
+                        "subject=%s request_id=%s delivered=%d",
+                        raw_message.subject,
+                        request_id or "-",
+                        metadata.num_delivered,
+                    )
+                    try:
+                        await raw_message.nak(delay=1)
+                    except Exception:
+                        logger.warning(
+                            "Memory 帧处理失败后 NAK 也失败",
+                            exc_info=True,
+                        )
+                finally:
+                    progress_task.cancel()
+                    await asyncio.gather(
+                        progress_task,
+                        return_exceptions=True,
+                    )
+
+        async def consume(subscription) -> None:
+            while True:
+                try:
+                    messages = await subscription.fetch(
+                        max_inflight,
+                        timeout=poll_timeout_sec,
+                    )
+                except NatsTimeoutError:
+                    continue
+                await asyncio.gather(
+                    *(process(message) for message in messages)
+                )
+
+        tasks = [
+            asyncio.create_task(consume(subscription))
+            for subscription in subscriptions
+        ]
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            for subscription in subscriptions:
+                try:
+                    await subscription.unsubscribe()
+                except Exception:
+                    logger.debug(
+                        "注销 Memory 帧 Pull Consumer 失败",
+                        exc_info=True,
+                    )
 
     async def publish_bytes(
         self,

@@ -55,8 +55,12 @@ edge-b: edge-b
 每个 Agent Pod 的 Stream 位于其所属边缘 domain：
 
 ```text
-WF_<pod-uid>
+WF_<pod-uid>     File，工作流任务
+FRAME_<pod-uid>  Memory，二进制帧
 ```
+
+不要 deny `$JS.>` 或 `_INBOX.>`。跨边缘 Memory 帧需要通过 `$JS` Domain API
+写入目标 Stream，并通过 `_INBOX.*` 返回处理结果。
 
 ## 4. 64MiB 传输配置
 

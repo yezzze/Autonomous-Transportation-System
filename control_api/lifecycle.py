@@ -20,6 +20,7 @@ MANAGED_BY_LABEL = "k8s-demo.io/managed-by"
 AGENT_ID_LABEL = "k8s-demo.io/agent-id"
 CLUSTER_ID_LABEL = "k8s-demo.io/cluster-id"
 STREAM_ENABLED_LABEL = "k8s-demo.io/workflow-stream"
+FRAME_STREAM_ENABLED_LABEL = "k8s-demo.io/frame-stream"
 MANAGED_BY_VALUE = "edge-lifecycle-controller"
 
 DNS_LABEL_RE = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
@@ -29,6 +30,11 @@ RESERVED_ENV = {
     "AGENT_INSTANCE_ID",
     "CLUSTER_ID",
     "NATS_JETSTREAM_DOMAIN",
+    "NATS_FRAME_ACK_WAIT_SEC",
+    "NATS_FRAME_MAX_DELIVER",
+    "NATS_FRAME_STREAM_MAX_AGE_SEC",
+    "NATS_FRAME_STREAM_MAX_BYTES",
+    "NATS_FRAME_STREAM_PREFIX",
     "NATS_SERVERS",
     "NATS_STREAM_DISCARD",
     "NATS_STREAM_MAX_BYTES",
@@ -79,6 +85,7 @@ class CreateInstanceRequest(BaseModel):
     resources: ResourceConfig = Field(default_factory=ResourceConfig)
     ports: List[PortConfig] = Field(default_factory=list)
     workflow_stream: bool = True
+    frame_stream: bool = True
     wait_ready_timeout_sec: float = Field(default=0, ge=0, le=300)
     termination_grace_period_seconds: int = Field(default=30, ge=0, le=300)
 
@@ -118,6 +125,11 @@ class ControllerSettings:
     image_pull_secrets: List[str]
     stream_prefix: str
     stream_max_bytes: str
+    frame_stream_prefix: str
+    frame_stream_max_bytes: str
+    frame_stream_max_age_sec: float
+    frame_ack_wait_sec: float
+    frame_max_deliver: int
     stream_provision_timeout_sec: int
     reconcile_interval_sec: float
     orphan_grace_sec: float
@@ -169,6 +181,23 @@ class ControllerSettings:
             stream_max_bytes=os.environ.get(
                 "NATS_STREAM_MAX_BYTES",
                 "512MiB",
+            ),
+            frame_stream_prefix=os.environ.get(
+                "NATS_FRAME_STREAM_PREFIX",
+                "FRAME",
+            ),
+            frame_stream_max_bytes=os.environ.get(
+                "NATS_FRAME_STREAM_MAX_BYTES",
+                "512MiB",
+            ),
+            frame_stream_max_age_sec=float(
+                os.environ.get("NATS_FRAME_STREAM_MAX_AGE_SEC", "120")
+            ),
+            frame_ack_wait_sec=float(
+                os.environ.get("NATS_FRAME_ACK_WAIT_SEC", "60")
+            ),
+            frame_max_deliver=int(
+                os.environ.get("NATS_FRAME_MAX_DELIVER", "3")
             ),
             stream_provision_timeout_sec=int(
                 os.environ.get("NATS_STREAM_PROVISION_TIMEOUT_SEC", "120")
@@ -250,6 +279,9 @@ class EdgeLifecycleController:
                 AGENT_ID_LABEL: request.agent_id,
                 CLUSTER_ID_LABEL: self.settings.cluster_id,
                 STREAM_ENABLED_LABEL: str(request.workflow_stream).lower(),
+                FRAME_STREAM_ENABLED_LABEL: str(
+                    request.frame_stream
+                ).lower(),
             }
         )
         return labels
@@ -260,6 +292,19 @@ class EdgeLifecycleController:
             "AGENT_ID": request.agent_id,
             "CLUSTER_ID": self.settings.cluster_id,
             "NATS_JETSTREAM_DOMAIN": self.settings.cluster_id,
+            "NATS_FRAME_ACK_WAIT_SEC": str(
+                self.settings.frame_ack_wait_sec
+            ),
+            "NATS_FRAME_MAX_DELIVER": str(
+                self.settings.frame_max_deliver
+            ),
+            "NATS_FRAME_STREAM_MAX_AGE_SEC": str(
+                self.settings.frame_stream_max_age_sec
+            ),
+            "NATS_FRAME_STREAM_MAX_BYTES": (
+                self.settings.frame_stream_max_bytes
+            ),
+            "NATS_FRAME_STREAM_PREFIX": self.settings.frame_stream_prefix,
             "NATS_SERVERS": self.settings.agent_nats_servers,
             "NATS_STREAM_DISCARD": "new",
             "NATS_STREAM_MAX_BYTES": self.settings.stream_max_bytes,
@@ -369,6 +414,8 @@ class EdgeLifecycleController:
             or labels.get(AGENT_ID_LABEL) != request.agent_id
             or labels.get(STREAM_ENABLED_LABEL, "true")
             != str(request.workflow_stream).lower()
+            or labels.get(FRAME_STREAM_ENABLED_LABEL, "true")
+            != str(request.frame_stream).lower()
             or not pod.spec.containers
             or pod.spec.containers[0].image != request.image
         ):
@@ -413,31 +460,56 @@ class EdgeLifecycleController:
                     logger.exception("failed to roll back Pod without UID")
             raise LifecycleError(500, "Kubernetes did not return a Pod UID")
 
-        stream = None
-        if request.workflow_stream:
-            try:
-                stream = await self.nats.provision_workflow_stream(
+        workflow_stream = None
+        frame_stream = None
+        try:
+            if request.workflow_stream:
+                workflow_stream = await self.nats.provision_workflow_stream(
                     target_cluster=self.settings.cluster_id,
                     agent_id=request.agent_id,
                     instance_id=instance_id,
                 )
-            except Exception as exc:
-                if created:
-                    try:
-                        await self._delete_pod(
-                            request.namespace,
-                            request.name,
-                            0,
-                        )
-                    except Exception:
-                        logger.exception(
-                            "failed to roll back Pod after Stream error"
-                        )
-                raise LifecycleError(
-                    502,
-                    f"failed to provision instance Stream: {exc}",
-                    {"pod_rolled_back": created},
-                ) from exc
+            if request.frame_stream:
+                frame_stream = await self.nats.provision_memory_frame_stream(
+                    target_cluster=self.settings.cluster_id,
+                    agent_id=request.agent_id,
+                    instance_id=instance_id,
+                )
+        except Exception as exc:
+            if created and workflow_stream is not None:
+                try:
+                    await self.nats.delete_workflow_stream(
+                        target_cluster=self.settings.cluster_id,
+                        instance_id=instance_id,
+                    )
+                except Exception:
+                    logger.exception(
+                        "failed to roll back workflow Stream"
+                    )
+            if created and frame_stream is not None:
+                try:
+                    await self.nats.delete_memory_frame_stream(
+                        target_cluster=self.settings.cluster_id,
+                        instance_id=instance_id,
+                    )
+                except Exception:
+                    logger.exception("failed to roll back frame Stream")
+            if created:
+                try:
+                    await self._delete_pod(
+                        request.namespace,
+                        request.name,
+                        0,
+                    )
+                except Exception:
+                    logger.exception(
+                        "failed to roll back Pod after Stream error"
+                    )
+            raise LifecycleError(
+                502,
+                f"failed to provision instance Streams: {exc}",
+                {"pod_rolled_back": created},
+            ) from exc
 
         if request.wait_ready_timeout_sec > 0:
             pod = await self._wait_for_ready(
@@ -454,7 +526,9 @@ class EdgeLifecycleController:
         result.update(
             {
                 "created": created,
-                "stream": stream,
+                "stream": workflow_stream,
+                "workflow_stream": workflow_stream,
+                "frame_stream": frame_stream,
             }
         )
         return result
@@ -501,6 +575,9 @@ class EdgeLifecycleController:
         stream_enabled = (
             labels.get(STREAM_ENABLED_LABEL, "true").lower() == "true"
         )
+        frame_stream_enabled = (
+            labels.get(FRAME_STREAM_ENABLED_LABEL, "true").lower() == "true"
+        )
         stream = None
         stream_error = None
         if include_stream and stream_enabled and instance_id:
@@ -511,6 +588,16 @@ class EdgeLifecycleController:
                 )
             except Exception as exc:
                 stream_error = str(exc)
+        frame_stream = None
+        frame_stream_error = None
+        if include_stream and frame_stream_enabled and instance_id:
+            try:
+                frame_stream = await self.nats.memory_frame_stream_status(
+                    target_cluster=self.settings.cluster_id,
+                    instance_id=instance_id,
+                )
+            except Exception as exc:
+                frame_stream_error = str(exc)
 
         phase = getattr(pod.status, "phase", None) or "Unknown"
         ready = self._pod_ready(pod)
@@ -525,6 +612,14 @@ class EdgeLifecycleController:
             health = "starting"
         if stream_enabled and (
             stream_error or (stream is not None and not stream["exists"])
+        ):
+            health = "degraded"
+        if frame_stream_enabled and (
+            frame_stream_error
+            or (
+                frame_stream is not None
+                and not frame_stream["exists"]
+            )
         ):
             health = "degraded"
 
@@ -562,6 +657,9 @@ class EdgeLifecycleController:
             "stream_enabled": stream_enabled,
             "stream": stream,
             "stream_error": stream_error,
+            "frame_stream_enabled": frame_stream_enabled,
+            "frame_stream": frame_stream,
+            "frame_stream_error": frame_stream_error,
         }
 
     async def get_instance(
@@ -648,6 +746,7 @@ class EdgeLifecycleController:
             )
         pod = await self._read_pod(namespace, name)
         stream_enabled = True
+        frame_stream_enabled = True
         if pod is not None:
             labels = pod.metadata.labels or {}
             if labels.get(MANAGED_BY_LABEL) != MANAGED_BY_VALUE:
@@ -659,32 +758,66 @@ class EdgeLifecycleController:
             stream_enabled = (
                 labels.get(STREAM_ENABLED_LABEL, "true").lower() == "true"
             )
+            frame_stream_enabled = (
+                labels.get(
+                    FRAME_STREAM_ENABLED_LABEL,
+                    "true",
+                ).lower()
+                == "true"
+            )
         if not instance_id:
             return {
                 "deleted": False,
                 "pod_deleted": False,
                 "stream_deleted": False,
+                "frame_stream_deleted": False,
                 "reason": "instance_not_found",
                 "namespace": namespace,
                 "name": name,
             }
 
         stream_status = None
+        frame_stream_status = None
+        drain_tasks = []
+        drain_kinds = []
         if stream_enabled:
-            stream_status = await self._wait_for_stream_drain(
-                instance_id,
-                drain_timeout_sec,
-            )
-            if stream_status["messages"] > 0 and not force:
-                raise LifecycleError(
-                    409,
-                    "instance Stream still contains messages",
-                    {
-                        "hint": "remove the instance from routing, retry later, "
-                        "or explicitly use force=true",
-                        "stream": stream_status,
-                    },
+            drain_kinds.append("workflow")
+            drain_tasks.append(
+                self._wait_for_stream_drain(
+                    instance_id,
+                    drain_timeout_sec,
+                    self.nats.workflow_stream_status,
                 )
+            )
+        if frame_stream_enabled:
+            drain_kinds.append("frame")
+            drain_tasks.append(
+                self._wait_for_stream_drain(
+                    instance_id,
+                    drain_timeout_sec,
+                    self.nats.memory_frame_stream_status,
+                )
+            )
+        if drain_tasks:
+            drain_results = await asyncio.gather(*drain_tasks)
+            statuses = dict(zip(drain_kinds, drain_results))
+            stream_status = statuses.get("workflow")
+            frame_stream_status = statuses.get("frame")
+        pending_statuses = [
+            status
+            for status in (stream_status, frame_stream_status)
+            if status is not None and status["messages"] > 0
+        ]
+        if pending_statuses and not force:
+            raise LifecycleError(
+                409,
+                "instance Streams still contain messages",
+                {
+                    "hint": "remove the instance from routing, retry later, "
+                    "or explicitly use force=true",
+                    "streams": pending_statuses,
+                },
+            )
 
         pod_deleted = await self._delete_pod(
             namespace,
@@ -692,17 +825,32 @@ class EdgeLifecycleController:
             pod_grace_period_seconds,
         )
         stream_deleted = False
-        dropped_messages = 0
+        frame_stream_deleted = False
+        dropped_messages = sum(
+            status["messages"]
+            for status in (stream_status, frame_stream_status)
+            if status is not None
+        )
         if stream_enabled and stream_status is not None:
-            dropped_messages = stream_status["messages"]
             stream_deleted = await self.nats.delete_workflow_stream(
                 target_cluster=self.settings.cluster_id,
                 instance_id=instance_id,
             )
+        if frame_stream_enabled and frame_stream_status is not None:
+            frame_stream_deleted = (
+                await self.nats.delete_memory_frame_stream(
+                    target_cluster=self.settings.cluster_id,
+                    instance_id=instance_id,
+                )
+            )
         return {
-            "deleted": stream_deleted or pod_deleted,
+            "deleted": (
+                stream_deleted or frame_stream_deleted or pod_deleted
+            ),
             "pod_deleted": pod_deleted,
             "stream_deleted": stream_deleted,
+            "workflow_stream_deleted": stream_deleted,
+            "frame_stream_deleted": frame_stream_deleted,
             "forced": force,
             "dropped_messages": dropped_messages,
             "namespace": namespace,
@@ -714,10 +862,11 @@ class EdgeLifecycleController:
         self,
         instance_id: str,
         timeout_sec: float,
+        status_method,
     ) -> Dict[str, Any]:
         deadline = asyncio.get_running_loop().time() + timeout_sec
         while True:
-            status = await self.nats.workflow_stream_status(
+            status = await status_method(
                 target_cluster=self.settings.cluster_id,
                 instance_id=instance_id,
             )
@@ -741,13 +890,18 @@ class EdgeLifecycleController:
         except Exception as exc:
             kubernetes_status = {"healthy": False, "error": str(exc)}
         try:
-            streams = await self.nats.list_workflow_streams(
-                self.settings.cluster_id
+            workflow_streams, frame_streams = await asyncio.gather(
+                self.nats.list_workflow_streams(self.settings.cluster_id),
+                self.nats.list_memory_frame_streams(
+                    self.settings.cluster_id
+                ),
             )
             nats_status = {
                 "healthy": True,
                 "domain": self.settings.cluster_id,
-                "instance_streams": len(streams),
+                "instance_streams": len(workflow_streams),
+                "workflow_streams": len(workflow_streams),
+                "frame_streams": len(frame_streams),
             }
         except Exception as exc:
             nats_status = {
@@ -788,6 +942,10 @@ class EdgeLifecycleController:
                         STREAM_ENABLED_LABEL,
                         "true",
                     ),
+                    "frame_stream_enabled": labels.get(
+                        FRAME_STREAM_ENABLED_LABEL,
+                        "true",
+                    ),
                 }
                 if (
                     live[uid]["stream_enabled"].lower() == "true"
@@ -801,57 +959,102 @@ class EdgeLifecycleController:
                         )
                     except Exception as exc:
                         provision_errors.append(
-                            {"instance_id": uid, "error": str(exc)}
+                            {
+                                "instance_id": uid,
+                                "kind": "workflow",
+                                "error": str(exc),
+                            }
+                        )
+                if (
+                    live[uid]["frame_stream_enabled"].lower() == "true"
+                    and live[uid]["agent_id"]
+                ):
+                    try:
+                        await self.nats.provision_memory_frame_stream(
+                            target_cluster=self.settings.cluster_id,
+                            agent_id=live[uid]["agent_id"],
+                            instance_id=uid,
+                        )
+                    except Exception as exc:
+                        provision_errors.append(
+                            {
+                                "instance_id": uid,
+                                "kind": "frame",
+                                "error": str(exc),
+                            }
                         )
 
-        streams = await self.nats.list_workflow_streams(
-            self.settings.cluster_id
+        workflow_streams, frame_streams = await asyncio.gather(
+            self.nats.list_workflow_streams(self.settings.cluster_id),
+            self.nats.list_memory_frame_streams(self.settings.cluster_id),
         )
         now = datetime.now(timezone.utc)
         orphan_streams = []
         deleted_empty_orphans = []
-        current_orphan_ids = set()
-        for stream in streams:
-            if stream["instance_id"] in live:
-                continue
-            instance_id = stream["instance_id"]
-            current_orphan_ids.add(instance_id)
-            age_sec = None
-            if stream.get("created"):
-                created = datetime.fromisoformat(stream["created"])
-                if created.tzinfo is None:
-                    created = created.replace(tzinfo=timezone.utc)
-                age_sec = max(0.0, (now - created).total_seconds())
-            else:
-                first_seen = self._orphan_first_seen.setdefault(
-                    instance_id,
-                    now,
+        current_orphan_keys = set()
+        stream_groups = (
+            (
+                "workflow",
+                workflow_streams,
+                self.nats.delete_workflow_stream,
+            ),
+            (
+                "frame",
+                frame_streams,
+                self.nats.delete_memory_frame_stream,
+            ),
+        )
+        for kind, streams, delete_method in stream_groups:
+            for stream in streams:
+                if stream["instance_id"] in live:
+                    continue
+                orphan_key = f"{kind}:{stream['instance_id']}"
+                current_orphan_keys.add(orphan_key)
+                if stream.get("created"):
+                    created = datetime.fromisoformat(stream["created"])
+                    if created.tzinfo is None:
+                        created = created.replace(tzinfo=timezone.utc)
+                    age_sec = max(
+                        0.0,
+                        (now - created).total_seconds(),
+                    )
+                else:
+                    first_seen = self._orphan_first_seen.setdefault(
+                        orphan_key,
+                        now,
+                    )
+                    age_sec = max(
+                        0.0,
+                        (now - first_seen).total_seconds(),
+                    )
+                orphan = {**stream, "kind": kind, "age_sec": age_sec}
+                orphan_streams.append(orphan)
+                eligible = (
+                    self.settings.delete_empty_orphan_streams
+                    and stream["messages"] == 0
+                    and age_sec >= self.settings.orphan_grace_sec
                 )
-                age_sec = max(0.0, (now - first_seen).total_seconds())
-            orphan = {**stream, "age_sec": age_sec}
-            orphan_streams.append(orphan)
-            eligible = (
-                self.settings.delete_empty_orphan_streams
-                and stream["messages"] == 0
-                and age_sec >= self.settings.orphan_grace_sec
-            )
-            if eligible:
-                deleted = await self.nats.delete_workflow_stream(
-                    target_cluster=self.settings.cluster_id,
-                    instance_id=stream["instance_id"],
-                )
-                if deleted:
-                    deleted_empty_orphans.append(stream["stream"])
-                    self._orphan_first_seen.pop(instance_id, None)
+                if eligible:
+                    deleted = await delete_method(
+                        target_cluster=self.settings.cluster_id,
+                        instance_id=stream["instance_id"],
+                    )
+                    if deleted:
+                        deleted_empty_orphans.append(stream["stream"])
+                        self._orphan_first_seen.pop(orphan_key, None)
 
-        for instance_id in set(self._orphan_first_seen) - current_orphan_ids:
-            self._orphan_first_seen.pop(instance_id, None)
+        for orphan_key in (
+            set(self._orphan_first_seen) - current_orphan_keys
+        ):
+            self._orphan_first_seen.pop(orphan_key, None)
 
         self._last_reconcile = {
             "status": "ok" if not provision_errors else "degraded",
             "timestamp": now.isoformat(),
             "live_instances": len(live),
-            "instance_streams": len(streams),
+            "instance_streams": len(workflow_streams) + len(frame_streams),
+            "workflow_streams": len(workflow_streams),
+            "frame_streams": len(frame_streams),
             "provision_errors": provision_errors,
             "orphan_streams": orphan_streams,
             "deleted_empty_orphans": deleted_empty_orphans,

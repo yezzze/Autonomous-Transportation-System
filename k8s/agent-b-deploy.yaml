@@ -34,6 +34,16 @@ spec:
               value: "__EDGE_CLUSTER_ID__"
             - name: NATS_WORKFLOW_STREAM_PREFIX
               value: "WF"
+            - name: NATS_FRAME_STREAM_PREFIX
+              value: "FRAME"
+            - name: NATS_FRAME_STREAM_MAX_BYTES
+              value: "512MiB"
+            - name: NATS_FRAME_STREAM_MAX_AGE_SEC
+              value: "120"
+            - name: NATS_FRAME_ACK_WAIT_SEC
+              value: "60"
+            - name: NATS_FRAME_MAX_DELIVER
+              value: "3"
             - name: NATS_STREAM_MAX_BYTES
               value: "512MiB"
             - name: NATS_STREAM_DISCARD

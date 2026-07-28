@@ -11,6 +11,7 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
 - NatsComm         : 核心通信客户端，支持发布/订阅、请求/响应、流式消费
 - NatsMessage      : 消息封装类，支持 ACK/NACK/进度/终止等 JetStream 操作
 - NatsBinaryMessage: Core NATS 原始二进制消息
+- NatsMemoryFrameMessage: JetStream Memory 原始二进制帧
 - build_stream_config  : 构建 JetStream Stream 配置（名称、主题、存储策略）
 - ensure_jetstream_stream : 确保 JetStream Stream 存在（自动创建/更新）
 - parse_bytes      : 解析 NATS 风格的大小字符串（如 "5GB" → int）
@@ -40,6 +41,11 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
     NATS_STREAM               兼容模式流名称（默认 WORKFLOW）
     NATS_STREAM_SUBJECTS      兼容流主题列表（默认 legacy.workflow.>）
     NATS_WORKFLOW_STREAM_PREFIX 实例 Stream 前缀（默认 WF）
+    NATS_FRAME_STREAM_PREFIX Memory 帧 Stream 前缀（默认 FRAME）
+    NATS_FRAME_STREAM_MAX_BYTES 单实例 Memory 帧上限（默认 512MiB）
+    NATS_FRAME_STREAM_MAX_AGE_SEC Memory 帧最大保留时间（默认120秒）
+    NATS_FRAME_ACK_WAIT_SEC Memory 帧 ACK 等待时间（默认60秒）
+    NATS_FRAME_MAX_DELIVER Memory 帧最大投递次数（默认3）
     NATS_STREAM_MAX_BYTES     流最大大小（默认 512MiB）
     NATS_STREAM_DISCARD       淘汰策略（默认 new）
     NATS_STREAM_RETENTION     保留策略（默认 workqueue）
@@ -64,12 +70,18 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
 """
 
 from .jetstream_stream import build_stream_config, ensure_jetstream_stream, parse_bytes
-from .nats_comm import NatsBinaryMessage, NatsComm, NatsMessage
+from .nats_comm import (
+    NatsBinaryMessage,
+    NatsComm,
+    NatsMemoryFrameMessage,
+    NatsMessage,
+)
 
 __all__ = [
     "NatsComm",
     "NatsMessage",
     "NatsBinaryMessage",
+    "NatsMemoryFrameMessage",
     "FrameComm",
     "FrameTransportClient",
     "DownloadedFrame",

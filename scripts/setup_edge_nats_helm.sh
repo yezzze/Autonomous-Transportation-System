@@ -57,6 +57,11 @@ kubectl create configmap edge-cluster-config \
   --from-literal=NATS_SERVERS="nats://${RELEASE}:4222" \
   --from-literal=NATS_JETSTREAM_DOMAIN="${EDGE_CLUSTER_ID}" \
   --from-literal=NATS_WORKFLOW_STREAM_PREFIX="WF" \
+  --from-literal=NATS_FRAME_STREAM_PREFIX="FRAME" \
+  --from-literal=NATS_FRAME_STREAM_MAX_BYTES="${NATS_FRAME_STREAM_MAX_BYTES:-512MiB}" \
+  --from-literal=NATS_FRAME_STREAM_MAX_AGE_SEC="${NATS_FRAME_STREAM_MAX_AGE_SEC:-120}" \
+  --from-literal=NATS_FRAME_ACK_WAIT_SEC="${NATS_FRAME_ACK_WAIT_SEC:-60}" \
+  --from-literal=NATS_FRAME_MAX_DELIVER="${NATS_FRAME_MAX_DELIVER:-3}" \
   --from-literal=NATS_STREAM_MAX_BYTES="${NATS_STREAM_MAX_BYTES:-512MiB}" \
   --from-literal=NATS_STREAM_DISCARD="${NATS_STREAM_DISCARD:-new}" \
   --from-literal=NATS_STREAM_RETENTION="${NATS_STREAM_RETENTION:-workqueue}" \
