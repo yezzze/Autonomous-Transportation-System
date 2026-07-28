@@ -13,6 +13,11 @@
 不要把 10MiB 至 15MiB 的帧放入 JSON 工作流消息。帧使用二进制接口或
 gRPC 帧传输，工作流消息只携带元数据或 `frame_ref`。
 
+需要 JetStream 可靠暂存时也可以使用 Object Store，但当前 nats-py 对
+10MiB 对象的顺序 put/get 实测只有约 1.4 FPS，不适合作为 10 FPS 实时路径。
+测试方法和选择建议见
+[`nats-object-store-frame-test.md`](nats-object-store-frame-test.md)。
+
 ## 2. 实例级工作流 Stream
 
 每个 Kubernetes Agent Pod 独享一个 Stream：
