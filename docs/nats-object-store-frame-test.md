@@ -126,11 +126,27 @@ flow control，客户端流控循环检查间隔为 250ms。10MiB 对象会触�
 | --- | --- |
 | 最低延迟，同集群实时帧 | Core NATS 二进制 |
 | 最低延迟，跨机器直连 | gRPC streaming |
+| 允许单条10MiB并要求持久化 | 普通 JetStream 单消息 |
 | 接收端允许离线，帧不能丢 | Object Store + workflow frame_ref |
 | 长期存储、大容量和断点续传 | MinIO + workflow frame_ref |
 
 Object Store 的分块不等于断点续传。当前客户端上传中途失败时会清理本次 chunk，
 需要调用方重新上传整个对象。
+
+### 5.1 普通 JetStream 对照结果
+
+使用 `tests/nats_jetstream_large_message_load.py` 测试单条10MiB消息，复用一个
+WorkQueue Stream 和一个 pull consumer，每帧依次执行 publish、PubAck、fetch、
+SHA-256校验和 ACK：
+
+| 路径 | 完成帧 | 错误 | FPS | Publish P50 | Fetch P50 | 完整 P50 | 完整 P95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| edge-a 本地 | 99/10s | 0 | 9.79 | 26ms | 19ms | 75ms | 113ms |
+| edge-a 到 edge-b | 95/10s | 0 | 9.43 | 51ms | 15ms | 98ms | 133ms |
+
+普通 JetStream 在当前 Python 客户端中明显快于 Object Store，因为它复用
+Consumer，并且整帧只进行一次 publish；代价是10MiB仍为一条消息，不会自动
+分块，沿途所有 NATS Server 都必须允许该 payload，并准备足够的客户端缓冲。
 
 官方资料：
 
