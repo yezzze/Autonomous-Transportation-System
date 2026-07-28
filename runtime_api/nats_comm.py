@@ -434,6 +434,12 @@ class NatsComm:
         self._pull_subscriptions: Dict[Tuple[str, str, str], Any] = {}
         self._binary_subscription_lock = asyncio.Lock()
         self._binary_subscriptions: Dict[Tuple[str, str], Any] = {}
+        self._managed_frame_stream_lock = asyncio.Lock()
+        self._managed_frame_streams: Set[Tuple[str, str]] = set()
+        self._close_lock = asyncio.Lock()
+        self._closing = False
+        self._closed = False
+        self._ever_connected = False
         self.ephemeral_consumer_inactive_sec = float(
             os.environ.get("NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC", "30")
         )
@@ -692,6 +698,7 @@ class NatsComm:
                     reconnected_cb=self._on_reconnected,
                     closed_cb=self._on_closed,
                 )
+                self._ever_connected = True
                 logger.info("NATS 已连接 servers=%s", self.servers)
             if ensure_stream and self._js is None:
                 self._js = self._jetstream()
@@ -712,25 +719,78 @@ class NatsComm:
     async def _on_closed(self) -> None:
         logger.info("NATS 连接已关闭")
 
+    async def __aenter__(self) -> "NatsComm":
+        if self._closing or self._closed:
+            raise RuntimeError("NatsComm is closing or already closed")
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback) -> None:
+        del exc_type, exc, traceback
+        await self.close()
+
+    def __del__(self) -> None:
+        try:
+            if self._ever_connected and not self._closed:
+                logger.error(
+                    "NatsComm 在未调用 close() 的情况下被回收；"
+                    "自主管理的 Memory Stream 可能残留"
+                )
+        except Exception:
+            pass
+
     async def close(self) -> None:
         """
-        关闭与 NATS 的连接。
+        销毁当前客户端自主管理的 Memory Stream，并关闭 NATS 连接。
 
         使用 drain() 优雅关闭，等待所有未完成的消息处理完毕。
-        建议在应用退出时调用。
+        应用必须在退出时调用；推荐使用 ``async with NatsComm()``。
         """
-        async with self._pull_subscription_lock:
-            subscriptions = list(self._pull_subscriptions.values())
-            self._pull_subscriptions.clear()
-        for subscription in subscriptions:
-            try:
-                await subscription.unsubscribe()
-            except Exception:
-                logger.debug("关闭 pull subscription 失败", exc_info=True)
-        async with self._binary_subscription_lock:
-            self._binary_subscriptions.clear()
-        if self._nc.is_connected:
-            await self._nc.drain()
+        async with self._close_lock:
+            if self._closed:
+                return
+            async with self._managed_frame_stream_lock:
+                self._closing = True
+                managed_streams = list(self._managed_frame_streams)
+            async with self._pull_subscription_lock:
+                subscriptions = list(self._pull_subscriptions.values())
+                self._pull_subscriptions.clear()
+            for subscription in subscriptions:
+                try:
+                    await subscription.unsubscribe()
+                except Exception:
+                    logger.debug(
+                        "关闭 pull subscription 失败",
+                        exc_info=True,
+                    )
+            async with self._binary_subscription_lock:
+                self._binary_subscriptions.clear()
+            for cluster, instance_id in managed_streams:
+                try:
+                    await self.delete_memory_frame_stream(
+                        target_cluster=cluster,
+                        instance_id=instance_id,
+                    )
+                    logger.info(
+                        "NatsComm 关闭时已删除自主管理的 Memory Stream "
+                        "cluster=%s instance_id=%s",
+                        cluster,
+                        instance_id,
+                    )
+                except Exception:
+                    logger.exception(
+                        "NatsComm 关闭时删除自主管理的 Memory Stream 失败 "
+                        "cluster=%s instance_id=%s",
+                        cluster,
+                        instance_id,
+                    )
+                finally:
+                    async with self._managed_frame_stream_lock:
+                        self._managed_frame_streams.discard(
+                            (cluster, instance_id)
+                        )
+            if self._nc.is_connected:
+                await self._nc.drain()
+            self._closed = True
 
     async def _ensure_stream(self) -> None:
         """
@@ -1422,6 +1482,57 @@ class NatsComm:
             "max_msg_size": self.max_binary_payload_bytes + 64 * 1024,
         }
 
+    async def start_memory_frame_stream(
+        self,
+        agent_id: str,
+        instance_id: Optional[str] = None,
+        local_cluster: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        创建当前实例的 Memory 帧 Stream，并绑定到本客户端生命周期。
+
+        该方法适用于不经过编排器启动的 Agent。Stream 创建成功后会登记为
+        当前 NatsComm 自主管理资源，并在 close() 时幂等删除。
+        """
+        cluster = self._local_cluster(local_cluster)
+        instance = self._instance_id(instance_id)
+        async with self._managed_frame_stream_lock:
+            if self._closing:
+                raise RuntimeError("NatsComm is closing")
+
+        result = await self.provision_memory_frame_stream(
+            target_cluster=cluster,
+            agent_id=agent_id,
+            instance_id=instance,
+        )
+        async with self._managed_frame_stream_lock:
+            closing = self._closing
+            if not closing:
+                self._managed_frame_streams.add((cluster, instance))
+        if closing:
+            await self.delete_memory_frame_stream(
+                target_cluster=cluster,
+                instance_id=instance,
+            )
+            raise RuntimeError("NatsComm is closing")
+        return result
+
+    async def stop_memory_frame_stream(
+        self,
+        instance_id: Optional[str] = None,
+        local_cluster: Optional[str] = None,
+    ) -> bool:
+        """提前删除并解除当前客户端管理的 Memory 帧 Stream。"""
+        cluster = self._local_cluster(local_cluster)
+        instance = self._instance_id(instance_id)
+        deleted = await self.delete_memory_frame_stream(
+            target_cluster=cluster,
+            instance_id=instance,
+        )
+        async with self._managed_frame_stream_lock:
+            self._managed_frame_streams.discard((cluster, instance))
+        return deleted
+
     async def wait_memory_frame_stream(
         self,
         agent_id: str,
@@ -1793,12 +1904,16 @@ class NatsComm:
         max_inflight: int = 1,
         ack_progress_interval_sec: float = 10.0,
         reply_timeout_sec: float = 5.0,
+        manage_stream_lifecycle: bool = True,
     ) -> None:
         """
         持续拉取当前实例的 local/global Memory 帧，处理后回复并 ACK。
 
         handler 返回 bytes-like 响应。handler、回复发布或 ACK 任一环节失败
         都会 NAK 输入帧，由 JetStream 按 Consumer 策略重新投递。
+
+        默认在启动时创建当前实例 Stream，并在 close() 时删除。由控制器管理
+        Stream 时传入 manage_stream_lifecycle=False，仅等待 Stream 就绪。
         """
         if poll_timeout_sec <= 0:
             raise ValueError("poll_timeout_sec must be positive")
@@ -1811,11 +1926,18 @@ class NatsComm:
 
         cluster = self._local_cluster(local_cluster)
         instance = self._instance_id(instance_id)
-        await self.wait_memory_frame_stream(
-            agent_id=agent_id,
-            instance_id=instance,
-            local_cluster=cluster,
-        )
+        if manage_stream_lifecycle:
+            await self.start_memory_frame_stream(
+                agent_id=agent_id,
+                instance_id=instance,
+                local_cluster=cluster,
+            )
+        else:
+            await self.wait_memory_frame_stream(
+                agent_id=agent_id,
+                instance_id=instance,
+                local_cluster=cluster,
+            )
         js = await self._jetstream_for_domain(cluster)
         stream = self.memory_frame_stream_name(instance)
         subjects = self.memory_frame_subscription_subjects(

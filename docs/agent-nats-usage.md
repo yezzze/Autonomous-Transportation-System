@@ -31,8 +31,9 @@ frame.global.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
 Pod UID 是实例身份。Deployment 名、Pod 名和 Agent 类型不能代替 Pod UID，
 因为滚动更新后它们可能重复或变化。
 
-Agent 不创建或删除 Stream。编排器在 Pod 创建后根据 Pod UID 分配 Stream，
-Agent 启动后只等待该 Stream 就绪。
+工作流 `WF_<pod-uid>` 由编排器创建和删除。Memory 帧 Stream 支持两种模式：
+独立 Agent 默认由自身 `NatsComm` 创建和删除；控制器管理的 Agent 只等待
+`FRAME_<pod-uid>` 就绪。
 
 ## 3. Agent 环境变量
 
@@ -191,19 +192,40 @@ async def infer(message):
     result = run_model(message.data)
     return result
 
+async def main():
+    async with NatsComm() as comm:
+        await comm.serve_memory_frames(
+            agent_id=os.environ["AGENT_ID"],
+            instance_id=os.environ["AGENT_INSTANCE_ID"],
+            handler=infer,
+            local_cluster=os.environ["CLUSTER_ID"],
+            max_inflight=1,
+        )
+```
+
+默认情况下，`serve_memory_frames()` 会幂等创建 `FRAME_<instance-id>`，
+将它登记为当前 `NatsComm` 的自主管理资源，并同时建立 local/global Pull
+Consumer。应用必须关闭每个创建过的 `NatsComm`。推荐使用
+`async with NatsComm()`，正常返回、异常或任务取消离开作用域时都会调用
+`close()`；`close()` 会先删除该 Stream，再关闭 NATS 连接。
+
+如果 Stream 已由边缘控制器管理，则改为：
+
+```python
 await comm.serve_memory_frames(
     agent_id=os.environ["AGENT_ID"],
     instance_id=os.environ["AGENT_INSTANCE_ID"],
     handler=infer,
     local_cluster=os.environ["CLUSTER_ID"],
     max_inflight=1,
+    manage_stream_lifecycle=False,
 )
 ```
 
-`serve_memory_frames()` 会等待控制器创建 `FRAME_<pod-uid>`，并同时建立
-local/global Pull Consumer。处理成功后先通过 Core Inbox 回复，再 ACK 并从
-Memory Stream 删除输入帧；异常时 NAK，最多重投 `NATS_FRAME_MAX_DELIVER`
-次。业务 handler 必须按 `message.request_id` 保证幂等。
+该模式只等待控制器创建 Stream，`comm.close()` 不会删除它。处理成功后先通过
+Core Inbox 回复，再 ACK 并从 Memory Stream 删除输入帧；异常时 NAK，最多重投
+`NATS_FRAME_MAX_DELIVER` 次。业务 handler 必须按 `message.request_id`
+保证幂等。
 
 允许丢帧且不需要重投时，可继续使用旧接口：
 
@@ -249,13 +271,21 @@ await comm.serve_workflow(
 1. 每个 Agent 进程只创建一个 `NatsComm` 或 `FrameComm`。
 2. 不要在每帧、每次推理或每个 HTTP 请求中重新创建对象。
 3. 常驻消费者只启动一次。
-4. 进程退出时调用 `close()`。
-5. 不要自行调用 `provision_*_stream()` 或 `delete_*_stream()`；这些接口
-   属于编排器和边缘控制器。
+4. 每个 `NatsComm` 都必须使用 `async with`，或在 `finally` 中调用
+   `await comm.close()`。
+5. 独立 Agent 使用默认的 Memory Stream 自动生命周期。
+6. 控制器管理的 Agent 必须设置 `manage_stream_lifecycle=False`，避免两边
+   同时拥有 Stream 删除责任。
+7. `SIGKILL`、机器掉电无法执行 Python 清理逻辑，由控制器 orphan reconcile
+   兜底回收；Kubernetes 正常 `SIGTERM` 退出必须让主任务进入 `finally`。
+8. 已建立连接的 `NatsComm` 未调用 `close()` 就被回收时会记录错误日志：
+   `NatsComm 在未调用 close() 的情况下被回收`。
 
 ## 9. 失败语义
 
-- Stream 未创建：Agent 最多等待
+- 自动管理模式创建 Stream 失败：Agent 立即启动失败，通常是 NATS 权限、
+  domain 或容量配置错误。
+- 控制器管理模式 Stream 未创建：Agent 最多等待
   `NATS_STREAM_PROVISION_TIMEOUT_SEC`，超时后启动失败。
 - Stream 满：`discard=new` 使发布方明确收到错误，不静默删除旧任务。
 - handler 异常：任务 NACK，后续重新投递。
@@ -263,5 +293,7 @@ await comm.serve_workflow(
   progress，避免处理中重复投递。
 - Memory 帧超过 `NATS_FRAME_STREAM_MAX_AGE_SEC` 尚未完成时自动过期。
 - NATS Pod 重启会丢失尚未消费的 Memory 帧，调用方必须允许超时重试。
-- 实例结束：编排器先停止向该 UID 路由，再删除 `WF_<pod-uid>` 和
-  `FRAME_<pod-uid>`。
+- 独立实例结束：停止新请求并调用 `comm.close()`，自动删除
+  `FRAME_<instance-id>`。
+- 编排实例结束：编排器先停止向该 UID 路由，再由控制器删除
+  `WF_<pod-uid>` 和 `FRAME_<pod-uid>`。

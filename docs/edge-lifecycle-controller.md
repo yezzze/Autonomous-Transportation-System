@@ -141,6 +141,12 @@ python scripts/edge_controller_cli.py create \
 相同 `name + agent_id + image + workflow_stream + frame_stream` 的重复创建会
 返回同一个 Pod UID，并幂等校正两条 Stream。参数不一致时返回 `409`。
 
+如果帧 Stream 由 Agent 的 `NatsComm` 自主管理，创建请求设置
+`"frame_stream": false`。此时控制器只管理 `WF_<pod-uid>`；Agent 默认在
+`serve_memory_frames()` 启动时创建 `FRAME_<pod-uid>`，并在
+`NatsComm.close()` 时删除。控制器管理模式保持 `"frame_stream": true`，
+同时 Agent 必须传入 `manage_stream_lifecycle=False`。
+
 ## 4. 查询状态
 
 查询单实例：

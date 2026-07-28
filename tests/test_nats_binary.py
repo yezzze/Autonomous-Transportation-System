@@ -130,6 +130,7 @@ class NatsBinaryApiTest(unittest.IsolatedAsyncioTestCase):
             client.connect.await_args.kwargs["pending_size"],
             128 * 1024 * 1024,
         )
+        await comm.close()
 
     async def test_subscribe_bytes_is_cached_and_auto_replies(self):
         comm = NatsComm()

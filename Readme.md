@@ -530,6 +530,9 @@ docs/agent-nats-usage.md
 
 边缘 LeafNode 禁止`frame.local.>`导入和导出，因此 local 帧不会经过云端 Hub。
 允许丢帧的低延迟场景仍可使用 Core NATS `request_frame_bytes()`。
+独立 Agent 调用 `serve_memory_frames()` 时会自动创建实例 Stream，并在
+`NatsComm.close()` 时删除；控制器管理模式使用
+`manage_stream_lifecycle=False`。
 15 MiB、local/global 各 5 分钟稳定性测试结果和复测 Prompt 见：
 
 ```text

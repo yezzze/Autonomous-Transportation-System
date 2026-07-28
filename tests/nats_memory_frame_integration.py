@@ -105,6 +105,10 @@ async def run(args) -> None:
         servers=[args.edge_b],
         jetstream_domain="edge-b",
     )
+    lifecycle_comm = NatsComm(
+        servers=[args.edge_a],
+        jetstream_domain="edge-a",
+    )
     instances = {
         "edge-a": "memory-local-a",
         "edge-b": "memory-global-b",
@@ -112,6 +116,7 @@ async def run(args) -> None:
     tasks = []
     payload = bytes([37]) * args.size_bytes
     expected = hashlib.sha256(payload).digest()
+    lifecycle_result = {}
 
     async def handler(message):
         if hashlib.sha256(message.data).digest() != expected:
@@ -119,6 +124,30 @@ async def run(args) -> None:
         return b"ok:" + expected
 
     try:
+        lifecycle_instance = "memory-lifecycle-a"
+        await lifecycle_comm.start_memory_frame_stream(
+            agent_id="detector",
+            instance_id=lifecycle_instance,
+            local_cluster="edge-a",
+        )
+        lifecycle_before = await orchestrator.memory_frame_stream_status(
+            "edge-a",
+            lifecycle_instance,
+        )
+        await lifecycle_comm.close()
+        lifecycle_after = await orchestrator.memory_frame_stream_status(
+            "edge-a",
+            lifecycle_instance,
+        )
+        if not lifecycle_before["exists"] or lifecycle_after["exists"]:
+            raise RuntimeError(
+                "NatsComm Memory Stream lifecycle create/delete failed"
+            )
+        lifecycle_result = {
+            "created_on_start": True,
+            "deleted_on_close": True,
+        }
+
         await orchestrator.provision_memory_frame_stream(
             "edge-a",
             "detector",
@@ -136,6 +165,7 @@ async def run(args) -> None:
                     instance_id=instances["edge-a"],
                     local_cluster="edge-a",
                     handler=handler,
+                    manage_stream_lifecycle=False,
                 )
             ),
             asyncio.create_task(
@@ -144,6 +174,7 @@ async def run(args) -> None:
                     instance_id=instances["edge-b"],
                     local_cluster="edge-b",
                     handler=handler,
+                    manage_stream_lifecycle=False,
                 )
             ),
         ]
@@ -207,6 +238,7 @@ async def run(args) -> None:
                     "global": global_status,
                     "hub_streams": hub_streams,
                     "leafnode": deny,
+                    "comm_lifecycle": lifecycle_result,
                 },
                 sort_keys=True,
             )
@@ -228,6 +260,7 @@ async def run(args) -> None:
             orchestrator.close(),
             receiver_a.close(),
             receiver_b.close(),
+            lifecycle_comm.close(),
         )
 
 

@@ -147,7 +147,7 @@ class MemoryFrameApiTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_server_replies_then_acks_memory_frame(self):
         comm = NatsComm()
-        comm.wait_memory_frame_stream = AsyncMock()
+        comm.start_memory_frame_stream = AsyncMock()
         js = Mock()
         comm._jetstream_for_domain = AsyncMock(return_value=js)
         comm._nc.publish = AsyncMock()
@@ -223,6 +223,95 @@ class MemoryFrameApiTest(unittest.IsolatedAsyncioTestCase):
         )
         raw.ack_sync.assert_awaited_once()
         raw.nak.assert_not_awaited()
+        comm.start_memory_frame_stream.assert_awaited_once_with(
+            agent_id="detector",
+            instance_id="pod-uid-a",
+            local_cluster="edge-a",
+        )
+
+    async def test_start_registers_stream_for_close_cleanup(self):
+        comm = NatsComm()
+        comm.provision_memory_frame_stream = AsyncMock(
+            return_value={
+                "stream": "FRAME_pod-uid-a",
+                "domain": "edge-a",
+            }
+        )
+
+        result = await comm.start_memory_frame_stream(
+            agent_id="detector",
+            instance_id="pod-uid-a",
+            local_cluster="edge-a",
+        )
+
+        self.assertEqual(result["stream"], "FRAME_pod-uid-a")
+        self.assertEqual(
+            comm._managed_frame_streams,
+            {("edge-a", "pod-uid-a")},
+        )
+
+    async def test_close_deletes_managed_memory_stream(self):
+        comm = NatsComm()
+        comm._managed_frame_streams.add(("edge-a", "pod-uid-a"))
+        comm.delete_memory_frame_stream = AsyncMock(return_value=True)
+
+        await comm.close()
+        await comm.close()
+
+        comm.delete_memory_frame_stream.assert_awaited_once_with(
+            target_cluster="edge-a",
+            instance_id="pod-uid-a",
+        )
+        self.assertEqual(comm._managed_frame_streams, set())
+
+    async def test_async_context_manager_always_closes(self):
+        comm = NatsComm()
+        comm.close = AsyncMock()
+
+        async with comm as active:
+            self.assertIs(active, comm)
+
+        comm.close.assert_awaited_once_with()
+
+    async def test_controller_managed_server_only_waits_for_stream(self):
+        comm = NatsComm()
+        comm.wait_memory_frame_stream = AsyncMock()
+        comm.start_memory_frame_stream = AsyncMock()
+        js = Mock()
+        comm._jetstream_for_domain = AsyncMock(return_value=js)
+        started = asyncio.Event()
+
+        class PullSubscription:
+            def __init__(self):
+                self.unsubscribe = AsyncMock()
+
+            async def fetch(self, _batch, timeout):
+                del timeout
+                started.set()
+                await asyncio.Event().wait()
+
+        js.pull_subscribe = AsyncMock(
+            side_effect=[PullSubscription(), PullSubscription()]
+        )
+        task = asyncio.create_task(
+            comm.serve_memory_frames(
+                agent_id="detector",
+                instance_id="pod-uid-a",
+                local_cluster="edge-a",
+                handler=AsyncMock(),
+                manage_stream_lifecycle=False,
+            )
+        )
+        await asyncio.wait_for(started.wait(), timeout=1)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+        comm.wait_memory_frame_stream.assert_awaited_once_with(
+            agent_id="detector",
+            instance_id="pod-uid-a",
+            local_cluster="edge-a",
+        )
+        comm.start_memory_frame_stream.assert_not_awaited()
 
 
 if __name__ == "__main__":

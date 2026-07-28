@@ -61,6 +61,41 @@ frame_deleted = await comm.delete_memory_frame_stream(
 创建操作按 Stream 名幂等；重复创建会校正 subject 和容量策略。删除操作也
 幂等，返回 `False` 表示 Stream 已不存在。
 
+### 2.1 Agent 自主管理 Memory Stream
+
+不经过编排器运行的 Agent 不需要单独调用上述底层管理接口。接收端调用：
+
+```python
+async with NatsComm() as comm:
+    await comm.serve_memory_frames(
+        agent_id=agent_id,
+        instance_id=instance_id,
+        local_cluster=cluster_id,
+        handler=handler,
+    )
+```
+
+默认会在启动时调用 `start_memory_frame_stream()` 创建并登记
+`FRAME_<instance-id>`。退出 `async with` 时会强制调用同一个
+`NatsComm.close()`，自动执行 `stop_memory_frame_stream()` 的等价删除逻辑。
+无法使用上下文管理器时，必须在 `finally` 中调用 `await comm.close()`。
+
+如果 Pod 仍由边缘控制器创建，但希望帧 Stream 跟随 Agent 通信实例管理，创建
+Pod 时设置：
+
+```json
+{
+  "workflow_stream": true,
+  "frame_stream": false
+}
+```
+
+这样 `WF_<pod-uid>` 仍由控制器管理，`FRAME_<pod-uid>` 由 Agent 的
+`NatsComm` 管理。
+
+如果创建请求使用 `"frame_stream": true`，接收端必须传入
+`manage_stream_lifecycle=False`，由控制器独占 Stream 生命周期。
+
 ## 3. 命令行管理入口
 
 在仓库根目录并激活 `k8s` conda 环境：
