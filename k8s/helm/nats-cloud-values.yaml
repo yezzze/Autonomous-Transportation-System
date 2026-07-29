@@ -13,6 +13,10 @@ config:
         enabled: true
         # Capacity for Hub metadata/legacy streams; instance Streams live at edges.
         size: 10Gi
+    memoryStore:
+      enabled: true
+      # Shared capacity for cloud-hosted memory-backed frame Streams.
+      maxSize: 1Gi
     merge:
       domain: hub
       # Optional server-wide cap (all streams); stream limits are set in app/CLI, not Helm
@@ -33,6 +37,9 @@ container:
   image:
     registry: docker.m.daocloud.io
   merge:
+    # TODO(next update): max_memory_store is 1Gi, so a 1Gi container limit leaves
+    # no headroom for NATS runtime, connections, and network buffers. Raise the
+    # container limit to at least 1.5-2Gi before enabling concurrent frame flows.
     resources:
       requests:
         cpu: "500m"

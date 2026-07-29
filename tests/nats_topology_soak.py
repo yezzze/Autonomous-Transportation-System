@@ -19,7 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from runtime_api import NatsBinaryMessage, NatsComm
+from runtime_api import NatsBinaryMessage, NatsComm  # noqa: E402
 
 
 MIB = 1024 * 1024
@@ -645,52 +645,61 @@ async def async_main(args: argparse.Namespace) -> int:
     global_state = ResponderState()
 
     try:
-        await register_responder(
-            comm=local_responder_comm,
-            cluster_id=args.edge_a_cluster_id,
-            agent_id=args.agent_id,
-            operation=args.operation,
-            queue=f"{args.queue}-local",
-            process_delay_ms=args.process_delay_ms,
-            state=local_state,
-        )
-        await register_responder(
-            comm=global_responder_comm,
-            cluster_id=args.edge_b_cluster_id,
-            agent_id=args.agent_id,
-            operation=args.operation,
-            queue=f"{args.queue}-global",
-            process_delay_ms=args.process_delay_ms,
-            state=global_state,
-        )
+        if args.phase in {"local", "both"}:
+            await register_responder(
+                comm=local_responder_comm,
+                cluster_id=args.edge_a_cluster_id,
+                agent_id=args.agent_id,
+                operation=args.operation,
+                queue=f"{args.queue}-local",
+                process_delay_ms=args.process_delay_ms,
+                state=local_state,
+            )
+        if args.phase in {"global", "both"}:
+            await register_responder(
+                comm=global_responder_comm,
+                cluster_id=args.edge_b_cluster_id,
+                agent_id=args.agent_id,
+                operation=args.operation,
+                queue=f"{args.queue}-global",
+                process_delay_ms=args.process_delay_ms,
+                state=global_state,
+            )
         await requester.connect(ensure_stream=False)
 
-        local_result, next_sequence = await run_phase(
-            phase="local",
-            requester=requester,
-            target_cluster=args.edge_a_cluster_id,
-            source_cluster=args.edge_a_cluster_id,
-            responder=local_state,
-            monitors=monitors,
-            args=args,
-            sequence_start=0,
-        )
-        global_result, _ = await run_phase(
-            phase="global",
-            requester=requester,
-            target_cluster=args.edge_b_cluster_id,
-            source_cluster=args.edge_a_cluster_id,
-            responder=global_state,
-            monitors=monitors,
-            args=args,
-            sequence_start=next_sequence,
-        )
-        summaries = [local_result.summary(), global_result.summary()]
-        passed = all(result.passed for result in (local_result, global_result))
+        results = []
+        next_sequence = 0
+        if args.phase in {"local", "both"}:
+            local_result, next_sequence = await run_phase(
+                phase="local",
+                requester=requester,
+                target_cluster=args.edge_a_cluster_id,
+                source_cluster=args.edge_a_cluster_id,
+                responder=local_state,
+                monitors=monitors,
+                args=args,
+                sequence_start=next_sequence,
+            )
+            results.append(local_result)
+        if args.phase in {"global", "both"}:
+            global_result, next_sequence = await run_phase(
+                phase="global",
+                requester=requester,
+                target_cluster=args.edge_b_cluster_id,
+                source_cluster=args.edge_a_cluster_id,
+                responder=global_state,
+                monitors=monitors,
+                args=args,
+                sequence_start=next_sequence,
+            )
+            results.append(global_result)
+        summaries = [result.summary() for result in results]
+        passed = all(result.passed for result in results)
         emit(
             {
                 "type": "run_summary",
                 "passed": passed,
+                "requested_phase": args.phase,
                 "payload_bytes": args.payload_bytes,
                 "duration_sec_per_phase": args.duration_sec,
                 "max_fps": args.fps,
@@ -718,9 +727,14 @@ def positive_float(parser: argparse.ArgumentParser, name: str, value: float) -> 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "依次验证 Core NATS local/global 大帧链路；"
+            "验证 Core NATS local/global 大帧链路；"
             "--duration-sec 是每个阶段的持续时间"
         )
+    )
+    parser.add_argument(
+        "--phase",
+        choices=("local", "global", "both"),
+        default="both",
     )
     parser.add_argument(
         "--edge-a-nats-url",

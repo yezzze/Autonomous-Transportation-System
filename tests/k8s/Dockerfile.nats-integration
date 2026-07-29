@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1
+WORKDIR /app
+
+RUN pip install --no-cache-dir nats-py==2.11.0
+
+COPY runtime_api ./runtime_api
+COPY tests/nats_workflow_routing_integration.py ./tests/
+COPY tests/nats_edge_local_memory_soak.py ./tests/
+COPY tests/nats_memory_frame_integration.py ./tests/
+COPY tests/nats_memory_frame_soak.py ./tests/
+COPY tests/nats_topology_soak.py ./tests/
+
+CMD ["sleep", "3600"]

@@ -1,0 +1,312 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nats-k8s-it
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-cloud-config
+  namespace: nats-k8s-it
+data:
+  nats.conf: |
+    server_name: "cloud-hub-k8s"
+    port: 4222
+    http_port: 8222
+    max_payload: 67108864
+
+    jetstream {
+      store_dir: "/data/jetstream"
+      domain: "hub"
+      max_memory_store: 1Gi
+      max_file_store: 1Gi
+    }
+
+    leafnodes {
+      listen: "0.0.0.0:7422"
+      authorization {
+        user: "leaf"
+        password: "k8s-integration-leaf"
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-edge-a-config
+  namespace: nats-k8s-it
+data:
+  nats.conf: |
+    server_name: "edge-a-k8s"
+    port: 4222
+    http_port: 8222
+    max_payload: 67108864
+
+    jetstream {
+      store_dir: "/data/jetstream"
+      domain: "edge-a"
+      max_memory_store: 1Gi
+      max_file_store: 1Gi
+    }
+
+    leafnodes {
+      remotes: [
+        {
+          urls: ["nats://leaf:k8s-integration-leaf@nats-cloud:7422"]
+          deny_imports: ["workflow.local.>", "frame.local.>"]
+          deny_exports: ["workflow.local.>", "frame.local.>"]
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-edge-b-config
+  namespace: nats-k8s-it
+data:
+  nats.conf: |
+    server_name: "edge-b-k8s"
+    port: 4222
+    http_port: 8222
+    max_payload: 67108864
+
+    jetstream {
+      store_dir: "/data/jetstream"
+      domain: "edge-b"
+      max_memory_store: 1Gi
+      max_file_store: 1Gi
+    }
+
+    leafnodes {
+      remotes: [
+        {
+          urls: ["nats://leaf:k8s-integration-leaf@nats-cloud:7422"]
+          deny_imports: ["workflow.local.>", "frame.local.>"]
+          deny_exports: ["workflow.local.>", "frame.local.>"]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-cloud
+  namespace: nats-k8s-it
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats-cloud
+  template:
+    metadata:
+      labels:
+        app: nats-cloud
+    spec:
+      containers:
+        - name: nats
+          image: docker.m.daocloud.io/nats:2.14.0-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["-c", "/etc/nats/nats.conf"]
+          ports:
+            - name: client
+              containerPort: 4222
+            - name: leaf
+              containerPort: 7422
+            - name: monitor
+              containerPort: 8222
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 1
+            periodSeconds: 1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nats
+              readOnly: true
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          configMap:
+            name: nats-cloud-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-cloud
+  namespace: nats-k8s-it
+spec:
+  selector:
+    app: nats-cloud
+  ports:
+    - name: client
+      port: 4222
+      targetPort: client
+    - name: leaf
+      port: 7422
+      targetPort: leaf
+    - name: monitor
+      port: 8222
+      targetPort: monitor
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-edge-a
+  namespace: nats-k8s-it
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats-edge-a
+  template:
+    metadata:
+      labels:
+        app: nats-edge-a
+    spec:
+      containers:
+        - name: nats
+          image: docker.m.daocloud.io/nats:2.14.0-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["-c", "/etc/nats/nats.conf"]
+          ports:
+            - name: client
+              containerPort: 4222
+            - name: monitor
+              containerPort: 8222
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 1
+            periodSeconds: 1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nats
+              readOnly: true
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          configMap:
+            name: nats-edge-a-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-edge-a
+  namespace: nats-k8s-it
+spec:
+  selector:
+    app: nats-edge-a
+  ports:
+    - name: client
+      port: 4222
+      targetPort: client
+    - name: monitor
+      port: 8222
+      targetPort: monitor
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-edge-b
+  namespace: nats-k8s-it
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats-edge-b
+  template:
+    metadata:
+      labels:
+        app: nats-edge-b
+    spec:
+      containers:
+        - name: nats
+          image: docker.m.daocloud.io/nats:2.14.0-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["-c", "/etc/nats/nats.conf"]
+          ports:
+            - name: client
+              containerPort: 4222
+            - name: monitor
+              containerPort: 8222
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 1
+            periodSeconds: 1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nats
+              readOnly: true
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          configMap:
+            name: nats-edge-b-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-edge-b
+  namespace: nats-k8s-it
+spec:
+  selector:
+    app: nats-edge-b
+  ports:
+    - name: client
+      port: 4222
+      targetPort: client
+    - name: monitor
+      port: 8222
+      targetPort: monitor
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-test-runner
+  namespace: nats-k8s-it
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats-test-runner
+  template:
+    metadata:
+      labels:
+        app: nats-test-runner
+    spec:
+      containers:
+        - name: runner
+          image: k8s-demo-nats-it:memory-soak-v1
+          imagePullPolicy: Never
