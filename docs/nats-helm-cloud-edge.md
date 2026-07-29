@@ -182,5 +182,13 @@ NATS_RECREATE_STATEFULSET_ON_IMMUTABLE=true \
 ```
 
 脚本第一次检测到该错误后会以 `--cascade=orphan` 删除旧 StatefulSet 控制器，
-保留 Pod 和已有 PVC，再由 Helm 创建新 StatefulSet 并滚动 Pod。File Store
-PVC 不会被脚本删除；Memory Stream 在 NATS Pod 重启后不会保留。
+保留已有 PVC，再由 Helm 创建新 StatefulSet。随后脚本删除旧的 orphan NATS
+Pod，让新 StatefulSet 按最新 PVC 模板重新创建 Pod。File Store PVC 不会被
+脚本删除；Memory Stream 在 NATS Pod 重启后不会保留。
+
+旧版脚本如果停在 `Waiting for partitioned roll out to finish`，手动执行：
+
+```bash
+kubectl delete pod nats-0 -n default --wait=true
+kubectl rollout status statefulset/nats -n default --timeout=300s
+```

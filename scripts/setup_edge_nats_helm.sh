@@ -85,9 +85,11 @@ EOF
       --cascade=orphan \
       --wait=true
     helm_upgrade
-    kubectl rollout restart \
+    echo "[edge-nats] replacing orphaned NATS Pod with new StatefulSet template"
+    kubectl delete pod \
       -n "${NAMESPACE}" \
-      statefulset/"${RELEASE}"
+      -l "app.kubernetes.io/instance=${RELEASE},app.kubernetes.io/component=nats" \
+      --wait=true
   else
     exit 1
   fi
