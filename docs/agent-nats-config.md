@@ -249,3 +249,37 @@ JetStream 验证。使用 conda 环境 k8s，不要使用系统 Python。
    slow consumer、pending bytes、JetStream 存储位置。
 10. 不要修改或删除与本次任务无关的用户改动。完成后报告命令、结果和异常位置。
 ```
+
+## 9. 单 Agent 全生命周期测试
+
+使用仓库内三节点 NATS 拓扑：
+
+```bash
+conda activate k8s
+docker compose -f tests/nats-topology-compose.yaml up -d --wait
+
+python tests/nats_agent_lifecycle_integration.py
+
+docker compose -f tests/nats-topology-compose.yaml down -v
+```
+
+脚本默认连接 `nats://127.0.0.1:24223`，模拟 `edge-a` 中一个 Agent：
+
+1. 生成唯一 `AGENT_INSTANCE_ID`。
+2. 启动 `serve_workflow()` 和 `serve_memory_frames()`。
+3. 验证创建 `WF_<instance-id>` 和 `FRAME_<instance-id>` 及各两个 Consumer。
+4. 发送一条 local 工作流和一帧 15MiB 数据。
+5. 验证消息已 ACK、两条 Stream 消息数均为 0。
+6. 调用 `NatsComm.close()`。
+7. 验证两条 Stream 都已删除。
+
+指定已有 NATS：
+
+```bash
+python tests/nats_agent_lifecycle_integration.py \
+  --nats-url nats://127.0.0.1:4222 \
+  --cluster edge-c \
+  --agent-id lifecycle-agent \
+  --instance-id manual-edge-c-001 \
+  --frame-size-bytes 15728640
+```
