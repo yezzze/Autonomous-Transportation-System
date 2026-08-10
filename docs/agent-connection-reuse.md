@@ -87,7 +87,6 @@ async def main():
     try:
         await comm.serve_workflow(
             agent_id=os.environ["AGENT_ID"],
-            instance_id=os.environ["AGENT_INSTANCE_ID"],
             local_cluster=os.environ["CLUSTER_ID"],
             durable=os.environ["AGENT_INSTANCE_ID"],
             handler=handler,

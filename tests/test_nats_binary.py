@@ -1,7 +1,10 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 from nats.errors import TimeoutError as NatsTimeoutError
+from nats.js.api import DeliverPolicy
+from nats.js.errors import BadRequestError
 
 from runtime_api.nats_comm import NatsComm
 
@@ -221,6 +224,143 @@ class NatsBinaryApiTest(unittest.IsolatedAsyncioTestCase):
             b"frame",
             timeout_sec=20,
         )
+
+
+class NatsJetStreamBinaryApiTest(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def raw_message(data=b"payload"):
+        raw = Mock()
+        raw.subject = "state.detector"
+        raw.data = data
+        raw.headers = {"Content-Type": "application/octet-stream"}
+        raw.metadata = SimpleNamespace(
+            stream="STATE",
+            consumer="reader",
+            sequence=SimpleNamespace(stream=9, consumer=1),
+        )
+        raw.ack = AsyncMock()
+        raw.nak = AsyncMock()
+        raw.in_progress = AsyncMock()
+        raw.term = AsyncMock()
+        return raw
+
+    async def test_send_bytes_publishes_raw_payload_to_jetstream(self):
+        comm = NatsComm()
+        js = AsyncMock()
+        js.publish.return_value = SimpleNamespace(stream="STATE", seq=9)
+        comm._jetstream_for_subject = AsyncMock(return_value=(js, "legacy"))
+
+        result = await comm.send_bytes(
+            "state.detector",
+            memoryview(b"\x00\x01frame"),
+            timeout_sec=7,
+        )
+
+        self.assertEqual(result, {
+            "subject": "state.detector",
+            "stream": "STATE",
+            "seq": 9,
+        })
+        js.publish.assert_awaited_once_with(
+            "state.detector",
+            b"\x00\x01frame",
+            timeout=7,
+        )
+
+    async def test_send_bytes_enforces_binary_limit(self):
+        comm = NatsComm(max_binary_payload_bytes=4)
+        comm._jetstream_for_subject = AsyncMock()
+
+        with self.assertRaises(ValueError):
+            await comm.send_bytes("state.detector", b"12345")
+
+        comm._jetstream_for_subject.assert_not_awaited()
+
+    async def test_receive_bytes_preserves_raw_data_and_ack_handle(self):
+        comm = NatsComm()
+        raw = self.raw_message(b"\x00binary")
+        comm._fetch_raw_messages = AsyncMock(return_value=[raw])
+
+        messages = await comm.receive_bytes(
+            "state.detector",
+            durable="reader",
+            ack=True,
+        )
+
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0].data, b"\x00binary")
+        self.assertEqual(messages[0].stream_seq, 9)
+        self.assertEqual(
+            messages[0].headers["Content-Type"],
+            "application/octet-stream",
+        )
+        self.assertTrue(comm._fetch_raw_messages.await_args.kwargs["auto_ack"])
+
+    async def test_receive_latest_bytes_uses_new_deliver_last_consumer(self):
+        comm = NatsComm()
+        comm._jetstream_for_subject = AsyncMock()
+        js = AsyncMock()
+        comm._jetstream_for_subject.return_value = (js, "legacy")
+        raw = self.raw_message(b"newest")
+        first_sub = AsyncMock()
+        first_sub.fetch.return_value = [raw]
+        second_sub = AsyncMock()
+        second_sub.fetch.return_value = [raw]
+        events = []
+        raw.ack.side_effect = lambda: events.append("ack")
+        first_sub.unsubscribe.side_effect = lambda: events.append("unsubscribe-1")
+        second_sub.unsubscribe.side_effect = lambda: events.append("unsubscribe-2")
+        js.pull_subscribe.side_effect = [first_sub, second_sub]
+
+        first = await comm.receive_latest_bytes("state.detector", ack=True)
+        second = await comm.receive_latest_bytes("state.detector", ack=True)
+
+        self.assertEqual(first.data, b"newest")
+        self.assertEqual(second.data, b"newest")
+        self.assertEqual(js.pull_subscribe.await_count, 2)
+        for call in js.pull_subscribe.await_args_list:
+            self.assertIsNone(call.kwargs["durable"])
+            self.assertEqual(
+                call.kwargs["config"].deliver_policy,
+                DeliverPolicy.LAST,
+            )
+        first_sub.unsubscribe.assert_awaited_once()
+        second_sub.unsubscribe.assert_awaited_once()
+        self.assertEqual(raw.ack.await_count, 2)
+        self.assertEqual(
+            events,
+            ["ack", "unsubscribe-1", "ack", "unsubscribe-2"],
+        )
+
+    async def test_receive_latest_decodes_json(self):
+        comm = NatsComm()
+        raw = self.raw_message(b'{"version":3}')
+        comm._fetch_raw_messages = AsyncMock(return_value=[raw])
+
+        message = await comm.receive_latest("state.detector", ack=True)
+
+        self.assertEqual(message.payload, {"version": 3})
+        self.assertEqual(message.stream_seq, 9)
+        fetch = comm._fetch_raw_messages.await_args
+        self.assertEqual(fetch.kwargs["deliver_policy"], DeliverPolicy.LAST)
+        self.assertTrue(fetch.kwargs["auto_ack"])
+
+    async def test_receive_latest_rejects_workqueue_with_clear_error(self):
+        comm = NatsComm()
+        js = AsyncMock()
+        js.pull_subscribe.side_effect = BadRequestError(
+            code=400,
+            err_code=10101,
+            description="consumer must be deliver all on workqueue stream",
+        )
+
+        with self.assertRaisesRegex(ValueError, "WorkQueue stream"):
+            await comm._get_pull_subscription(
+                "state.detector",
+                durable=None,
+                js=js,
+                deliver_policy=DeliverPolicy.LAST,
+            )
 
 
 if __name__ == "__main__":

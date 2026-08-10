@@ -1,3 +1,4 @@
+import os
 import unittest
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -8,6 +9,61 @@ from runtime_api.nats_comm import NatsComm
 
 
 class NatsWorkflowRoutingTest(unittest.TestCase):
+    def test_agent_environment_defines_default_instance_stream(self):
+        with patch.dict(
+            os.environ,
+            {
+                "CLUSTER_ID": "edge-a",
+                "AGENT_ID": "detector",
+                "AGENT_INSTANCE_ID": "pod-uid-env",
+                "NATS_WORKFLOW_STREAM_PREFIX": "WF",
+            },
+            clear=True,
+        ):
+            comm = NatsComm()
+
+        self.assertEqual(comm.stream, "WF_pod-uid-env")
+        self.assertEqual(
+            comm.stream_subjects,
+            [
+                "workflow.local.edge-a.agent.detector."
+                "instance.pod-uid-env.>",
+                "workflow.global.edge-a.agent.detector."
+                "instance.pod-uid-env.>",
+            ],
+        )
+        self.assertEqual(
+            comm._default_workflow_identity,
+            ("edge-a", "detector", "pod-uid-env"),
+        )
+
+    def test_incomplete_agent_environment_does_not_fall_back_to_shared_stream(self):
+        with patch.dict(
+            os.environ,
+            {"AGENT_INSTANCE_ID": "pod-uid-env"},
+            clear=True,
+        ):
+            with self.assertRaisesRegex(ValueError, "CLUSTER_ID is required"):
+                NatsComm()
+
+    def test_explicit_stream_keeps_legacy_compatibility_mode(self):
+        with patch.dict(
+            os.environ,
+            {
+                "CLUSTER_ID": "edge-a",
+                "AGENT_ID": "detector",
+                "AGENT_INSTANCE_ID": "pod-uid-env",
+                "NATS_STREAM": "CUSTOM",
+                "NATS_STREAM_SUBJECTS": "custom.>",
+            },
+            clear=True,
+        ):
+            comm = NatsComm()
+
+        self.assertEqual(comm.stream, "CUSTOM")
+        self.assertEqual(comm.stream_subjects, ["custom.>"])
+        self.assertIsNone(comm._default_workflow_identity)
+
     def test_workflow_subject_uses_local_scope_for_same_cluster(self):
         comm = NatsComm()
 
@@ -84,6 +140,80 @@ class NatsWorkflowRoutingTest(unittest.TestCase):
 
 
 class NatsWorkflowApiTest(unittest.IsolatedAsyncioTestCase):
+    async def test_async_create_returns_connected_environment_instance(self):
+        with patch.dict(
+            os.environ,
+            {
+                "CLUSTER_ID": "edge-a",
+                "AGENT_ID": "detector",
+                "AGENT_INSTANCE_ID": "pod-uid-env",
+            },
+            clear=True,
+        ), patch.object(
+            NatsComm,
+            "connect",
+            new=AsyncMock(),
+        ) as connect:
+            comm = await NatsComm.create()
+
+        self.assertEqual(comm.stream, "WF_pod-uid-env")
+        self.assertEqual(
+            comm.stream_subjects,
+            [
+                "workflow.local.edge-a.agent.detector."
+                "instance.pod-uid-env.>",
+                "workflow.global.edge-a.agent.detector."
+                "instance.pod-uid-env.>",
+            ],
+        )
+        connect.assert_awaited_once_with()
+        comm._closed = True
+
+    async def test_connect_creates_and_registers_environment_instance_stream(self):
+        with patch.dict(
+            os.environ,
+            {
+                "CLUSTER_ID": "edge-a",
+                "AGENT_ID": "detector",
+                "AGENT_INSTANCE_ID": "pod-uid-env",
+                "NATS_JETSTREAM_DOMAIN": "edge-a",
+            },
+            clear=True,
+        ):
+            comm = NatsComm()
+
+        client = Mock()
+        client.is_connected = False
+        client.connect = AsyncMock()
+        js = Mock()
+        client.jetstream = Mock(return_value=js)
+        comm._nc = client
+
+        with patch(
+            "runtime_api.nats_comm.ensure_jetstream_stream",
+            new=AsyncMock(),
+        ) as ensure_stream:
+            await comm.connect()
+
+        client.jetstream.assert_called_once_with(domain="edge-a")
+        ensure_stream.assert_awaited_once_with(
+            js,
+            name="WF_pod-uid-env",
+            subjects=[
+                "workflow.local.edge-a.agent.detector."
+                "instance.pod-uid-env.>",
+                "workflow.global.edge-a.agent.detector."
+                "instance.pod-uid-env.>",
+            ],
+            replace_subjects=True,
+        )
+        self.assertEqual(
+            comm._managed_workflow_streams,
+            {("edge-a", "pod-uid-env")},
+        )
+        comm._managed_workflow_streams.clear()
+        comm._closed = True
+
     async def test_instance_stream_replaces_stale_subjects(self):
         js = Mock()
         info = Mock()

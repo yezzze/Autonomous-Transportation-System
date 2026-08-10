@@ -92,6 +92,20 @@ Pod UID 是实例身份。Deployment 名、Pod 名和 Agent 类型不能代替 P
 ```
 
 `NATS_JETSTREAM_DOMAIN` 与 `CLUSTER_ID` 必须等于当前边缘集群 ID。
+Agent 不要设置 `NATS_STREAM` 或 `NATS_STREAM_SUBJECTS`。当
+`AGENT_INSTANCE_ID` 存在时，`NatsComm()` 默认生成 `WF_<pod-uid>` 以及该实例
+的 local/global Subjects；显式设置这两个兼容变量才会启用旧的自定义 Stream。
+`CLUSTER_ID`、`AGENT_ID`、`AGENT_INSTANCE_ID` 必须同时存在，缺失时启动直接
+报错，不会退回共享 `WORKFLOW`。
+
+需要在客户端创建调用返回时就确认 Stream 已存在，使用：
+
+```python
+comm = await NatsComm.create()
+```
+
+同步 `__init__()` 只生成 Stream 名称和 Subjects；`create()` 会继续连接 NATS
+并等待服务端完成创建。不要在 `__init__()` 中启动未等待的后台网络任务。
 
 ## 4. 接收工作流任务
 
@@ -192,7 +206,6 @@ async def main():
     async with NatsComm() as comm:
         await comm.serve_memory_frames(
             agent_id=os.environ["AGENT_ID"],
-            instance_id=os.environ["AGENT_INSTANCE_ID"],
             handler=infer,
             local_cluster=os.environ["CLUSTER_ID"],
             max_inflight=1,
@@ -210,7 +223,6 @@ Consumer。应用必须关闭每个创建过的 `NatsComm`。推荐使用
 ```python
 await comm.serve_memory_frames(
     agent_id=os.environ["AGENT_ID"],
-    instance_id=os.environ["AGENT_INSTANCE_ID"],
     handler=infer,
     local_cluster=os.environ["CLUSTER_ID"],
     max_inflight=1,
@@ -222,6 +234,45 @@ await comm.serve_memory_frames(
 Core Inbox 回复，再 ACK 并从 Memory Stream 删除输入帧；异常时 NAK，最多重投
 `NATS_FRAME_MAX_DELIVER` 次。业务 handler 必须按 `message.request_id`
 保证幂等。
+
+`request_memory_frame()` / `serve_memory_frames()` 传输的 `payload` 和
+`message.data` 已经是原始二进制，不经过 JSON 或 Base64。通用 JetStream
+Subject 需要发送二进制时使用：
+
+```python
+await comm.send_bytes("state.detector", frame_bytes)
+
+messages = await comm.receive_bytes(
+    "state.detector",
+    durable="detector-state-reader",
+    batch=1,
+)
+for message in messages:
+    process(message.data)
+    await message.ack()
+```
+
+这里的 `send_bytes()` / `receive_bytes()` 使用 JetStream 和 PubAck；
+`publish_bytes()` / `request_bytes()` / `subscribe_bytes()` 使用 Core NATS，
+两组接口不能混淆。
+
+读取调用时已保存的最后一条消息：
+
+```python
+message = await comm.receive_latest_bytes("state.detector", ack=True)
+if message is not None:
+    process(message.data)
+```
+
+JSON 消息对应 `receive_latest()`。这两个方法每次创建临时
+`DeliverPolicy.LAST` Consumer，避免复用 durable 的历史消费位置。根据
+JetStream 语义，`DeliverLast` 只决定 Consumer 创建时的起点；Consumer 建立
+后仍会按顺序收到每条新消息，不会在消费者变慢时自动跳过中间消息。
+
+`WF_*` 和 `FRAME_*` 使用 `WorkQueuePolicy`，要求可靠处理每条任务，不应使用
+latest 方法跳过消息。真正的“状态快照只保留最新值”应使用独立的
+`LimitsPolicy + DiscardOld + max_msgs_per_subject=1` Stream，不要修改实例任务
+Stream 的保留策略。
 
 允许丢帧且不需要重投时，可继续使用旧接口：
 

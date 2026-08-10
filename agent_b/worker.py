@@ -34,7 +34,7 @@ async def main():
         raise ValueError("AGENT_INSTANCE_ID is required")
     if not TARGET_C_INSTANCE_ID:
         raise ValueError("TARGET_C_INSTANCE_ID is required")
-    comm = NatsComm()
+    comm = await NatsComm.create()
 
     async def handler(data):
         workflow_id = data.get("workflow_id")
@@ -85,7 +85,6 @@ async def main():
         )
         await comm.serve_workflow(
             agent_id=AGENT_ID,
-            instance_id=AGENT_INSTANCE_ID,
             local_cluster=CLUSTER_ID,
             durable=DURABLE,
             handler=handler,

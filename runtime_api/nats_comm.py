@@ -11,8 +11,9 @@ NATS 集群的部署、连接管理和流的生命周期。
 1. 发布-订阅 (Pub/Sub)        : send() + receive()
 2. 请求-响应 (Request/Reply)  : request() + respond()
 3. 流式消费 (Stream Consumer)  : serve()   — 长轮询拉模式
-4. 二进制帧 (Core NATS)        : request_frame_bytes() + subscribe_frame_bytes()
-5. 可靠帧 (JetStream Memory)   : request_memory_frame() + serve_memory_frames()
+4. 通用二进制 (JetStream)      : send_bytes() + receive_bytes()
+5. 二进制帧 (Core NATS)        : request_frame_bytes() + subscribe_frame_bytes()
+6. 可靠帧 (JetStream Memory)   : request_memory_frame() + serve_memory_frames()
 
 类说明
 ------
@@ -68,8 +69,8 @@ NATS 集群的部署、连接管理和流的生命周期。
 环境变量
 --------
     NATS_SERVERS              NATS 集群地址（默认 nats://nats:4222）
-    NATS_STREAM               默认流名称（默认 WORKFLOW）
-    NATS_STREAM_SUBJECTS      兼容流主题（默认 legacy.workflow.>）
+    NATS_STREAM               显式兼容流名称（Agent 模式不要设置）
+    NATS_STREAM_SUBJECTS      显式兼容流主题（Agent 模式不要设置）
     NATS_JETSTREAM_DOMAIN     JetStream 域（默认 hub）
     NATS_WORKFLOW_STREAM_PREFIX 每实例 Stream 名称前缀（默认 WF）
     NATS_FRAME_STREAM_PREFIX    每实例 Memory 帧 Stream 前缀（默认 FRAME）
@@ -100,8 +101,13 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from nats.aio.client import Client as NATS
 from nats.errors import TimeoutError as NatsTimeoutError
-from nats.js.api import ConsumerConfig, DiscardPolicy, RetentionPolicy
-from nats.js.errors import NotFoundError
+from nats.js.api import (
+    ConsumerConfig,
+    DeliverPolicy,
+    DiscardPolicy,
+    RetentionPolicy,
+)
+from nats.js.errors import BadRequestError, NotFoundError
 from runtime_api.jetstream_stream import ensure_jetstream_stream, parse_bytes
 
 logger = logging.getLogger(__name__)
@@ -238,6 +244,43 @@ class NatsMessage:
 
 
 @dataclass
+class NatsJetStreamBinaryMessage:
+    """JetStream 原始二进制消息，保留 ACK/NACK 和序列元数据。"""
+
+    subject: str
+    data: bytes
+    headers: Optional[Dict[str, str]] = None
+    stream: Optional[str] = None
+    consumer: Optional[str] = None
+    stream_seq: Optional[int] = None
+    consumer_seq: Optional[int] = None
+    _raw: Any = field(default=None, repr=False)
+
+    async def ack(self) -> None:
+        if self._raw is None:
+            raise RuntimeError("binary message does not contain an ACK handle")
+        await self._raw.ack()
+
+    async def nak(self, delay: Optional[float] = None) -> None:
+        if self._raw is None:
+            raise RuntimeError("binary message does not contain an ACK handle")
+        if delay is None:
+            await self._raw.nak()
+        else:
+            await self._raw.nak(delay=delay)
+
+    async def in_progress(self) -> None:
+        if self._raw is None:
+            raise RuntimeError("binary message does not contain an ACK handle")
+        await self._raw.in_progress()
+
+    async def term(self) -> None:
+        if self._raw is None:
+            raise RuntimeError("binary message does not contain an ACK handle")
+        await self._raw.term()
+
+
+@dataclass
 class NatsBinaryMessage:
     """Core NATS 原始二进制消息。"""
 
@@ -298,9 +341,9 @@ class NatsComm:
     servers : Optional[List[str]]
         NATS 服务器地址列表，默认从环境变量 NATS_SERVERS 读取
     stream : Optional[str]
-        使用的 JetStream 流名称，默认从环境变量 NATS_STREAM 读取
+        显式兼容 JetStream 流名称。Agent 模式不传，由环境变量身份生成。
     stream_subjects : Optional[List[str]]
-        流关联的主题列表，默认从环境变量 NATS_STREAM_SUBJECTS 读取
+        显式兼容流主题。Agent 模式不传，由环境变量身份生成。
     jetstream_domain : Optional[str]
         JetStream 域，默认从环境变量 NATS_JETSTREAM_DOMAIN 读取
     send_delay : Optional[float]
@@ -340,7 +383,9 @@ class NatsComm:
         """
         初始化 NatsComm 实例。
 
-        所有参数都有默认值，大多数场景只需 `NatsComm()` 即可。
+        所有参数都有默认值，大多数场景只需 `NatsComm()` 即可。存在
+        AGENT_INSTANCE_ID 时，默认 Stream 为 WF_<instance-id>，Subject 由
+        CLUSTER_ID、AGENT_ID 和 AGENT_INSTANCE_ID 共同生成。
 
         参数
         ----
@@ -352,9 +397,6 @@ class NatsComm:
             如果未设置则使用 /tmp/nats_send_delay_seconds。
         """
         self.servers = servers or self._servers_from_env()
-        self.stream = stream or os.environ.get("NATS_STREAM", "WORKFLOW")
-        self.stream_subjects = stream_subjects or self._stream_subjects_from_env()
-        self.jetstream_domain = jetstream_domain or os.environ.get("NATS_JETSTREAM_DOMAIN", "hub")
         self.workflow_stream_prefix = os.environ.get(
             "NATS_WORKFLOW_STREAM_PREFIX",
             "WF",
@@ -362,6 +404,45 @@ class NatsComm:
         self.frame_stream_prefix = os.environ.get(
             "NATS_FRAME_STREAM_PREFIX",
             "FRAME",
+        )
+        self._default_workflow_identity: Optional[Tuple[str, str, str]] = None
+        configured_stream = (
+            stream if stream is not None else os.environ.get("NATS_STREAM")
+        )
+        configured_subjects = (
+            stream_subjects
+            if stream_subjects is not None
+            else (
+                self._stream_subjects_from_env()
+                if "NATS_STREAM_SUBJECTS" in os.environ
+                else None
+            )
+        )
+        instance_from_env = (
+            os.environ.get("AGENT_INSTANCE_ID")
+            or os.environ.get("POD_UID")
+        )
+        if (
+            configured_stream is None
+            and configured_subjects is None
+            and instance_from_env
+        ):
+            cluster = self._required_agent_env_token("CLUSTER_ID")
+            agent = self._required_agent_env_token("AGENT_ID")
+            instance = self._instance_id(instance_from_env)
+            self.stream = self.workflow_stream_name(instance)
+            self.stream_subjects = list(
+                self.workflow_stream_subjects(cluster, agent, instance)
+            )
+            self._default_workflow_identity = (cluster, agent, instance)
+        else:
+            self.stream = configured_stream or "WORKFLOW"
+            self.stream_subjects = (
+                configured_subjects or self._stream_subjects_from_env()
+            )
+        self.jetstream_domain = jetstream_domain or os.environ.get(
+            "NATS_JETSTREAM_DOMAIN",
+            "hub",
         )
         self.frame_stream_max_bytes = parse_bytes(
             os.environ.get("NATS_FRAME_STREAM_MAX_BYTES", "512MiB")
@@ -431,7 +512,7 @@ class NatsComm:
         self._connect_lock = asyncio.Lock()
         self._routed_stream_lock = asyncio.Lock()
         self._pull_subscription_lock = asyncio.Lock()
-        self._pull_subscriptions: Dict[Tuple[str, str, str], Any] = {}
+        self._pull_subscriptions: Dict[Tuple[str, str, str, str], Any] = {}
         self._binary_subscription_lock = asyncio.Lock()
         self._binary_subscriptions: Dict[Tuple[str, str], Any] = {}
         self._managed_workflow_stream_lock = asyncio.Lock()
@@ -452,6 +533,23 @@ class NatsComm:
             raise ValueError("NATS_EPHEMERAL_CONSUMER_INACTIVE_SEC must be positive")
         if self.stream_provision_timeout_sec <= 0:
             raise ValueError("NATS_STREAM_PROVISION_TIMEOUT_SEC must be positive")
+
+    @classmethod
+    async def create(cls, **kwargs) -> "NatsComm":
+        """
+        创建客户端并等待默认 Stream 在 NATS 服务端就绪。
+
+        Agent 模式从 CLUSTER_ID、AGENT_ID、AGENT_INSTANCE_ID 生成
+        WF_<instance-id> 以及实例级 local/global Subjects。网络操作不能放在
+        同步 __init__() 中，因此需要通过该异步工厂保证返回时 Stream 已创建。
+        """
+        comm = cls(**kwargs)
+        try:
+            await comm.connect()
+        except BaseException:
+            await comm.close()
+            raise
+        return comm
 
     def _encode_control_payload(self, payload: Dict[str, Any]) -> bytes:
         encoded = json.dumps(payload, separators=(",", ":")).encode()
@@ -486,6 +584,15 @@ class NatsComm:
         """
         raw = os.environ.get("NATS_SERVERS", "nats://nats:4222")
         return [item.strip() for item in raw.split(",") if item.strip()]
+
+    @staticmethod
+    def _required_agent_env_token(name: str) -> str:
+        value = os.environ.get(name, "")
+        if not value:
+            raise ValueError(
+                f"{name} is required when AGENT_INSTANCE_ID or POD_UID is set"
+            )
+        return _subject_token(value, name)
 
     @staticmethod
     def _stream_subjects_from_env() -> List[str]:
@@ -687,6 +794,7 @@ class NatsComm:
             await nc.connect()                    # 连接 + 确保流存在
             await nc.connect(ensure_stream=False)  # 仅连接，不创建流
         """
+        register_identity = None
         async with self._connect_lock:
             if not self._nc.is_connected:
                 await self._nc.connect(
@@ -705,6 +813,21 @@ class NatsComm:
             if ensure_stream and self._js is None:
                 self._js = self._jetstream()
                 await self._ensure_stream()
+            if ensure_stream and self._default_workflow_identity is not None:
+                register_identity = self._default_workflow_identity
+
+        if register_identity is not None:
+            cluster, _, instance = register_identity
+            async with self._managed_workflow_stream_lock:
+                closing = self._closing
+                if not closing:
+                    self._managed_workflow_streams.add((cluster, instance))
+            if closing:
+                await self.delete_workflow_stream(
+                    target_cluster=cluster,
+                    instance_id=instance,
+                )
+                raise RuntimeError("NatsComm is closing")
 
     async def _on_error(self, exc: Exception) -> None:
         logger.warning("NATS 异步连接错误: %s", exc)
@@ -837,6 +960,7 @@ class NatsComm:
                 self._js,
                 name=self.stream,
                 subjects=self.stream_subjects,
+                replace_subjects=self._default_workflow_identity is not None,
             )
         except Exception as exc:
             logger.warning("无法确保 JetStream 流 %s 存在: %s", self.stream, exc)
@@ -882,6 +1006,27 @@ class NatsComm:
             await asyncio.sleep(send_delay)
         encoded = self._encode_control_payload(payload)
         ack = await js.publish(subject, encoded)
+        return {
+            "subject": subject,
+            "stream": ack.stream,
+            "seq": ack.seq,
+        }
+
+    async def send_bytes(
+        self,
+        subject: str,
+        payload: BinaryPayload,
+        timeout_sec: float = 30.0,
+    ) -> Dict[str, Any]:
+        """将原始二进制载荷发布到 JetStream，并等待服务器 PubAck。"""
+        if timeout_sec <= 0:
+            raise ValueError("timeout_sec must be positive")
+        encoded = self._encode_binary_payload(payload)
+        js, _ = await self._jetstream_for_subject(subject)
+        send_delay = self.get_send_delay()
+        if send_delay > 0:
+            await asyncio.sleep(send_delay)
+        ack = await js.publish(subject, encoded, timeout=timeout_sec)
         return {
             "subject": subject,
             "stream": ack.stream,
@@ -936,28 +1081,13 @@ class NatsComm:
                 print(f"[{msg.subject}] seq={msg.stream_seq}: {msg.payload}")
                 await msg.ack()  # 手动确认
         """
-        js, namespace = await self._jetstream_for_subject(subject)
-        sub = await self._get_pull_subscription(
+        raw_messages = await self._fetch_raw_messages(
             subject,
             durable,
-            js=js,
-            namespace=namespace,
+            batch=batch,
+            timeout_sec=timeout_sec,
+            auto_ack=ack,
         )
-
-        try:
-            raw_messages = await sub.fetch(batch, timeout=timeout_sec)
-        except NatsTimeoutError:
-            return []
-        finally:
-            if durable is None:
-                try:
-                    await sub.unsubscribe()
-                except Exception:
-                    logger.debug(
-                        "注销临时 pull subscription 失败 subject=%s",
-                        subject,
-                        exc_info=True,
-                    )
 
         messages: List[NatsMessage] = []
         for raw in raw_messages:
@@ -974,10 +1104,142 @@ class NatsComm:
                     _raw=raw,
                 )
             )
-            if ack:
-                await raw.ack()
-
         return messages
+
+    async def receive_bytes(
+        self,
+        subject: str,
+        durable: Optional[str],
+        batch: int = 1,
+        timeout_sec: float = 5.0,
+        ack: bool = False,
+    ) -> List[NatsJetStreamBinaryMessage]:
+        """从 JetStream Pull Consumer 接收原始二进制消息。"""
+        raw_messages = await self._fetch_raw_messages(
+            subject,
+            durable,
+            batch=batch,
+            timeout_sec=timeout_sec,
+            auto_ack=ack,
+        )
+        messages = [self._binary_jetstream_message(raw) for raw in raw_messages]
+        return messages
+
+    async def receive_latest(
+        self,
+        subject: str,
+        timeout_sec: float = 5.0,
+        ack: bool = False,
+    ) -> Optional[NatsMessage]:
+        """
+        使用临时 DeliverLast Consumer 读取调用时匹配的最后一条 JSON 消息。
+
+        每次调用都创建新的临时 Consumer，避免复用 durable 后从旧消费位置
+        继续。DeliverLast 只决定 Consumer 的起始位置，不会在持续消费期间
+        自动跳过后来形成的积压。
+        """
+        raw_messages = await self._fetch_raw_messages(
+            subject,
+            durable=None,
+            batch=1,
+            timeout_sec=timeout_sec,
+            deliver_policy=DeliverPolicy.LAST,
+            auto_ack=ack,
+        )
+        if not raw_messages:
+            return None
+        raw = raw_messages[0]
+        message = self._json_jetstream_message(raw)
+        return message
+
+    async def receive_latest_bytes(
+        self,
+        subject: str,
+        timeout_sec: float = 5.0,
+        ack: bool = False,
+    ) -> Optional[NatsJetStreamBinaryMessage]:
+        """使用临时 DeliverLast Consumer 读取最后一条原始二进制消息。"""
+        raw_messages = await self._fetch_raw_messages(
+            subject,
+            durable=None,
+            batch=1,
+            timeout_sec=timeout_sec,
+            deliver_policy=DeliverPolicy.LAST,
+            auto_ack=ack,
+        )
+        if not raw_messages:
+            return None
+        raw = raw_messages[0]
+        message = self._binary_jetstream_message(raw)
+        return message
+
+    @staticmethod
+    def _json_jetstream_message(raw) -> NatsMessage:
+        metadata = raw.metadata
+        return NatsMessage(
+            subject=raw.subject,
+            payload=json.loads(raw.data.decode()),
+            stream=metadata.stream,
+            consumer=metadata.consumer,
+            stream_seq=metadata.sequence.stream,
+            consumer_seq=metadata.sequence.consumer,
+            _raw=raw,
+        )
+
+    @staticmethod
+    def _binary_jetstream_message(raw) -> NatsJetStreamBinaryMessage:
+        metadata = raw.metadata
+        return NatsJetStreamBinaryMessage(
+            subject=raw.subject,
+            data=bytes(raw.data),
+            headers=raw.headers,
+            stream=metadata.stream,
+            consumer=metadata.consumer,
+            stream_seq=metadata.sequence.stream,
+            consumer_seq=metadata.sequence.consumer,
+            _raw=raw,
+        )
+
+    async def _fetch_raw_messages(
+        self,
+        subject: str,
+        durable: Optional[str],
+        *,
+        batch: int,
+        timeout_sec: float,
+        deliver_policy: Optional[DeliverPolicy] = None,
+        auto_ack: bool = False,
+    ) -> List[Any]:
+        if batch <= 0:
+            raise ValueError("batch must be positive")
+        if timeout_sec <= 0:
+            raise ValueError("timeout_sec must be positive")
+        js, namespace = await self._jetstream_for_subject(subject)
+        sub = await self._get_pull_subscription(
+            subject,
+            durable,
+            js=js,
+            namespace=namespace,
+            deliver_policy=deliver_policy,
+        )
+        try:
+            raw_messages = await sub.fetch(batch, timeout=timeout_sec)
+            if auto_ack:
+                for raw in raw_messages:
+                    await raw.ack()
+            return raw_messages
+        except NatsTimeoutError:
+            return []
+        finally:
+            if durable is None:
+                try:
+                    await sub.unsubscribe()
+                except Exception:
+                    logger.debug(
+                        "注销临时 pull subscription 失败 subject=%s",
+                        subject,
+                        exc_info=True,
+                    )
 
     async def _get_pull_subscription(
         self,
@@ -985,26 +1247,44 @@ class NatsComm:
         durable: Optional[str],
         js=None,
         namespace: str = "legacy",
+        deliver_policy: Optional[DeliverPolicy] = None,
     ):
         context = js or self._js
         if durable is None:
             config = ConsumerConfig(
-                inactive_threshold=self.ephemeral_consumer_inactive_sec
+                inactive_threshold=self.ephemeral_consumer_inactive_sec,
+                deliver_policy=deliver_policy or DeliverPolicy.ALL,
             )
-            return await context.pull_subscribe(
-                subject,
-                durable=None,
-                config=config,
-            )
+            try:
+                return await context.pull_subscribe(
+                    subject,
+                    durable=None,
+                    config=config,
+                )
+            except BadRequestError as exc:
+                if (
+                    deliver_policy == DeliverPolicy.LAST
+                    and exc.err_code == 10101
+                ):
+                    raise ValueError(
+                        "receive_latest()/receive_latest_bytes() cannot use "
+                        "a WorkQueue stream; use a dedicated Limits stream for "
+                        "latest-state reads, or receive()/receive_bytes() for "
+                        "reliable WorkQueue consumption"
+                    ) from exc
+                raise
 
-        key = (namespace, subject, durable)
+        policy = (deliver_policy or DeliverPolicy.ALL).value
+        key = (namespace, subject, durable, policy)
         async with self._pull_subscription_lock:
             subscription = self._pull_subscriptions.get(key)
             if subscription is None:
-                subscription = await context.pull_subscribe(
-                    subject,
-                    durable=durable,
-                )
+                kwargs = {"durable": durable}
+                if deliver_policy is not None:
+                    kwargs["config"] = ConsumerConfig(
+                        deliver_policy=deliver_policy,
+                    )
+                subscription = await context.pull_subscribe(subject, **kwargs)
                 self._pull_subscriptions[key] = subscription
                 logger.info(
                     "已创建并缓存 pull subscription subject=%s durable=%s",

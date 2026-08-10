@@ -6,7 +6,8 @@
 
 1. 编排器直接创建目标集群中的 Pod。
 2. Kubernetes 通过 Downward API 注入 `AGENT_INSTANCE_ID=metadata.uid`。
-3. Agent 创建一个进程级 `NatsComm`。
+3. Agent 调用 `await NatsComm.create()` 创建一个进程级客户端并等待
+   `WF_<pod-uid>` 就绪。
 4. `serve_workflow()` 创建 File 类型 `WF_<pod-uid>`；
    `serve_memory_frames()` 创建 Memory 类型 `FRAME_<pod-uid>`。
 5. Agent 建立 local/global Consumer 并通过 readiness 表示可接收任务。
@@ -25,12 +26,22 @@
 `SIGKILL` 或节点掉电不会执行 Agent 清理代码。编排器必须保存被删除 Pod 的
 UID，并在确认 Pod 不存在后直接调用 NATS 删除接口兜底清理残留 Stream。
 
+Agent 模式不要设置 `NATS_STREAM` 或 `NATS_STREAM_SUBJECTS`。`NatsComm()` 从
+`CLUSTER_ID`、`AGENT_ID` 和 `AGENT_INSTANCE_ID` 生成默认的实例级 Workflow
+Stream；三个变量必须同时注入。只有旧兼容调用才显式配置自定义 Stream。
+
+`__init__()` 负责读取身份并生成 Stream 名称和 Subjects；NATS 服务端创建是
+异步网络操作，由 `await NatsComm.create()` 完成。该方法返回时 Stream 已经
+存在。只需要发送消息、不需要在构造阶段创建本实例 Stream 时，仍可使用
+`NatsComm()` 的延迟连接方式。
+
 ## 2. Agent 自主管理接口
 
 ```python
 from runtime_api import NatsComm
 
-async with NatsComm() as comm:
+comm = await NatsComm.create()
+try:
     await asyncio.gather(
         comm.serve_workflow(
             agent_id=agent_id,
@@ -44,6 +55,8 @@ async with NatsComm() as comm:
             handler=frame_handler,
         ),
     )
+finally:
+    await comm.close()
 ```
 
 两个 `serve_*` 方法都会从 `AGENT_INSTANCE_ID` 读取实例 ID。只使用一种消息
