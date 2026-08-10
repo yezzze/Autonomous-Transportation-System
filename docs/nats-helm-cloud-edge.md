@@ -120,9 +120,12 @@ conda activate k8s
 另一集群使用 `EDGE_CLUSTER_ID=edge-b`。脚本会：
 
 1. 将 Helm values 中的 domain 渲染为 `EDGE_CLUSTER_ID`。
-2. 配置 LeafNode 到云端。
-3. 应用 local subject 双向隔离。
-4. 创建 `edge-cluster-config` ConfigMap。
+2. 使用 `EDGE_CLUSTER_ID` 作为 NATS `server_name` 前缀，生成
+   `edge-a-nats-0` 这类唯一身份，避免不同边缘都以 `nats-0` 接入 Hub 后抑制
+   东西向 LeafNode interest。
+3. 配置 LeafNode 到云端。
+4. 应用 local subject 双向隔离。
+5. 创建 `edge-cluster-config` ConfigMap。
 
 ## 7. 检查
 
@@ -139,6 +142,15 @@ kubectl -n nats-system logs statefulset/nats | \
 
 ```bash
 nats --server nats://nats:4222 account info
+```
+
+检查 NATS Server 身份。每个边缘必须显示不同名称，例如 `edge-a-nats-0`、
+`edge-b-nats-0`，不能全部显示 `nats-0`：
+
+```bash
+kubectl -n default port-forward service/nats 18222:8222
+curl -s http://127.0.0.1:18222/varz | \
+  jq '{server_name,jetstream_domain:.jetstream.config.domain}'
 ```
 
 检查实例 Stream：

@@ -1,4 +1,8 @@
 config:
+  # Prefix the chart-generated Pod name (for example nats-0) so every edge
+  # has a distinct server/leaf-cluster identity in the Hub.
+  serverNamePrefix: CHANGE_ME_EDGE_DOMAIN-
+
   merge:
     max_payload: 67108864
 
@@ -53,3 +57,9 @@ natsBox:
 
 promExporter:
   enabled: false
+
+podTemplate:
+  merge:
+    metadata:
+      annotations:
+        ats.example.com/edge-cluster-id: CHANGE_ME_EDGE_DOMAIN

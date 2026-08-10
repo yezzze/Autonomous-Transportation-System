@@ -259,6 +259,11 @@ consumer_num_ack_pending
 5. 启动新实例，由 Agent 按每个 Pod UID 创建独立 Stream。
 6. 恢复调度。
 
+每个边缘 NATS 的 `server_name` 必须唯一。Helm 安装脚本使用 `CLUSTER_ID` 作为
+前缀，生成 `edge-a-nats-0`、`edge-b-nats-0` 等名称；不要让所有边缘都以默认
+Pod 名 `nats-0` 接入 Hub，否则跨 LeafNode 的 JetStream API 和 global
+workflow interest 可能无法传播到其他边缘。
+
 ## 8. 给另一台机器 Codex 的执行提示词
 
 ```text
