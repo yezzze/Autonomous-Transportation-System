@@ -51,7 +51,7 @@ runtime_api — 基于 NATS JetStream 的运行时通信层
     NATS_STREAM_DISCARD       淘汰策略（默认 new）
     NATS_STREAM_RETENTION     保留策略（默认 workqueue）
     NATS_STREAM_STORAGE       存储类型（默认 file）
-    NATS_JETSTREAM_DOMAIN     JetStream 域（默认 hub）
+    NATS_JETSTREAM_DOMAIN     Agent 默认 CLUSTER_ID，非 Agent 默认 hub
     NATS_SEND_DELAY_SECONDS   发送前延迟秒数（默认 0）
     NATS_SEND_DELAY_FILE      运行时延迟配置文件（默认 /tmp/nats_send_delay_seconds）
     NATS_CONTROL_MAX_BYTES    NATS 控制消息上限（默认 1MiB）

@@ -29,6 +29,9 @@ UID，并在确认 Pod 不存在后直接调用 NATS 删除接口兜底清理残
 Agent 模式不要设置 `NATS_STREAM` 或 `NATS_STREAM_SUBJECTS`。`NatsComm()` 从
 `CLUSTER_ID`、`AGENT_ID` 和 `AGENT_INSTANCE_ID` 生成默认的实例级 Workflow
 Stream；三个变量必须同时注入。只有旧兼容调用才显式配置自定义 Stream。
+Agent 未显式设置 `NATS_JETSTREAM_DOMAIN` 时默认使用 `CLUSTER_ID`；如果设置为
+其他 domain（例如误设为 `hub`），构造客户端时直接报错，避免把实例 Stream
+创建到云端。
 
 `__init__()` 负责读取身份并生成 Stream 名称和 Subjects；NATS 服务端创建是
 异步网络操作，由 `await NatsComm.create()` 完成。该方法返回时 Stream 已经
@@ -154,6 +157,18 @@ frame.global.<cluster>.agent.<agent-id>.instance.<pod-uid>.>
 一个 Agent 类型有多个副本时，每个 Pod UID 对应不同 Stream。工作流调度器
 选择具体副本，不通过多个 Stream 竞争同一个 subject。
 
+`jetstream(domain="edge-b")` 只选择 JetStream 管理 API 和 Consumer API 的
+domain，不会让 `publish(subject)` 自动定向到 edge-b。工作流发布接口会同时：
+
+1. 从 subject 中解析目标集群和目标实例。
+2. 使用目标集群的 JetStream domain 上下文。
+3. 携带 `Nats-Expected-Stream: WF_<目标实例>` 发布。
+4. 校验 PubAck 返回的 Stream 名称。
+
+因此目标边缘不可达、目标实例 Stream 尚未创建或 ACK 来自错误 Stream 时，发送
+会明确失败，不会静默回退到 hub。domain 不能替代 Stream 约束，也不能替代
+LeafNode 的 subject 隔离。
+
 ## 5. Kubernetes 注入
 
 Agent 自身实例 ID：
@@ -232,6 +247,8 @@ consumer_num_ack_pending
 - 云端 Hub 不得创建匹配 `workflow.local.>` 或 `workflow.global.>` 的 Stream。
 - 边缘不得保留覆盖所有 Agent 的共享 `WORKFLOW` Stream。
 - 旧 Stream 如继续匹配新 subject，会造成重复存储或发布歧义。
+- 即使客户端携带目标 Stream 约束，Hub 的重叠 Stream 仍可能抢先返回错误 ACK，
+  所以必须删除重叠配置，不能依赖客户端忽略它。
 
 迁移顺序：
 

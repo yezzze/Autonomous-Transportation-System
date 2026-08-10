@@ -36,6 +36,30 @@ class NatsWorkflowRoutingTest(unittest.TestCase):
             comm._default_workflow_identity,
             ("edge-a", "detector", "pod-uid-env"),
         )
+        self.assertEqual(comm.jetstream_domain, "edge-a")
+
+    def test_agent_domain_must_match_local_cluster(self):
+        with patch.dict(
+            os.environ,
+            {
+                "CLUSTER_ID": "edge-a",
+                "AGENT_ID": "detector",
+                "AGENT_INSTANCE_ID": "pod-uid-env",
+                "NATS_JETSTREAM_DOMAIN": "hub",
+            },
+            clear=True,
+        ):
+            with self.assertRaisesRegex(
+                ValueError,
+                "NATS_JETSTREAM_DOMAIN must equal CLUSTER_ID",
+            ):
+                NatsComm()
+
+    def test_non_agent_client_keeps_hub_default_domain(self):
+        with patch.dict(os.environ, {}, clear=True):
+            comm = NatsComm()
+
+        self.assertEqual(comm.jetstream_domain, "hub")
 
     def test_incomplete_agent_environment_does_not_fall_back_to_shared_stream(self):
         with patch.dict(
@@ -284,6 +308,45 @@ class NatsWorkflowApiTest(unittest.IsolatedAsyncioTestCase):
             "workflow.global.edge-b.agent.detector.instance.pod-uid-b.in",
             {"workflow_id": "wf-1"},
         )
+
+    async def test_send_constrains_workflow_publish_to_target_stream(self):
+        comm = NatsComm()
+        js = AsyncMock()
+        js.publish.return_value = SimpleNamespace(
+            stream="WF_pod-uid-b",
+            seq=7,
+        )
+        comm._jetstream_for_subject = AsyncMock(
+            return_value=(js, "WF_pod-uid-b")
+        )
+        subject = (
+            "workflow.global.edge-b.agent.detector."
+            "instance.pod-uid-b.in"
+        )
+
+        result = await comm.send(subject, {"workflow_id": "wf-1"})
+
+        self.assertEqual(result["stream"], "WF_pod-uid-b")
+        js.publish.assert_awaited_once_with(
+            subject,
+            b'{"workflow_id":"wf-1"}',
+            stream="WF_pod-uid-b",
+        )
+
+    async def test_send_rejects_ack_from_non_target_stream(self):
+        comm = NatsComm()
+        js = AsyncMock()
+        js.publish.return_value = SimpleNamespace(stream="HUB_SHARED", seq=1)
+        comm._jetstream_for_subject = AsyncMock(
+            return_value=(js, "WF_pod-uid-b")
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "非目标 Stream"):
+            await comm.send(
+                "workflow.global.edge-b.agent.detector."
+                "instance.pod-uid-b.in",
+                {"workflow_id": "wf-1"},
+            )
 
     async def test_provisions_instance_stream(self):
         comm = NatsComm()

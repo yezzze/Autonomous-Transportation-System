@@ -71,7 +71,7 @@ NATS 集群的部署、连接管理和流的生命周期。
     NATS_SERVERS              NATS 集群地址（默认 nats://nats:4222）
     NATS_STREAM               显式兼容流名称（Agent 模式不要设置）
     NATS_STREAM_SUBJECTS      显式兼容流主题（Agent 模式不要设置）
-    NATS_JETSTREAM_DOMAIN     JetStream 域（默认 hub）
+    NATS_JETSTREAM_DOMAIN     Agent 默认 CLUSTER_ID，非 Agent 默认 hub
     NATS_WORKFLOW_STREAM_PREFIX 每实例 Stream 名称前缀（默认 WF）
     NATS_FRAME_STREAM_PREFIX    每实例 Memory 帧 Stream 前缀（默认 FRAME）
     NATS_FRAME_STREAM_MAX_BYTES 每实例 Memory 帧 Stream 上限（默认 512MiB）
@@ -440,10 +440,21 @@ class NatsComm:
             self.stream_subjects = (
                 configured_subjects or self._stream_subjects_from_env()
             )
-        self.jetstream_domain = jetstream_domain or os.environ.get(
-            "NATS_JETSTREAM_DOMAIN",
-            "hub",
+        configured_domain = (
+            jetstream_domain
+            if jetstream_domain is not None
+            else os.environ.get("NATS_JETSTREAM_DOMAIN")
         )
+        if self._default_workflow_identity is not None:
+            cluster, _, _ = self._default_workflow_identity
+            self.jetstream_domain = configured_domain or cluster
+            if self.jetstream_domain != cluster:
+                raise ValueError(
+                    "NATS_JETSTREAM_DOMAIN must equal CLUSTER_ID in Agent "
+                    f"mode: domain={self.jetstream_domain!r}, cluster={cluster!r}"
+                )
+        else:
+            self.jetstream_domain = configured_domain or "hub"
         self.frame_stream_max_bytes = parse_bytes(
             os.environ.get("NATS_FRAME_STREAM_MAX_BYTES", "512MiB")
         )
@@ -999,13 +1010,27 @@ class NatsComm:
             })
             print(f"已发布: stream={result['stream']}, seq={result['seq']}")
         """
-        js, _ = await self._jetstream_for_subject(subject)
+        route = self._workflow_route(subject)
+        js, target_stream = await self._jetstream_for_subject(subject)
         # 模拟网络时延
         send_delay = self.get_send_delay()
         if send_delay > 0:
             await asyncio.sleep(send_delay)
         encoded = self._encode_control_payload(payload)
-        ack = await js.publish(subject, encoded)
+        if route is None:
+            ack = await js.publish(subject, encoded)
+        else:
+            ack = await js.publish(
+                subject,
+                encoded,
+                stream=target_stream,
+            )
+            if ack.stream != target_stream:
+                raise RuntimeError(
+                    "工作流消息进入了非目标 Stream: "
+                    f"subject={subject} expected={target_stream} "
+                    f"actual={ack.stream}"
+                )
         return {
             "subject": subject,
             "stream": ack.stream,
@@ -1022,11 +1047,26 @@ class NatsComm:
         if timeout_sec <= 0:
             raise ValueError("timeout_sec must be positive")
         encoded = self._encode_binary_payload(payload)
-        js, _ = await self._jetstream_for_subject(subject)
+        route = self._workflow_route(subject)
+        js, target_stream = await self._jetstream_for_subject(subject)
         send_delay = self.get_send_delay()
         if send_delay > 0:
             await asyncio.sleep(send_delay)
-        ack = await js.publish(subject, encoded, timeout=timeout_sec)
+        if route is None:
+            ack = await js.publish(subject, encoded, timeout=timeout_sec)
+        else:
+            ack = await js.publish(
+                subject,
+                encoded,
+                timeout=timeout_sec,
+                stream=target_stream,
+            )
+            if ack.stream != target_stream:
+                raise RuntimeError(
+                    "工作流二进制消息进入了非目标 Stream: "
+                    f"subject={subject} expected={target_stream} "
+                    f"actual={ack.stream}"
+                )
         return {
             "subject": subject,
             "stream": ack.stream,

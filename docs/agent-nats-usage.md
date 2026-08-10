@@ -91,12 +91,20 @@ Pod UID 是实例身份。Deployment 名、Pod 名和 Agent 类型不能代替 P
   value: "3"
 ```
 
-`NATS_JETSTREAM_DOMAIN` 与 `CLUSTER_ID` 必须等于当前边缘集群 ID。
+Agent 未设置 `NATS_JETSTREAM_DOMAIN` 时会自动使用 `CLUSTER_ID`；如果显式设置，
+它必须与 `CLUSTER_ID` 相等，否则启动失败。非 Agent 管理客户端才默认使用
+`hub`。
 Agent 不要设置 `NATS_STREAM` 或 `NATS_STREAM_SUBJECTS`。当
 `AGENT_INSTANCE_ID` 存在时，`NatsComm()` 默认生成 `WF_<pod-uid>` 以及该实例
 的 local/global Subjects；显式设置这两个兼容变量才会启用旧的自定义 Stream。
 `CLUSTER_ID`、`AGENT_ID`、`AGENT_INSTANCE_ID` 必须同时存在，缺失时启动直接
 报错，不会退回共享 `WORKFLOW`。
+
+发送跨集群工作流时，subject 中的目标集群决定 global 路由，目标实例决定
+`WF_<pod-uid>`。`send()` 和 `send_bytes()` 会强制校验目标 Stream；
+`jetstream(domain=...)` 本身不负责数据 subject 的网络路由。云端 Hub 不得存在
+匹配 `workflow.local.>` 或 `workflow.global.>` 的共享 Stream，只能保留
+`legacy.workflow.>` 等与新 subject 不重叠的兼容 Stream。
 
 需要在客户端创建调用返回时就确认 Stream 已存在，使用：
 

@@ -276,6 +276,31 @@ class NatsJetStreamBinaryApiTest(unittest.IsolatedAsyncioTestCase):
 
         comm._jetstream_for_subject.assert_not_awaited()
 
+    async def test_send_bytes_constrains_workflow_to_target_stream(self):
+        comm = NatsComm()
+        js = AsyncMock()
+        js.publish.return_value = SimpleNamespace(
+            stream="WF_pod-uid-b",
+            seq=10,
+        )
+        comm._jetstream_for_subject = AsyncMock(
+            return_value=(js, "WF_pod-uid-b")
+        )
+        subject = (
+            "workflow.global.edge-b.agent.detector."
+            "instance.pod-uid-b.in"
+        )
+
+        result = await comm.send_bytes(subject, b"frame", timeout_sec=8)
+
+        self.assertEqual(result["stream"], "WF_pod-uid-b")
+        js.publish.assert_awaited_once_with(
+            subject,
+            b"frame",
+            timeout=8,
+            stream="WF_pod-uid-b",
+        )
+
     async def test_receive_bytes_preserves_raw_data_and_ack_handle(self):
         comm = NatsComm()
         raw = self.raw_message(b"\x00binary")
