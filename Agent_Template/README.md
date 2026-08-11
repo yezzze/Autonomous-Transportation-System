@@ -22,14 +22,14 @@ NATS 的 IN 或 OUT subject 可随项目需要删减。比如不需要从上游 
                        │
                        ├─ AgentTemplateExecutor 解析标准 A2A Message
                        │
-                       ├─ 从 message 文本 JSON 的 metadata 或环境变量获取 NATS 主题
+                       ├─ 从 message data Part 的 parameters 获取 NATS 路由
                        │
                        ├─ agent_function()
-                       │   ├─ 从 NATS_IN_SUBJECT 拉取上游数据
+                       │   ├─ 从实例级 local/global subject 拉取上游数据
                        │   ├─ decode_structured_numpy() 还原 numpy 数组
                        │   ├─ 执行业务逻辑 / 模型推理
                        │   ├─ encode_structured_numpy() 编码结果
-                       │   └─ 发布到 NATS_OUT_SUBJECT
+                       │   └─ 发布到 parameters 指定的目标实例
                        │
                        └─ 通过 A2A Task artifact 返回执行状态和 QoS metadata
 ```
@@ -82,24 +82,29 @@ Agent Card 会声明 Agent 名称、能力、输入输出模式和 JSON-RPC 服�
 POST /
 ```
 
-调用方应使用 a2a-python 客户端发送标准 text message。普通文本会触发 Agent 并使用默认 NATS subject：
-
-```text
-Process the input data
-```
-
-如需覆盖 NATS subject，可发送 JSON 文本：
+调用方应使用 a2a-python 客户端发送标准 data Part，结构如下：
 
 ```json
 {
   "task_description": "Process the input data",
+  "parameters": {
+    "source_cluster": "edge-a",
+    "operation": "in",
+    "target_cluster": "edge-b",
+    "target_agent_id": "agent-template",
+    "target_instance_id": "agent-template-xxxxx"
+  },
   "metadata": {
-    "nats_in_subject": "workflow.vision.input",
-    "nats_in_durable": "workflow-vision-input",
-    "nats_out_subject": "workflow.vision.output"
   }
 }
 ```
+
+`task_description`、`parameters` 和 `metadata` 会分别传入 `agent_function()`。
+
+NATS 路由字段必须通过 `parameters` 显式提供：仅输入型 Agent 传入
+`source_cluster`；仅输出型 Agent 传入 `target_cluster`、`target_agent_id`
+和 `target_instance_id`；同时具有输入和输出时传入两组字段。
+`operation` 为可选字段，默认值为 `in`。
 
 Agent 执行成功后会通过 A2A Task artifact 返回类似：
 
@@ -127,16 +132,25 @@ QoS 数据会放在标准 A2A artifact 和最终 status update 的 metadata 中�
 
 ## 环境变量
 
-| 变量名 | 说明 | 默认值 |
+`k8s/agent-template.yaml` 中配置了以下环境变量：
+
+| 变量名 | YAML 示例值 | 说明 |
 | --- | --- | --- |
-| `A2A_AGENT_URL` | Agent Card 中声明的服务地址 | `http://localhost:9001` |
-| `NATS_SERVER_URL` | NATS 服务器地址 | `nats://nats:4222` |
-| `NATS_IN_SUBJECT` | 输入主题 | `workflow.previousagent.result` |
-| `NATS_IN_DURABLE` | 输入持久化消费者名称 | `workflow-previousagent-result` |
-| `NATS_OUT_SUBJECT` | 输出主题 | `workflow.agenttemplate.result` |
-| `AGENT_ID` | Prometheus 指标中的 Agent 标识 | `agent-template` |
-| `INSTANCE_ID` | Prometheus 指标中的实例标识 | `HOSTNAME` 或 `agent-template-local` |
-| `AGENT_MAX_CONCURRENT_TASKS` | 单实例并发执行槽数量 | `1` |
+| `A2A_AGENT_URL` | `http://192.168.49.2:30091` | Agent Card 中声明的集群外可访问地址。应根据 Kubernetes 节点 IP 和 Service NodePort 修改。未配置时默认使用 `http://localhost:9001`。 |
+| `AGENT_MAX_CONCURRENT_TASKS` | `"1"` | 单个 Agent 实例允许并发执行的任务数量。未配置时默认值为 `1`。 |
+| `CLUSTER_ID` | `edge-c` | 当前 Agent 所属的 NATS JetStream domain/集群标识，必须与工作流路由使用的集群名称一致。 |
+| `AGENT_ID` | `agent-template` | Agent 的逻辑标识。部署具体智能体时，必须修改为对应的智能体镜像名称；同一种镜像的所有副本应保持一致。 |
+| `AGENT_INSTANCE_ID` | Pod 的 `metadata.uid` | Agent 实例的唯一标识。YAML 通过 Kubernetes Downward API 自动注入 Pod UID，无需手工填写。 |
+
+例如镜像为 `perception2intermediatefeature:0.1.0` 时，应将 YAML 中的
+`AGENT_ID` 设置为镜像名称（不含仓库地址和版本标签）：
+
+```yaml
+- name: AGENT_ID
+  value: perception2intermediatefeature
+```
+
+同时应同步修改 Deployment/Service 名称、标签、容器名称和 `image` 字段，避免模板名称残留造成路由或部署对象不一致。
 
 ## 分阶段时延监控
 
@@ -221,14 +235,14 @@ NATS -> dict -> decode_structured_numpy() -> ndarray
 ### Docker
 
 ```bash
-docker build -t agent-template:0.1.1 .
-docker run -p 9001:9001 agent-template:0.1.1
+docker build -t agent-template:0.1.3 .
+docker run -p 9001:9001 agent-template:0.1.3
 ```
 
 ### Kubernetes (Minikube)
 
 ```bash
-minikube image load agent-template:0.1.1
+minikube image load agent-template:0.1.3
 kubectl apply -f k8s/agent-template.yaml
 ```
 

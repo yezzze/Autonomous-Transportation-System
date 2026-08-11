@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: agent-template
-          image: agent-template:0.1.2
+          image: agent-template:0.1.3
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9001
@@ -24,20 +24,19 @@ spec:
           env:
             - name: A2A_AGENT_URL
               value: http://192.168.49.2:30091
-            - name: NATS_SERVER_URL
-              value: nats://nats:4222
-            - name: NATS_IN_SUBJECT
-              value: workflow.previousagent.result
-            - name: NATS_IN_DURABLE
-              value: workflow-previousagent-result
-            - name: NATS_OUT_SUBJECT
-              value: workflow.agenttemplate.result
             - name: AGENT_MAX_CONCURRENT_TASKS
               value: "1"
+            # 工作流路由使用的集群标识；需与发送方使用的 target_cluster 一致。
+            - name: CLUSTER_ID
+              value: edge-c
+            # Agent 逻辑标识；同一种 Agent 的所有副本应使用相同值。
             - name: AGENT_ID
               value: agent-template
-            - name: INSTANCE_ID
-              value: agent-template-instance-1
+            # 每个 Pod 使用独立实例标识，从而创建独享的 WF_<instance-id> Stream。
+            - name: AGENT_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
 
 ---
 apiVersion: v1
