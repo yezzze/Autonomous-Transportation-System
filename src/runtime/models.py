@@ -48,6 +48,7 @@ class AgentInstance:
     agent_id: str
     image_id: str
     status: str = "deploying"       # deploying | running | stopping | stopped | error
+    error_message: Optional[str] = None
     ref_count: int = 0              # 工作流订阅引用计数
     resource_config: ResourceConfig = field(default_factory=ResourceConfig)
     # 订阅此实例的工作流 ID 集合
@@ -95,6 +96,7 @@ class AgentInstance:
             "agent_id": self.agent_id,
             "image_id": self.image_id,
             "status": self.status,
+            "error_message": self.error_message,
             "ref_count": self.ref_count,
             "subscribed_workflows": self.subscribed_workflows,
             "resource_config": self.resource_config.to_dict(),

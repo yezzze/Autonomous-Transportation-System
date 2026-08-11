@@ -10,6 +10,7 @@
 生产环境：替换为 etcd / Consul / 自定义 REST 服务。
 """
 import logging
+import threading
 from typing import Dict, List, Optional
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
@@ -60,8 +61,8 @@ class ResourceRegistry:
     核心接口：
     - register_node()              — 注册节点资源
     - query_available_resources()  — 查询满足条件的节点列表
-    - allocate()                   — 分配资源（减少可用量）
-    - release()                    — 释放资源（增加可用量）
+    - allocate()                   — 创建部署提交前的短期预留
+    - release()                    — 撤销短期预留
     - update_heartbeat()           — 节点心跳更新
     - get_summary()                — 资源总览统计
     """
@@ -69,7 +70,11 @@ class ResourceRegistry:
     def __init__(self):
         # node_id → ResourceInfo
         self._nodes: Dict[str, ResourceInfo] = {}
-        self._init_mock_nodes()
+        # reservation_id → 部署提交前的短期资源预留
+        self._reservations: Dict[str, Dict] = {}
+        self._lock = threading.RLock()
+        # self._init_mock_nodes()
+        self._init_kubernetes_nodes()
         logger.info(
             f"ResourceRegistry (RRDC) 初始化完成，已加载 {len(self._nodes)} 个节点"
         )
@@ -119,6 +124,185 @@ class ResourceRegistry:
         ]
         for node in nodes:
             self._nodes[node.node_id] = node
+
+    def _init_kubernetes_nodes(self):
+        """从 Kubernetes 获取节点资源信息并注册"""
+        resources = self.get_kubernetes_available_resources()
+        for resource in resources:
+            self.register_node(resource)
+        logger.info(
+            f"[RRDC] Kubernetes 节点初始化完成，已注册 {len(resources)} 个节点"
+        )
+
+    def refresh_from_kubernetes(self) -> bool:
+        """从 Kubernetes 刷新资源快照，并扣除尚未提交的短期预留。"""
+        resources = self.get_kubernetes_available_resources()
+        if not resources:
+            logger.warning("[RRDC] Kubernetes 资源刷新未返回节点，保留上次快照")
+            return False
+
+        with self._lock:
+            refreshed = {resource.node_id: resource for resource in resources}
+            for reservation in self._reservations.values():
+                node = refreshed.get(reservation["node_id"])
+                if node is None:
+                    continue
+                node.cpu_available = max(
+                    0.0, node.cpu_available - reservation["cpu_cores"]
+                )
+                node.mem_available_mb = max(
+                    0, node.mem_available_mb - reservation["memory_mb"]
+                )
+                node.gpu_available = max(
+                    0, node.gpu_available - reservation["gpu_count"]
+                )
+            self._nodes = refreshed
+        return True
+
+    def get_kubernetes_available_resources(self) -> List[ResourceInfo]:
+        """
+        从 Kubernetes 获取各节点当前可用的 CPU、内存和 GPU。
+
+        可用量按节点 allocatable 减去所有未终止 Pod 的 requests 计算。
+        本方法只返回实时查询结果，不修改资源注册表中的现有节点。
+        """
+        try:
+            from kubernetes import client, config
+            from kubernetes.utils.quantity import parse_quantity
+        except (ImportError, ModuleNotFoundError) as exc:
+            logger.warning("[RRDC] Kubernetes 客户端不可用: %s", exc)
+            return []
+
+        try:
+            try:
+                config.load_incluster_config()
+            except Exception:
+                config.load_kube_config()
+
+            core_api = client.CoreV1Api()
+            nodes = core_api.list_node().items
+            pods = core_api.list_pod_for_all_namespaces().items
+        except Exception as exc:
+            logger.warning("[RRDC] 查询 Kubernetes 资源失败: %s", exc)
+            return []
+
+        def quantity(resources: Optional[Dict], name: str) -> float:
+            """把 Kubernetes quantity 转为基础单位数值。"""
+            value = (resources or {}).get(name)
+            if value is None:
+                return 0.0
+            try:
+                return float(parse_quantity(value))
+            except (TypeError, ValueError):
+                logger.warning(
+                    "[RRDC] 无法解析 Kubernetes resource quantity: %s=%r",
+                    name,
+                    value,
+                )
+                return 0.0
+
+        def container_requests(container) -> Dict[str, float]:
+            requests = getattr(getattr(container, "resources", None), "requests", None)
+            return {
+                "cpu": quantity(requests, "cpu"),
+                "memory": quantity(requests, "memory"),
+                "gpu": quantity(requests, "nvidia.com/gpu"),
+            }
+
+        requested_by_node: Dict[str, Dict[str, float]] = {}
+        for pod in pods:
+            if getattr(getattr(pod, "status", None), "phase", None) in {
+                "Succeeded",
+                "Failed",
+            }:
+                continue
+
+            spec = getattr(pod, "spec", None)
+            node_name = getattr(spec, "node_name", None)
+            if not node_name:
+                continue
+
+            regular = {"cpu": 0.0, "memory": 0.0, "gpu": 0.0}
+            for container in getattr(spec, "containers", None) or []:
+                requests = container_requests(container)
+                for resource_name in regular:
+                    regular[resource_name] += requests[resource_name]
+
+            init_max = {"cpu": 0.0, "memory": 0.0, "gpu": 0.0}
+            for container in getattr(spec, "init_containers", None) or []:
+                requests = container_requests(container)
+                for resource_name in init_max:
+                    init_max[resource_name] = max(
+                        init_max[resource_name], requests[resource_name]
+                    )
+
+            overhead = getattr(spec, "overhead", None) or {}
+            effective = {
+                "cpu": max(regular["cpu"], init_max["cpu"])
+                + quantity(overhead, "cpu"),
+                "memory": max(regular["memory"], init_max["memory"])
+                + quantity(overhead, "memory"),
+                "gpu": max(regular["gpu"], init_max["gpu"])
+                + quantity(overhead, "nvidia.com/gpu"),
+            }
+            node_requests = requested_by_node.setdefault(
+                node_name, {"cpu": 0.0, "memory": 0.0, "gpu": 0.0}
+            )
+            for resource_name in node_requests:
+                node_requests[resource_name] += effective[resource_name]
+
+        resources: List[ResourceInfo] = []
+        for node in nodes:
+            metadata = getattr(node, "metadata", None)
+            status = getattr(node, "status", None)
+            node_name = getattr(metadata, "name", "")
+            allocatable = getattr(status, "allocatable", None) or {}
+            requested = requested_by_node.get(
+                node_name, {"cpu": 0.0, "memory": 0.0, "gpu": 0.0}
+            )
+
+            cpu_total = quantity(allocatable, "cpu")
+            mem_total_bytes = quantity(allocatable, "memory")
+            gpu_total = int(quantity(allocatable, "nvidia.com/gpu"))
+
+            ip = node_name
+            addresses = getattr(status, "addresses", None) or []
+            for address in addresses:
+                if getattr(address, "type", None) == "InternalIP":
+                    ip = getattr(address, "address", node_name)
+                    break
+
+            ready = any(
+                getattr(condition, "type", None) == "Ready"
+                and getattr(condition, "status", None) == "True"
+                for condition in (getattr(status, "conditions", None) or [])
+            )
+            labels = getattr(metadata, "labels", None) or {}
+            node_type = labels.get("node-type", labels.get("node_type", "cloud"))
+
+            resources.append(
+                ResourceInfo(
+                    node_id=node_name,
+                    node_type=node_type,
+                    ip=ip,
+                    cpu_total=cpu_total,
+                    cpu_available=max(0.0, cpu_total - requested["cpu"]),
+                    mem_total_mb=int(mem_total_bytes / (1024 * 1024)),
+                    mem_available_mb=max(
+                        0,
+                        int(
+                            (mem_total_bytes - requested["memory"])
+                            / (1024 * 1024)
+                        ),
+                    ),
+                    gpu_count=gpu_total,
+                    gpu_available=max(0, int(gpu_total - requested["gpu"])),
+                    status="online" if ready else "offline",
+                    last_heartbeat=datetime.utcnow().isoformat(),
+                )
+            )
+
+        return resources
 
     # ------------------------------------------------------------------
     # 注册接口
@@ -183,7 +367,9 @@ class ResourceRegistry:
             符合条件的 ResourceInfo 列表，按 cpu_available 降序
         """
         results = []
-        for node in self._nodes.values():
+        with self._lock:
+            nodes = list(self._nodes.values())
+        for node in nodes:
             if node.status != "online":
                 continue
             if node.cpu_available < min_cpu:
@@ -202,11 +388,13 @@ class ResourceRegistry:
 
     def get_node(self, node_id: str) -> Optional[ResourceInfo]:
         """按 node_id 获取节点信息"""
-        return self._nodes.get(node_id)
+        with self._lock:
+            return self._nodes.get(node_id)
 
     def get_all_nodes(self) -> List[ResourceInfo]:
         """获取所有节点"""
-        return list(self._nodes.values())
+        with self._lock:
+            return list(self._nodes.values())
 
     # ------------------------------------------------------------------
     # 资源分配/释放
@@ -218,43 +406,70 @@ class ResourceRegistry:
         cpu_cores: float,
         memory_mb: int,
         gpu_count: int = 0,
+        reservation_id: Optional[str] = None,
     ) -> bool:
         """
-        为 Agent 部署分配资源
+        为 Agent 部署创建提交前的短期资源预留。
+
+        部署请求提交给 Kubernetes 后必须调用 release() 撤销，
+        实际资源占用由 Kubernetes Pod requests 唯一确定。
 
         Args:
             node_id:    目标节点 ID
             cpu_cores:  申请的 CPU 核心数
             memory_mb:  申请的内存 (MB)
             gpu_count:  申请的 GPU 数量
+            reservation_id: 预留唯一标识
 
         Returns:
             True 分配成功，False 资源不足或节点不存在
         """
-        node = self._nodes.get(node_id)
-        if not node:
-            logger.warning(f"[RRDC] allocate 失败: node_id={node_id} 不存在")
+        # 预留前强制获取最新 Kubernetes 快照，避免使用选点阶段的旧数据。
+        if not self.refresh_from_kubernetes():
+            logger.warning("[RRDC] allocate 失败: Kubernetes 资源状态刷新失败")
             return False
 
-        if (
-            node.cpu_available < cpu_cores
-            or node.mem_available_mb < memory_mb
-            or node.gpu_available < gpu_count
-        ):
-            logger.warning(
-                f"[RRDC] allocate 失败: 资源不足 "
-                f"(需cpu={cpu_cores},mem={memory_mb}MB,gpu={gpu_count}; "
-                f"可用cpu={node.cpu_available},mem={node.mem_available_mb}MB,"
-                f"gpu={node.gpu_available})"
-            )
-            return False
+        reservation_id = reservation_id or (
+            f"{node_id}:{cpu_cores}:{memory_mb}:{gpu_count}"
+        )
+        with self._lock:
+            node = self._nodes.get(node_id)
+            if not node:
+                logger.warning(f"[RRDC] allocate 失败: node_id={node_id} 不存在")
+                return False
 
-        node.cpu_available -= cpu_cores
-        node.mem_available_mb -= memory_mb
-        node.gpu_available -= gpu_count
+            if reservation_id in self._reservations:
+                logger.warning(
+                    "[RRDC] allocate 失败: reservation_id=%s 已存在",
+                    reservation_id,
+                )
+                return False
+
+            if (
+                node.cpu_available < cpu_cores
+                or node.mem_available_mb < memory_mb
+                or node.gpu_available < gpu_count
+            ):
+                logger.warning(
+                    f"[RRDC] allocate 失败: 资源不足 "
+                    f"(需cpu={cpu_cores},mem={memory_mb}MB,gpu={gpu_count}; "
+                    f"可用cpu={node.cpu_available},mem={node.mem_available_mb}MB,"
+                    f"gpu={node.gpu_available})"
+                )
+                return False
+
+            self._reservations[reservation_id] = {
+                "node_id": node_id,
+                "cpu_cores": cpu_cores,
+                "memory_mb": memory_mb,
+                "gpu_count": gpu_count,
+            }
+            node.cpu_available -= cpu_cores
+            node.mem_available_mb -= memory_mb
+            node.gpu_available -= gpu_count
         logger.info(
-            f"[RRDC] 分配资源: node={node_id}, cpu={cpu_cores}, "
-            f"mem={memory_mb}MB, gpu={gpu_count}"
+            f"[RRDC] 预留资源: reservation={reservation_id}, node={node_id}, "
+            f"cpu={cpu_cores}, mem={memory_mb}MB, gpu={gpu_count}"
         )
         return True
 
@@ -264,33 +479,43 @@ class ResourceRegistry:
         cpu_cores: float,
         memory_mb: int,
         gpu_count: int = 0,
+        reservation_id: Optional[str] = None,
     ) -> bool:
         """
-        释放 Agent 占用的资源
+        撤销 Agent 部署提交前的短期资源预留。
 
         Args:
             node_id:    目标节点 ID
             cpu_cores:  归还的 CPU 核心数
             memory_mb:  归还的内存 (MB)
             gpu_count:  归还的 GPU 数量
+            reservation_id: 预留唯一标识
 
         Returns:
             True 释放成功，False 节点不存在
         """
-        node = self._nodes.get(node_id)
-        if not node:
-            logger.warning(f"[RRDC] release 失败: node_id={node_id} 不存在")
-            return False
-
-        # 不超过总量上限
-        node.cpu_available = min(node.cpu_available + cpu_cores, node.cpu_total)
-        node.mem_available_mb = min(
-            node.mem_available_mb + memory_mb, node.mem_total_mb
+        reservation_id = reservation_id or (
+            f"{node_id}:{cpu_cores}:{memory_mb}:{gpu_count}"
         )
-        node.gpu_available = min(node.gpu_available + gpu_count, node.gpu_count)
+        with self._lock:
+            reservation = self._reservations.pop(reservation_id, None)
+            if reservation is None:
+                return False
+
+            node = self._nodes.get(reservation["node_id"])
+            if node is not None:
+                node.cpu_available = min(
+                    node.cpu_available + reservation["cpu_cores"], node.cpu_total
+                )
+                node.mem_available_mb = min(
+                    node.mem_available_mb + reservation["memory_mb"],
+                    node.mem_total_mb,
+                )
+                node.gpu_available = min(
+                    node.gpu_available + reservation["gpu_count"], node.gpu_count
+                )
         logger.info(
-            f"[RRDC] 释放资源: node={node_id}, cpu={cpu_cores}, "
-            f"mem={memory_mb}MB, gpu={gpu_count}"
+            f"[RRDC] 撤销资源预留: reservation={reservation_id}, node={node_id}"
         )
         return True
 
@@ -300,7 +525,8 @@ class ResourceRegistry:
 
     def get_summary(self) -> Dict:
         """返回整体资源使用情况"""
-        nodes = list(self._nodes.values())
+        with self._lock:
+            nodes = list(self._nodes.values())
         total_cpu = sum(n.cpu_total for n in nodes)
         avail_cpu = sum(n.cpu_available for n in nodes)
         total_mem = sum(n.mem_total_mb for n in nodes)

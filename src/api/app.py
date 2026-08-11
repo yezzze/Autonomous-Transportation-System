@@ -1576,6 +1576,8 @@ async def query_resources(
         from src.service.resource_registry import get_resource_registry
 
         registry = get_resource_registry()
+        # Kubernetes Python 客户端是同步的，放入线程避免阻塞 FastAPI 事件循环。
+        await asyncio.to_thread(registry.refresh_from_kubernetes)
         nodes = registry.query_available_resources(
             min_cpu=min_cpu,
             min_mem_mb=min_mem_mb,

@@ -70,21 +70,51 @@ class AgentLifecycleManager:
         instance = AgentInstance.create(agent_id=agent_id, image_id=image_id, resource_config=rc)
 
         # 1. 向 RRDC 申请资源
-        self._allocate_resources(instance)
+        resources_reserved = self._allocate_resources(instance)
 
         # 2. 记录实例
         self._instances[instance.instance_id] = instance
         self._agent_index.setdefault(agent_id, []).append(instance.instance_id)
 
-        # 3. 调用 ASD 部署
-        deployment = self._call_asd_deploy(instance)
+        if not resources_reserved:
+            instance.set_status("error")
+            instance.error_message = "Kubernetes 资源不足或资源状态查询失败"
+            logger.error(
+                f"[ALCM] 资源预留失败，终止部署: "
+                f"instance_id={instance.instance_id}, agent_id={agent_id}, "
+                f"node_id={instance.resource_config.node_id}"
+            )
+            return instance
+
+        # 3. 调用 ASD 部署。只有明确返回 running 才视为成功。
+        deployment = None
+        deployment_error = None
+        try:
+            deployment = self._call_asd_deploy(instance)
+        except Exception as exc:
+            deployment_error = str(exc)
+            logger.error(
+                f"[ALCM→ASD] 部署调用异常: "
+                f"instance_id={instance.instance_id}, error={deployment_error}"
+            )
+        finally:
+            # 兜底撤销：Kubernetes 正常路径已在 Deployment 提交回调中撤销；
+            # 提交前失败或非 Kubernetes 后端在此撤销。release() 按 reservation_id 幂等。
+            self._release_resources(instance)
 
         # 4. 根据 ASD 结果标记实例状态
-        if deployment is not None and getattr(deployment, "status", None) == "failed":
+        deployment_status = getattr(deployment, "status", None)
+        if deployment is None or deployment_status != "running":
             instance.set_status("error")
+            instance.error_message = (
+                deployment_error
+                or getattr(deployment, "error_message", None)
+                or f"Agent 部署未成功，ASD 状态: {deployment_status or 'None'}"
+            )
             logger.error(
                 f"[ALCM] 部署失败: instance_id={instance.instance_id}, "
-                f"agent_id={agent_id}, image_id={image_id}"
+                f"agent_id={agent_id}, image_id={image_id}, "
+                f"error={instance.error_message}"
             )
             return instance
 
@@ -228,8 +258,8 @@ class AgentLifecycleManager:
     # 内部帮助方法
     # ------------------------------------------------------------------
 
-    def _allocate_resources(self, instance: AgentInstance):
-        """向 RRDC 申请资源"""
+    def _allocate_resources(self, instance: AgentInstance) -> bool:
+        """向 RRDC 申请部署前资源预留。"""
         try:
             from src.service.resource_registry import get_resource_registry
 
@@ -239,14 +269,17 @@ class AgentLifecycleManager:
                 cpu_cores=instance.resource_config.cpu_cores,
                 memory_mb=instance.resource_config.memory_mb,
                 gpu_count=instance.resource_config.gpu_count,
+                reservation_id=instance.instance_id,
             )
             if not success:
                 logger.warning(
-                    f"[ALCM→RRDC] 资源分配失败，继续部署（Mock 模式）: "
+                    f"[ALCM→RRDC] 资源预留失败: "
                     f"instance_id={instance.instance_id}"
                 )
+            return success
         except Exception as e:
-            logger.warning(f"[ALCM→RRDC] 资源分配异常（非关键）: {e}")
+            logger.error(f"[ALCM→RRDC] 资源预留异常: {e}")
+            return False
 
     def _release_resources(self, instance: AgentInstance):
         """向 RRDC 归还资源"""
@@ -259,27 +292,25 @@ class AgentLifecycleManager:
                 cpu_cores=instance.resource_config.cpu_cores,
                 memory_mb=instance.resource_config.memory_mb,
                 gpu_count=instance.resource_config.gpu_count,
+                reservation_id=instance.instance_id,
             )
         except Exception as e:
             logger.warning(f"[ALCM→RRDC] 资源释放异常（非关键）: {e}")
 
     def _call_asd_deploy(self, instance: AgentInstance):
         """调用 ASD 执行实际部署"""
-        try:
-            from src.service.agent_scheduler import get_agent_scheduler
+        from src.service.agent_scheduler import get_agent_scheduler
 
-            scheduler = get_agent_scheduler()
-            return scheduler.deploy_agent(
-                image_id=instance.image_id,
-                agent_id=instance.agent_id,
-                node_id=instance.resource_config.node_id,
-                cpu_cores=instance.resource_config.cpu_cores,
-                memory_mb=instance.resource_config.memory_mb,
-                gpu_count=instance.resource_config.gpu_count,
-            )
-        except Exception as e:
-            logger.warning(f"[ALCM→ASD] 部署调用异常（非关键）: {e}")
-            return None
+        scheduler = get_agent_scheduler()
+        return scheduler.deploy_agent(
+            image_id=instance.image_id,
+            agent_id=instance.agent_id,
+            node_id=instance.resource_config.node_id,
+            cpu_cores=instance.resource_config.cpu_cores,
+            memory_mb=instance.resource_config.memory_mb,
+            gpu_count=instance.resource_config.gpu_count,
+            on_kubernetes_submitted=lambda: self._release_resources(instance),
+        )
 
     def _call_asd_shutdown(self, instance: AgentInstance):
         """调用 ASD 关闭实例"""
@@ -301,9 +332,6 @@ class AgentLifecycleManager:
 
         # 调用 ASD 停止容器
         self._call_asd_shutdown(instance)
-
-        # 释放 RRDC 资源
-        self._release_resources(instance)
 
         # 标记已停止
         instance.set_status("stopped")

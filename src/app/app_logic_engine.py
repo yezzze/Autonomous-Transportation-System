@@ -514,6 +514,11 @@ class AppLogicEngine:
                     image_id=image_id,
                     resource_config=effective_resource_config,
                 )
+                if instance.status == "error":
+                    raise RuntimeError(
+                        instance.error_message
+                        or f"Agent 部署失败: agent_id={agent_id}"
+                    )
                 # 工作流订阅（引用计数 +1）
                 alcm.subscribe(instance.instance_id, workflow_handle)
                 instance_ids.append(instance.instance_id)
@@ -525,8 +530,8 @@ class AppLogicEngine:
             return instance_ids
 
         except Exception as e:
-            logger.warning(f"[ALRE→ALCM] 部署 Agent 实例失败（非关键）: {e}")
-            return []
+            logger.error(f"[ALRE→ALCM] 部署 Agent 实例失败: {e}")
+            raise
 
     def _resource_config_from_image(self, image) -> Optional[ResourceConfig]:
         """从 AgentImage.metadata.k8s 读取默认资源配置。"""
@@ -582,6 +587,8 @@ class AppLogicEngine:
             from src.service.resource_registry import get_resource_registry
 
             registry = get_resource_registry()
+            if not registry.refresh_from_kubernetes():
+                raise RuntimeError("Kubernetes 资源状态刷新失败")
             candidates = registry.query_available_resources(
                 min_cpu=cpu,
                 min_mem_mb=memory_mb,
@@ -594,8 +601,17 @@ class AppLogicEngine:
                 )
             if candidates:
                 chosen = candidates[0]
-                if gpu > chosen.gpu_available:
-                    gpu = 0
+                if gpu > 0:
+                    gpu_candidates = [
+                        node for node in candidates if node.gpu_available >= gpu
+                    ]
+                    if gpu_candidates:
+                        chosen = gpu_candidates[0]
+                    else:
+                        logger.warning(
+                            f"[ALRE] GPU 资源不足: capability={capability}, "
+                            f"required_gpu={gpu}"
+                        )
                 return ResourceConfig(
                     cpu_cores=cpu,
                     memory_mb=memory_mb,

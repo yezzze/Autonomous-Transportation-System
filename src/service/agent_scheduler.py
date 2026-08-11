@@ -20,7 +20,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 from datetime import datetime
 
 from src.service.agent_startup import AgentStartupConfig
@@ -45,6 +45,7 @@ class DeploymentRecord:
         namespace: Optional[str] = None,
         k8s_deployment_name: Optional[str] = None,
         status: str = "deploying",
+        error_message: Optional[str] = None,
     ):
         """初始化一条部署记录，记录调度输入、运行状态和 Kubernetes 资源名。"""
         self.deployment_id = deployment_id
@@ -59,6 +60,7 @@ class DeploymentRecord:
         self.namespace = namespace
         self.k8s_deployment_name = k8s_deployment_name
         self.status = status  # deploying | running | stopping | stopped | failed
+        self.error_message = error_message
         self.created_at = datetime.utcnow().isoformat()
         self.updated_at = self.created_at
 
@@ -77,6 +79,7 @@ class DeploymentRecord:
             "namespace": self.namespace,
             "k8s_deployment_name": self.k8s_deployment_name,
             "status": self.status,
+            "error_message": self.error_message,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -504,8 +507,175 @@ class AgentScheduler:
             logger.warning("[ASD] 查询 Kubernetes 节点失败，跳过 nodeSelector: node_id=%s, error=%s", node_id, exc)
             return {}
 
-    def _deploy_kubernetes(self, record: DeploymentRecord, capability: str) -> DeploymentRecord:
-        """用 Kubernetes Deployment/Service 启动 Agent，并注册到 ARDC。"""
+    @staticmethod
+    def _pod_failure_reason(pod) -> Optional[str]:
+        """返回 Pod 已确定无法就绪的原因；尚在正常启动时返回 None。"""
+        status = getattr(pod, "status", None)
+        pod_name = getattr(getattr(pod, "metadata", None), "name", "unknown")
+        if getattr(status, "phase", None) == "Failed":
+            reason = getattr(status, "reason", None) or "PodFailed"
+            message = getattr(status, "message", None) or ""
+            detail = f"pod={pod_name}, reason={reason}"
+            return f"{detail}, message={message}" if message else detail
+
+        for condition in getattr(status, "conditions", None) or []:
+            if (
+                getattr(condition, "type", None) == "PodScheduled"
+                and getattr(condition, "status", None) == "False"
+                and getattr(condition, "reason", None) == "Unschedulable"
+            ):
+                return (
+                    f"pod={pod_name}, reason=Unschedulable, "
+                    f"message={getattr(condition, 'message', '')}"
+                )
+
+        image_failure_reasons = {
+            "ErrImagePull",
+            "ImagePullBackOff",
+            "InvalidImageName",
+            "RegistryUnavailable",
+        }
+        statuses = (getattr(status, "init_container_statuses", None) or []) + (
+            getattr(status, "container_statuses", None) or []
+        )
+        for container_status in statuses:
+            waiting = getattr(getattr(container_status, "state", None), "waiting", None)
+            reason = getattr(waiting, "reason", None)
+            if reason in image_failure_reasons:
+                return (
+                    f"pod={pod_name}, container={getattr(container_status, 'name', 'unknown')}, "
+                    f"reason={reason}, message={getattr(waiting, 'message', '')}"
+                )
+        return None
+
+    @staticmethod
+    def _pod_is_running_ready(pod) -> bool:
+        """判断 Pod 是否同时处于 Running 且 Ready。"""
+        status = getattr(pod, "status", None)
+        if getattr(status, "phase", None) != "Running":
+            return False
+        return any(
+            getattr(condition, "type", None) == "Ready"
+            and getattr(condition, "status", None) == "True"
+            for condition in (getattr(status, "conditions", None) or [])
+        )
+
+    @staticmethod
+    def _format_pod_diagnostics(
+        core,
+        namespace: str,
+        pods: List,
+        deployment_name: Optional[str] = None,
+    ) -> str:
+        """汇总 Pod conditions 和 Kubernetes Events，用于超时错误返回。"""
+        diagnostics: List[str] = []
+        for pod in pods:
+            metadata = getattr(pod, "metadata", None)
+            status = getattr(pod, "status", None)
+            pod_name = getattr(metadata, "name", "unknown")
+            conditions = []
+            for condition in getattr(status, "conditions", None) or []:
+                conditions.append(
+                    f"{getattr(condition, 'type', 'Unknown')}="
+                    f"{getattr(condition, 'status', 'Unknown')}"
+                    f"({getattr(condition, 'reason', '')}:"
+                    f"{getattr(condition, 'message', '')})"
+                )
+            diagnostics.append(
+                f"pod={pod_name}, phase={getattr(status, 'phase', 'Unknown')}, "
+                f"conditions=[{' | '.join(conditions)}]"
+            )
+            try:
+                events = core.list_namespaced_event(
+                    namespace=namespace,
+                    field_selector=f"involvedObject.kind=Pod,involvedObject.name={pod_name}",
+                ).items
+                for event in events[-10:]:
+                    diagnostics.append(
+                        f"event[{getattr(event, 'type', 'Unknown')}/"
+                        f"{getattr(event, 'reason', 'Unknown')}]: "
+                        f"{getattr(event, 'message', '')}"
+                    )
+            except Exception as exc:
+                diagnostics.append(f"pod={pod_name}, events_query_error={exc}")
+        if not pods and deployment_name:
+            try:
+                events = core.list_namespaced_event(
+                    namespace=namespace,
+                    field_selector=(
+                        "involvedObject.kind=Deployment,"
+                        f"involvedObject.name={deployment_name}"
+                    ),
+                ).items
+                for event in events[-10:]:
+                    diagnostics.append(
+                        f"deployment_event[{getattr(event, 'type', 'Unknown')}/"
+                        f"{getattr(event, 'reason', 'Unknown')}]: "
+                        f"{getattr(event, 'message', '')}"
+                    )
+            except Exception as exc:
+                diagnostics.append(f"deployment_events_query_error={exc}")
+        return "; ".join(diagnostics) if diagnostics else "no Pod created and no event found"
+
+    def _wait_for_kubernetes_ready(
+        self,
+        core,
+        namespace: str,
+        deployment_name: str,
+        replicas: int,
+    ) -> tuple[bool, str]:
+        """等待 Deployment 的期望 Pod 全部 Running/Ready。"""
+        timeout = max(1.0, float(os.getenv("K8S_DEPLOY_READY_TIMEOUT", "120")))
+        poll_interval = max(0.2, float(os.getenv("K8S_DEPLOY_POLL_INTERVAL", "2")))
+        deadline = time.monotonic() + timeout
+        last_pods: List = []
+        label_selector = f"app={deployment_name}"
+
+        while time.monotonic() < deadline:
+            try:
+                last_pods = core.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=label_selector,
+                ).items
+            except Exception as exc:
+                return False, f"Kubernetes Pod 状态查询失败: {exc}"
+
+            for pod in last_pods:
+                failure = self._pod_failure_reason(pod)
+                if failure:
+                    diagnostics = self._format_pod_diagnostics(core, namespace, [pod])
+                    return False, f"Kubernetes Pod 启动失败: {failure}; {diagnostics}"
+
+            active_pods = [
+                pod
+                for pod in last_pods
+                if getattr(getattr(pod, "metadata", None), "deletion_timestamp", None)
+                is None
+            ]
+            ready_count = sum(self._pod_is_running_ready(pod) for pod in active_pods)
+            if ready_count >= replicas:
+                return True, ""
+            time.sleep(poll_interval)
+
+        diagnostics = self._format_pod_diagnostics(
+            core,
+            namespace,
+            last_pods,
+            deployment_name=deployment_name,
+        )
+        return (
+            False,
+            f"Kubernetes Pod 就绪超时({timeout:g}s): "
+            f"deployment={deployment_name}; {diagnostics}",
+        )
+
+    def _deploy_kubernetes(
+        self,
+        record: DeploymentRecord,
+        capability: str,
+        on_submitted: Optional[Callable[[], None]] = None,
+    ) -> DeploymentRecord:
+        """提交 Kubernetes Deployment/Service，然后等待 Pod 就绪并注册 ARDC。"""
         self._load_kube_config()
         from kubernetes import client
         from kubernetes.client.rest import ApiException
@@ -581,6 +751,14 @@ class AgentScheduler:
                 raise
             apps.patch_namespaced_deployment(name=deployment_name, namespace=namespace, body=deployment_body)
 
+        # Deployment 已被 Kubernetes API 接受，Pod requests 开始由 K8s 资源视图接管。
+        # 在等待 Pod Ready 之前撤销 RRDC 的提交前短期预留，避免重复扣减。
+        if on_submitted is not None:
+            try:
+                on_submitted()
+            except Exception as exc:
+                logger.warning("[ASD] Deployment 提交回调执行失败: %s", exc)
+
         try:
             core.create_namespaced_service(namespace=namespace, body=service_body)
         except ApiException as exc:
@@ -588,7 +766,21 @@ class AgentScheduler:
                 raise
             core.patch_namespaced_service(name=deployment_name, namespace=namespace, body=service_body)
 
+        ready, error_message = self._wait_for_kubernetes_ready(
+            core,
+            namespace,
+            deployment_name,
+            record.replicas,
+        )
+        if not ready:
+            record.status = "failed"
+            record.error_message = error_message
+            record.updated_at = datetime.utcnow().isoformat()
+            logger.error("[ASD] Kubernetes 部署未就绪: %s", error_message)
+            return record
+
         record.status = "running"
+        record.error_message = None
         record.updated_at = datetime.utcnow().isoformat()
         self._register_to_ardc(record.agent_id, record.node_id, port=service_port, capability=capability)
         return record
@@ -606,6 +798,7 @@ class AgentScheduler:
         memory_mb: int = 512,
         gpu_count: int = 0,
         replicas: int = 1,
+        on_kubernetes_submitted: Optional[Callable[[], None]] = None,
     ) -> DeploymentRecord:
         """
         部署一个 Agent 实例
@@ -624,6 +817,7 @@ class AgentScheduler:
             memory_mb:  内存分配（MB）
             gpu_count:  GPU 数量
             replicas:   Kubernetes 后端副本数
+            on_kubernetes_submitted: Deployment 被 K8s API 接受后、等待 Ready 前的回调
 
         Returns:
             DeploymentRecord
@@ -659,9 +853,14 @@ class AgentScheduler:
         if self.deploy_backend == "kubernetes":
             capability = self._capability_from_image(image_id)
             try:
-                return self._deploy_kubernetes(record, capability)
+                return self._deploy_kubernetes(
+                    record,
+                    capability,
+                    on_submitted=on_kubernetes_submitted,
+                )
             except Exception as exc:
                 record.status = "failed"
+                record.error_message = str(exc)
                 record.updated_at = datetime.utcnow().isoformat()
                 logger.error(f"[ASD] Kubernetes 部署失败: agent_id={agent_id}, error={exc}")
                 return record
