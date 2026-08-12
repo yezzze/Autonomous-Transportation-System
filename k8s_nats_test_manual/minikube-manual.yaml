@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-nats-test-manual
+  labels:
+    app: k8s-nats-test-manual
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-nats-test-manual
+  template:
+    metadata:
+      labels:
+        app: k8s-nats-test-manual
+    spec:
+      containers:
+      - name: app
+        image: k8s-nats-test-manual:0.1.5
+        imagePullPolicy: Never
+        command: ["sleep", "infinity"]
+        env:
+        - name: NATS_SERVERS
+          value: nats://nats:4222
+        # 工作流路由使用的集群标识；需与发送方使用的 target_cluster 一致。
+        - name: CLUSTER_ID
+          value: edge-c
+        # Agent 逻辑标识；同一种 Agent 的所有副本应使用相同值。
+        - name: AGENT_ID
+          value: k8s-nats-test
+        # 每个 Pod 使用独立实例标识，从而创建独享的 WF_<instance-id> Stream。
+        - name: AGENT_INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid

@@ -5,7 +5,7 @@ from runtime_api import NatsComm
 
 
 async def main():
-    comm = NatsComm()
+    comm = await NatsComm.create()
     try:
         while True:
             subject = input("subject: ").strip()
