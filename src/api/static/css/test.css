@@ -26,6 +26,12 @@
   font-size: 12px;
 }
 
+.test-instance-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .test-call-row:hover {
   background: transparent;
 }

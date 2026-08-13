@@ -12,6 +12,7 @@
 """
 import asyncio
 import logging
+import uuid
 from typing import Dict, List, Optional
 
 from src.runtime.models import AgentInstance, ResourceConfig
@@ -67,7 +68,14 @@ class AgentLifecycleManager:
             AgentInstance
         """
         rc = resource_config or ResourceConfig()
-        instance = AgentInstance.create(agent_id=agent_id, image_id=image_id, resource_config=rc)
+        # 仅用于 Kubernetes 接管前的资源预留，不作为最终实例 ID。
+        reservation_id = f"reservation_{uuid.uuid4().hex}"
+        instance = AgentInstance.create(
+            instance_id=reservation_id,
+            agent_id=agent_id,
+            image_id=image_id,
+            resource_config=rc,
+        )
 
         # 1. 向 RRDC 申请资源
         resources_reserved = self._allocate_resources(instance)
@@ -117,6 +125,37 @@ class AgentLifecycleManager:
                 f"error={instance.error_message}"
             )
             return instance
+
+        # Kubernetes 使用 Pod UID；其他后端使用 ASD deployment_id。
+        # 用运行时 ID 替换资源预留标识，并同步维护两个内存索引。
+        if getattr(deployment, "backend", None) == "kubernetes":
+            runtime_instance_id = getattr(deployment, "k8s_pod_uid", None)
+            if not runtime_instance_id:
+                instance.set_status("error")
+                instance.error_message = "Kubernetes 部署结果缺少 Pod UID"
+                return instance
+            instance.pod_name = getattr(deployment, "k8s_pod_name", None)
+            if not instance.pod_name:
+                instance.set_status("error")
+                instance.error_message = "Kubernetes 部署结果缺少 Pod 名称"
+                return instance
+        else:
+            runtime_instance_id = getattr(deployment, "deployment_id", None)
+            if not runtime_instance_id:
+                instance.set_status("error")
+                instance.error_message = "ASD 部署结果缺少 deployment_id"
+                return instance
+
+        old_instance_id = instance.instance_id
+        if runtime_instance_id != old_instance_id:
+            self._instances.pop(old_instance_id, None)
+            instance.instance_id = runtime_instance_id
+            self._instances[runtime_instance_id] = instance
+            agent_instances = self._agent_index.get(agent_id, [])
+            try:
+                agent_instances[agent_instances.index(old_instance_id)] = runtime_instance_id
+            except ValueError:
+                agent_instances.append(runtime_instance_id)
 
         instance.set_status("running")
 
@@ -314,13 +353,11 @@ class AgentLifecycleManager:
 
     def _call_asd_shutdown(self, instance: AgentInstance):
         """调用 ASD 关闭实例"""
-        try:
-            from src.service.agent_scheduler import get_agent_scheduler
+        from src.service.agent_scheduler import get_agent_scheduler
 
-            scheduler = get_agent_scheduler()
-            scheduler.shutdown_agent(instance.agent_id)
-        except Exception as e:
-            logger.warning(f"[ALCM→ASD] 关闭调用异常（非关键）: {e}")
+        scheduler = get_agent_scheduler()
+        if not scheduler.shutdown_instance(instance.instance_id):
+            raise RuntimeError(f"ASD 中不存在实例 {instance.instance_id}")
 
     def _idle_shutdown(self, instance: AgentInstance):
         """引用计数归零时的空闲关闭（非强制）"""
@@ -331,7 +368,13 @@ class AgentLifecycleManager:
         instance.set_status("stopping")
 
         # 调用 ASD 停止容器
-        self._call_asd_shutdown(instance)
+        try:
+            self._call_asd_shutdown(instance)
+        except Exception as exc:
+            instance.set_status("error")
+            instance.error_message = f"实例停止失败: {exc}"
+            logger.error("[ALCM] %s", instance.error_message)
+            return False
 
         # 标记已停止
         instance.set_status("stopped")

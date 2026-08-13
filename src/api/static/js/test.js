@@ -258,7 +258,37 @@ function renderInstances(instances) {
     call.setAttribute('aria-expanded', 'false');
     if (call.disabled) call.title = '仅运行中的实例可以调用';
     call.addEventListener('click', () => openCallPanel(instance, row, call));
-    operation.appendChild(call);
+    const stop = document.createElement('button');
+    stop.className = 'btn btn-danger btn-sm instance-stop-button';
+    stop.type = 'button';
+    stop.textContent = '停止';
+    stop.disabled = !['running', 'error'].includes(instance.status);
+    if (stop.disabled) stop.title = '该实例已停止或正在停止';
+    stop.addEventListener('click', async () => {
+      if (!window.confirm(`确定停止实例 ${instance.instance_id}？对应 Pod 和 Service 将被删除。`)) return;
+      closeCallPanel();
+      stop.disabled = true;
+      call.disabled = true;
+      stop.textContent = '停止中...';
+      clearAlert();
+      try {
+        const response = await fetch(
+          `${API}/api/agents/instances/${encodeURIComponent(instance.instance_id)}`,
+          {method: 'DELETE'},
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+        await loadInstances();
+        showAlert('success', `实例 ${instance.instance_id} 已停止，Pod 和 Service 已删除。`);
+      } catch (error) {
+        showAlert('error', `停止 Agent 实例失败：${error.message}`);
+        stop.disabled = false;
+        call.disabled = instance.status !== 'running';
+        stop.textContent = '停止';
+      }
+    });
+    operation.className = 'test-instance-actions';
+    operation.append(call, stop);
     row.append(name, status, instanceId, operation);
     body.appendChild(row);
   });

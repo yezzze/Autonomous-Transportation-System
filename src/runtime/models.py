@@ -8,7 +8,6 @@
 """
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -47,6 +46,7 @@ class AgentInstance:
     instance_id: str
     agent_id: str
     image_id: str
+    pod_name: Optional[str] = None
     status: str = "deploying"       # deploying | running | stopping | stopped | error
     error_message: Optional[str] = None
     ref_count: int = 0              # 工作流订阅引用计数
@@ -59,11 +59,11 @@ class AgentInstance:
     @classmethod
     def create(
         cls,
+        instance_id: str,
         agent_id: str,
         image_id: str,
         resource_config: Optional[ResourceConfig] = None,
     ) -> "AgentInstance":
-        instance_id = f"inst_{agent_id}_{uuid.uuid4().hex[:6]}"
         return cls(
             instance_id=instance_id,
             agent_id=agent_id,
@@ -93,6 +93,7 @@ class AgentInstance:
     def to_dict(self) -> Dict:
         return {
             "instance_id": self.instance_id,
+            "pod_name": self.pod_name,
             "agent_id": self.agent_id,
             "image_id": self.image_id,
             "status": self.status,

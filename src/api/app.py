@@ -1503,6 +1503,23 @@ async def get_agent_instance(instance_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.delete("/api/agents/instances/{instance_id}", summary="停止 Agent 实例")
+async def stop_agent_instance(instance_id: str):
+    """强制停止指定实例；Kubernetes 后端同时删除 Deployment、Pod 和 Service。"""
+    from src.runtime.lifecycle_manager import get_lifecycle_manager
+
+    manager = get_lifecycle_manager()
+    instance = manager.get_instance(instance_id)
+    if instance is None:
+        raise HTTPException(status_code=404, detail=f"实例 {instance_id} 不存在")
+    if instance.status == "stopped":
+        return {"instance_id": instance_id, "status": "stopped", "message": "实例已停止"}
+    if not manager.shutdown_agent(instance_id, force=True):
+        detail = instance.error_message or f"实例 {instance_id} 停止失败"
+        raise HTTPException(status_code=500, detail=detail)
+    return {"instance_id": instance_id, "status": "stopped", "message": "停止成功"}
+
+
 @app.post("/tests/call", summary="测试调用运行中的 Agent 实例")
 async def test_call_agent(request: _AgentTestCallRequest):
     """校验运行实例并通过其 Agent ID 发起一次标准 A2A 调用。"""

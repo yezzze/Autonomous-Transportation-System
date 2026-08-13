@@ -44,6 +44,8 @@ class DeploymentRecord:
         backend: str = "subprocess",
         namespace: Optional[str] = None,
         k8s_deployment_name: Optional[str] = None,
+        k8s_pod_name: Optional[str] = None,
+        k8s_pod_uid: Optional[str] = None,
         status: str = "deploying",
         error_message: Optional[str] = None,
     ):
@@ -59,6 +61,8 @@ class DeploymentRecord:
         self.backend = backend
         self.namespace = namespace
         self.k8s_deployment_name = k8s_deployment_name
+        self.k8s_pod_name = k8s_pod_name
+        self.k8s_pod_uid = k8s_pod_uid
         self.status = status  # deploying | running | stopping | stopped | failed
         self.error_message = error_message
         self.created_at = datetime.utcnow().isoformat()
@@ -78,6 +82,8 @@ class DeploymentRecord:
             "backend": self.backend,
             "namespace": self.namespace,
             "k8s_deployment_name": self.k8s_deployment_name,
+            "k8s_pod_name": self.k8s_pod_name,
+            "k8s_pod_uid": self.k8s_pod_uid,
             "status": self.status,
             "error_message": self.error_message,
             "created_at": self.created_at,
@@ -370,9 +376,9 @@ class AgentScheduler:
             ports[0].setdefault("name", service_port_name)
 
         env = container.setdefault("env", [])
-        self._upsert_env_var(env, "AGENT_ID", record.agent_id)
-        self._upsert_env_var(env, "AGENT_CAPABILITY", capability)
-        self._upsert_agent_nats_env(env)
+        # self._upsert_env_var(env, "AGENT_ID", record.agent_id)
+        # self._upsert_env_var(env, "AGENT_CAPABILITY", capability)
+        # self._upsert_agent_nats_env(env)
 
         container["resources"] = self._resource_requirements(
             record.cpu_cores,
@@ -820,6 +826,34 @@ class AgentScheduler:
             logger.error("[ASD] Kubernetes 部署未就绪: %s", error_message)
             return record
 
+        # ALCM 使用 Kubernetes 为实际运行 Pod 分配的 UID 作为实例 ID。
+        # UID 在 Pod 生命周期内稳定，并且即使 Pod 名称被复用也不会冲突。
+        pods = core.list_namespaced_pod(
+            namespace=namespace,
+            label_selector=f"app={deployment_name}",
+        ).items
+        ready_pods = [
+            pod for pod in pods
+            if getattr(getattr(pod, "metadata", None), "deletion_timestamp", None) is None
+            and self._pod_is_running_ready(pod)
+        ]
+        if not ready_pods:
+            record.status = "failed"
+            record.error_message = "Kubernetes Pod 已就绪但无法读取实例元数据"
+            record.updated_at = datetime.utcnow().isoformat()
+            return record
+        pod = sorted(
+            ready_pods,
+            key=lambda item: getattr(getattr(item, "metadata", None), "name", ""),
+        )[0]
+        record.k8s_pod_name = getattr(pod.metadata, "name", None)
+        record.k8s_pod_uid = getattr(pod.metadata, "uid", None)
+        if not record.k8s_pod_uid:
+            record.status = "failed"
+            record.error_message = "Kubernetes Pod 元数据中缺少 UID"
+            record.updated_at = datetime.utcnow().isoformat()
+            return record
+
         record.status = "running"
         record.error_message = None
         record.updated_at = datetime.utcnow().isoformat()
@@ -1084,29 +1118,76 @@ class AgentScheduler:
         logger.info(f"[ASD] ✅ 关闭成功: agent_id={agent_id}")
         return True
 
-    def _delete_kubernetes_workload(self, record: DeploymentRecord) -> None:
-        """删除 Kubernetes 后端创建的 Agent Deployment/Service；清理失败只记录警告。"""
-        try:
-            from kubernetes import client
-            from kubernetes.client.rest import ApiException
+    def shutdown_instance(self, instance_id: str) -> bool:
+        """按运行实例 ID 精确停止一个部署，并清理其 Kubernetes 工作负载。"""
+        record = next(
+            (
+                rec
+                for rec in self._deployments.values()
+                if rec.deployment_id == instance_id or rec.k8s_pod_uid == instance_id
+            ),
+            None,
+        )
+        if record is None:
+            logger.warning("[ASD] shutdown_instance: instance_id=%s 未找到", instance_id)
+            return False
+        if record.status == "stopped":
+            return True
 
-            self._load_kube_config()
-            namespace = record.namespace or self.k8s_namespace
-            name = record.k8s_deployment_name
-            apps = client.AppsV1Api()
-            core = client.CoreV1Api()
-            try:
-                apps.delete_namespaced_deployment(name=name, namespace=namespace)
-            except ApiException as exc:
-                if exc.status != 404:
-                    raise
-            try:
-                core.delete_namespaced_service(name=name, namespace=namespace)
-            except ApiException as exc:
-                if exc.status != 404:
-                    raise
-        except Exception as exc:
-            logger.warning(f"[ASD] Kubernetes 清理失败（非关键）: {exc}")
+        if record.backend == "kubernetes" and record.k8s_deployment_name:
+            self._delete_kubernetes_workload(record)
+
+        record.status = "stopped"
+        record.updated_at = datetime.utcnow().isoformat()
+
+        # subprocess 后端仍以 agent_id 管理单个进程。
+        if record.backend != "kubernetes":
+            proc = self._processes.pop(record.agent_id, None)
+            if proc is not None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                self._agent_ports.pop(record.agent_id, None)
+
+        remaining = any(
+            rec.status == "running" and rec.agent_id == record.agent_id
+            for rec in self._deployments.values()
+        )
+        if not remaining:
+            self._deregister_from_ardc(record.agent_id)
+        logger.info(
+            "[ASD] ✅ 实例关闭成功: instance_id=%s, deployment_id=%s",
+            instance_id,
+            record.deployment_id,
+        )
+        return True
+
+    def _delete_kubernetes_workload(self, record: DeploymentRecord) -> None:
+        """删除 Kubernetes 后端创建的 Agent Deployment 与 Service。"""
+        from kubernetes import client
+        from kubernetes.client.rest import ApiException
+
+        self._load_kube_config()
+        namespace = record.namespace or self.k8s_namespace
+        name = record.k8s_deployment_name
+        apps = client.AppsV1Api()
+        core = client.CoreV1Api()
+        errors = []
+        try:
+            apps.delete_namespaced_deployment(name=name, namespace=namespace)
+        except ApiException as exc:
+            if exc.status != 404:
+                errors.append(f"Deployment 删除失败: {exc}")
+        try:
+            core.delete_namespaced_service(name=name, namespace=namespace)
+        except ApiException as exc:
+            if exc.status != 404:
+                errors.append(f"Service 删除失败: {exc}")
+        if errors:
+            raise RuntimeError("; ".join(errors))
 
     def health_check(self, agent_id: str) -> Dict:
         """
