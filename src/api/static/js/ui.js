@@ -867,7 +867,7 @@ async function loadResources() {
       const cpuPct = cpuTotal ? (cpuAvailable / cpuTotal * 100) : 0;
       const memPct = memTotal ? (memAvailable / memTotal * 100) : 0;
       return `<tr>
-        <td><strong>${escHtml(n.node_id)}</strong></td>
+        <td><strong>${escHtml(n.display_name || n.node_id)}</strong></td>
         <td style="font-family:monospace;font-size:12px">${n.ip||'—'}</td>
         <td>${n.node_type||'—'}</td>
         <td>

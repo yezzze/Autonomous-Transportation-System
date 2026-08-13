@@ -305,6 +305,7 @@ class AgentRegistryClient:
         peer_url: str,
         agents: List[AgentInfo],
         sub_workflows: Optional[List[SubWorkflowInfo]] = None,
+        resources: Optional[List[Dict[str, Any]]] = None,
     ) -> int:
         """
         接收来自 peer 节点的 agent 列表和子工作流列表，更新内部 peer 缓存。
@@ -313,6 +314,7 @@ class AgentRegistryClient:
             peer_url:       来源节点 URL
             agents:         该节点的 online agent 列表
             sub_workflows:  该节点的 online 子工作流列表（可选，向后兼容）
+            resources:      该节点的 Kubernetes 资源快照（可选，向后兼容）
 
         Returns:
             合并后 peer agents 数量
@@ -337,6 +339,10 @@ class AgentRegistryClient:
             logger.info(
                 f"[ARDC Gossip] 收到来自 {peer_url} 的同步，{len(agents)} 个 agents"
             )
+        if resources is not None:
+            from src.service.resource_registry import get_resource_registry
+
+            get_resource_registry().sync_peer_resources(peer_url, resources)
         return sum(len(v) for v in self._peer_agents.values())
 
     def prune_stale_peers(self, ttl_seconds: int = 120):
@@ -355,6 +361,9 @@ class AgentRegistryClient:
             del self._peer_agents[url]
             del self._peer_last_seen[url]
             self._peer_sub_workflows.pop(url, None)
+            from src.service.resource_registry import get_resource_registry
+
+            get_resource_registry().remove_peer_resources(url)
             logger.info(f"[ARDC Gossip] 清理过期 peer: {url}")
 
     def _build_gossip_agents(self, local_url: str) -> List[AgentInfo]:
@@ -390,6 +399,11 @@ class AgentRegistryClient:
         """
         import httpx
         gossip_agents = self._build_gossip_agents(local_url)
+        from src.service.resource_registry import get_resource_registry
+
+        resource_registry = get_resource_registry()
+        await asyncio.to_thread(resource_registry.refresh_from_kubernetes)
+        resources = [node.to_dict() for node in resource_registry.get_all_nodes()]
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(
@@ -398,6 +412,7 @@ class AgentRegistryClient:
                         "source_url": local_url,
                         "agents": gossip_agents,
                         "sub_workflows": self.get_local_sub_workflows(),
+                        "resources": resources,
                     },
                 )
                 resp.raise_for_status()

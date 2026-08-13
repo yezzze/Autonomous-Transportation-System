@@ -30,6 +30,10 @@ class ResourceInfo:
     # 内存
     mem_total_mb: int       # 总内存 (MB)
     mem_available_mb: int   # 可用内存 (MB)
+    # 展示名称；调度仍使用不可变的 Kubernetes node_id
+    display_name: str = ""
+    source_url: str = ""
+    is_local: bool = True
     # GPU（可选）
     gpu_count: int = 0
     gpu_available: int = 0
@@ -37,6 +41,10 @@ class ResourceInfo:
     tags: List[str] = field(default_factory=list)
     status: str = "online"  # "online" | "offline" | "degraded"
     last_heartbeat: str = ""
+
+    def __post_init__(self):
+        if not self.display_name:
+            self.display_name = self.node_id
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -70,6 +78,8 @@ class ResourceRegistry:
     def __init__(self):
         # node_id → ResourceInfo
         self._nodes: Dict[str, ResourceInfo] = {}
+        # peer URL → 该 peer 最近一次 Gossip 推送的资源快照
+        self._peer_nodes: Dict[str, List[ResourceInfo]] = {}
         # reservation_id → 部署提交前的短期资源预留
         self._reservations: Dict[str, Dict] = {}
         self._lock = threading.RLock()
@@ -279,10 +289,12 @@ class ResourceRegistry:
             )
             labels = getattr(metadata, "labels", None) or {}
             node_type = labels.get("node-type", labels.get("node_type", "cloud"))
+            display_name = labels.get("ats.local/display-name", node_name)
 
             resources.append(
                 ResourceInfo(
                     node_id=node_name,
+                    display_name=display_name,
                     node_type=node_type,
                     ip=ip,
                     cpu_total=cpu_total,
@@ -395,6 +407,40 @@ class ResourceRegistry:
         """获取所有节点"""
         with self._lock:
             return list(self._nodes.values())
+
+    def sync_peer_resources(self, peer_url: str, resources: List[Dict]) -> int:
+        """保存 peer 推送的资源快照；这些节点仅供展示，不参与本地调度。"""
+        fields = set(ResourceInfo.__dataclass_fields__)
+        peer_nodes: List[ResourceInfo] = []
+        for item in resources:
+            data = {key: value for key, value in item.items() if key in fields}
+            if not data.get("node_id"):
+                continue
+            data["source_url"] = peer_url
+            data["is_local"] = False
+            try:
+                peer_nodes.append(ResourceInfo(**data))
+            except (TypeError, ValueError) as exc:
+                logger.warning("[RRDC] 忽略无效 peer 资源: peer=%s error=%s", peer_url, exc)
+        with self._lock:
+            self._peer_nodes[peer_url] = peer_nodes
+        return len(peer_nodes)
+
+    def remove_peer_resources(self, peer_url: str) -> None:
+        with self._lock:
+            self._peer_nodes.pop(peer_url, None)
+
+    def get_all_nodes_with_peers(self) -> List[ResourceInfo]:
+        """返回本地和 peer 节点；同一来源内按 node_id 去重，本地节点优先。"""
+        with self._lock:
+            merged = {
+                f"{peer_url}:{node.node_id}": node
+                for peer_url, nodes in self._peer_nodes.items()
+                for node in nodes
+            }
+            for node in self._nodes.values():
+                merged[f"local:{node.node_id}"] = node
+            return list(merged.values())
 
     # ------------------------------------------------------------------
     # 资源分配/释放
@@ -523,10 +569,9 @@ class ResourceRegistry:
     # 统计接口
     # ------------------------------------------------------------------
 
-    def get_summary(self) -> Dict:
+    def get_summary(self, include_peers: bool = False) -> Dict:
         """返回整体资源使用情况"""
-        with self._lock:
-            nodes = list(self._nodes.values())
+        nodes = self.get_all_nodes_with_peers() if include_peers else self.get_all_nodes()
         total_cpu = sum(n.cpu_total for n in nodes)
         avail_cpu = sum(n.cpu_available for n in nodes)
         total_mem = sum(n.mem_total_mb for n in nodes)

@@ -76,6 +76,7 @@ class _RegistrySyncRequest(BaseModel):
     source_url: str
     agents: list
     sub_workflows: list = []  # 子工作流列表（可选，向后兼容）
+    resources: list = []  # 本地 Kubernetes 节点资源快照（可选，向后兼容）
 
 
 class _DispatchRequest(BaseModel):
@@ -464,19 +465,21 @@ def _validate_and_build_workflow(subtask: Dict[str, Any]) -> tuple[bool, str, Li
 
 @app.post("/registry/sync", summary="ARDC Gossip 接收 peer 推送")
 async def registry_sync(req: _RegistrySyncRequest):
-    """接收来自 peer 节点的 agent 列表和子工作流列表，合并到本节点注册表"""
+    """接收 peer 的 Agent、子工作流和资源快照，合并到本节点内存缓存。"""
     from src.service.agent_registry import get_registry_client
     registry = get_registry_client()
     merged_count = registry.sync_from_peer(
         req.source_url,
         req.agents,
         sub_workflows=req.sub_workflows or None,
+        resources=req.resources,
     )
     return {
         "status": "ok",
         "source_url": req.source_url,
         "received_agents": len(req.agents),
         "received_sub_workflows": len(req.sub_workflows),
+        "received_resources": len(req.resources),
         "merged_count": merged_count,
     }
 
@@ -1653,13 +1656,16 @@ async def query_resources(
         registry = get_resource_registry()
         # Kubernetes Python 客户端是同步的，放入线程避免阻塞 FastAPI 事件循环。
         await asyncio.to_thread(registry.refresh_from_kubernetes)
-        nodes = registry.query_available_resources(
-            min_cpu=min_cpu,
-            min_mem_mb=min_mem_mb,
-            node_type=node_type,
-        )
+        nodes = [
+            node for node in registry.get_all_nodes_with_peers()
+            if node.status == "online"
+            and node.cpu_available >= min_cpu
+            and node.mem_available_mb >= min_mem_mb
+            and (not node_type or node.node_type == node_type)
+        ]
+        nodes.sort(key=lambda node: node.cpu_available, reverse=True)
         return {
-            "summary": registry.get_summary(),
+            "summary": registry.get_summary(include_peers=True),
             "nodes": [n.to_dict() for n in nodes],
         }
     except Exception as e:
