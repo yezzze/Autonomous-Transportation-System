@@ -507,6 +507,47 @@ class AgentScheduler:
             logger.warning("[ASD] 查询 Kubernetes 节点失败，跳过 nodeSelector: node_id=%s, error=%s", node_id, exc)
             return {}
 
+    def _kubernetes_service_registration_endpoint(
+        self,
+        core,
+        namespace: str,
+        service_name: str,
+        node_id: str,
+    ) -> tuple[str, int]:
+        """读取实际 Service，解析写入 ARDC 的访问地址。"""
+        service = core.read_namespaced_service(
+            name=service_name,
+            namespace=namespace,
+        )
+        service_ports = getattr(getattr(service, "spec", None), "ports", None) or []
+        if not service_ports:
+            raise RuntimeError(f"Kubernetes Service {service_name} 未配置端口")
+
+        service_port = service_ports[0]
+        service_type = getattr(service.spec, "type", None) or "ClusterIP"
+        if service_type == "NodePort":
+            register_port = getattr(service_port, "node_port", None)
+            if not register_port:
+                raise RuntimeError(
+                    f"Kubernetes NodePort Service {service_name} 未分配 nodePort"
+                )
+
+            from src.service.resource_registry import get_resource_registry
+
+            node = get_resource_registry().get_node(node_id)
+            if not node or not node.ip:
+                raise RuntimeError(f"无法解析 Kubernetes 节点 {node_id} 的访问 IP")
+            register_ip = node.ip
+        else:
+            register_ip = getattr(service.spec, "cluster_ip", None)
+            register_port = getattr(service_port, "port", None)
+            if not register_ip or not register_port:
+                raise RuntimeError(
+                    f"无法解析 Kubernetes Service {service_name} 的 ClusterIP 地址"
+                )
+
+        return str(register_ip), int(register_port)
+
     @staticmethod
     def _pod_failure_reason(pod) -> Optional[str]:
         """返回 Pod 已确定无法就绪的原因；尚在正常启动时返回 None。"""
@@ -782,7 +823,19 @@ class AgentScheduler:
         record.status = "running"
         record.error_message = None
         record.updated_at = datetime.utcnow().isoformat()
-        self._register_to_ardc(record.agent_id, record.node_id, port=service_port, capability=capability)
+        register_ip, register_port = self._kubernetes_service_registration_endpoint(
+            core=core,
+            namespace=namespace,
+            service_name=deployment_name,
+            node_id=record.node_id,
+        )
+        self._register_to_ardc(
+            agent_id=record.agent_id,
+            node_id=record.node_id,
+            ip=register_ip,
+            port=register_port,
+            capability=capability,
+        )
         return record
 
     # ------------------------------------------------------------------
@@ -1165,23 +1218,35 @@ class AgentScheduler:
         node_id: str,
         port: Optional[int] = None,
         capability: Optional[str] = None,
+        ip: Optional[str] = None,
     ):
         """将运行中的 Agent 实例注册到 ARDC，更新 ip/port/status。"""
         try:
             from src.service.agent_registry import get_registry_client
 
             registry = get_registry_client()
+            registered_ip = ip
             if port is not None and capability is not None:
-                ip = self.startup_config.subprocess_host if self.startup_config.is_local_node(node_id) else node_id
+                register_ip = ip or (
+                    self.startup_config.subprocess_host
+                    if self.startup_config.is_local_node(node_id)
+                    else node_id
+                )
+                registered_ip = register_ip
                 registry.register_agent(
                     agent_id=agent_id,
-                    ip=ip,
+                    ip=register_ip,
                     port=port,
                     capability=capability,
                 )
             else:
                 registry.update_agent_status(agent_id, "online")
-            logger.debug(f"[ASD→ARDC] 注册 agent_id={agent_id}, port={port}")
+            logger.debug(
+                "[ASD→ARDC] 注册 agent_id=%s, ip=%s, port=%s",
+                agent_id,
+                registered_ip,
+                port,
+            )
         except Exception as e:
             logger.warning(f"[ASD→ARDC] 注册失败（非关键）: {e}")
 
