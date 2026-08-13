@@ -99,6 +99,15 @@ class _ExecuteSubWorkflowRequest(BaseModel):
     timeout_seconds: int = 60
 
 
+class _AgentTestCallRequest(BaseModel):
+    """测试页面发起的单次 Agent A2A 调用。"""
+
+    instance_id: str = Field(..., min_length=1)
+    task_description: str = Field(..., min_length=1)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
 class _NatsPublishRequest(BaseModel):
     """由编排服务代发 NATS 消息，默认投递到本集群 NATS。"""
     subject: str = Field(..., description="要发布的 NATS subject")
@@ -1494,6 +1503,55 @@ async def get_agent_instance(instance_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/tests/call", summary="测试调用运行中的 Agent 实例")
+async def test_call_agent(request: _AgentTestCallRequest):
+    """校验运行实例并通过其 Agent ID 发起一次标准 A2A 调用。"""
+    from src.runtime.lifecycle_manager import get_lifecycle_manager
+    from src.service.a2a_client import get_global_a2a_client
+    from src.service.agent_registry import get_registry_client
+    from src.service.message_router import get_message_router
+
+    instance = get_lifecycle_manager().get_instance(request.instance_id)
+    if instance is None:
+        raise HTTPException(status_code=404, detail=f"实例 {request.instance_id} 不存在")
+    if instance.status != "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"实例 {request.instance_id} 当前状态为 {instance.status}，无法调用",
+        )
+
+    agent_url = get_message_router().route_direct(instance.agent_id)
+    if not agent_url:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Agent {instance.agent_id} 当前没有可用路由",
+        )
+
+    agent_info = get_registry_client().get_agent_by_id(instance.agent_id) or {}
+    task_id = f"test_{uuid.uuid4().hex}"
+
+    from src.protocols.a2a_protocol import A2ATaskRequest
+
+    task_request = A2ATaskRequest(
+        task_id=task_id,
+        task_type=agent_info.get("capability") or "test",
+        task_description=request.task_description,
+        parameters=request.parameters,
+        metadata=request.metadata,
+    )
+    response = await get_global_a2a_client().send_task_request(agent_url, task_request)
+
+    return {
+        "instance_id": instance.instance_id,
+        "agent_id": instance.agent_id,
+        "task_id": task_id,
+        "status": response.state,
+        "result": response.result,
+        "error_message": response.error_message,
+        "metadata": response.metadata,
+    }
+
+
 @app.get("/api/qos/metrics", summary="获取所有 Agent QoS 指标")
 async def get_qos_metrics():
     """
@@ -1906,6 +1964,12 @@ async def download_agent_package(agent_id: str):
 async def web_ui(request: Request):
     """应用管理层 Web UI 控制台 - 直接使用 Jinja2Templates 渲染"""
     return templates.TemplateResponse(request, "ui.html")
+
+
+@app.get("/test", response_class=HTMLResponse, include_in_schema=False)
+async def agent_test_page(request: Request):
+    """Agent 实例 A2A 调用测试页面。"""
+    return templates.TemplateResponse(request, "test.html")
 
 
 @app.get("/ui/apps/{app_id}", response_class=HTMLResponse, include_in_schema=False)

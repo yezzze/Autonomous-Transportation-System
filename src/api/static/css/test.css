@@ -1,0 +1,145 @@
+.test-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.test-server-status {
+  margin-left: auto;
+  font-size: 13px;
+  opacity: .8;
+}
+
+.test-help {
+  margin-top: 4px;
+  color: #778;
+  font-size: 12px;
+}
+
+.test-table-wrap {
+  overflow-x: auto;
+}
+
+.test-instance-id {
+  color: #667;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.test-call-row:hover {
+  background: transparent;
+}
+
+.test-call-row > td {
+  padding: 0 14px 16px;
+}
+
+.test-call-panel {
+  border: 1px solid #dde5f8;
+  border-radius: 10px;
+  background: #f8faff;
+  padding: 18px;
+}
+
+.test-call-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.test-call-grid .task-field {
+  grid-column: 1 / -1;
+}
+
+.kv-editor {
+  border: 1px solid #e1e6ef;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px;
+}
+
+.kv-editor-header,
+.kv-row {
+  display: grid;
+  grid-template-columns: minmax(120px, .8fr) minmax(180px, 1.2fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.kv-editor-header {
+  margin-bottom: 8px;
+  color: #778;
+  font-size: 12px;
+}
+
+.kv-row + .kv-row {
+  margin-top: 8px;
+}
+
+.kv-row input {
+  width: 100%;
+  border: 1px solid #d0d6e0;
+  border-radius: 6px;
+  background: #fafbfc;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.kv-row input:focus {
+  border-color: #4a6cf7;
+  background: #fff;
+  outline: none;
+}
+
+.kv-add {
+  margin-top: 9px;
+}
+
+.test-call-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.test-call-state {
+  color: #667;
+  font-size: 13px;
+}
+
+.test-result {
+  display: none;
+  margin-top: 14px;
+  border-radius: 8px;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.test-result.show {
+  display: block;
+}
+
+@media (max-width: 760px) {
+  .test-call-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .test-call-grid .task-field {
+    grid-column: auto;
+  }
+
+  .kv-editor-header,
+  .kv-row {
+    grid-template-columns: 1fr;
+  }
+
+  .kv-editor-header {
+    display: none;
+  }
+}

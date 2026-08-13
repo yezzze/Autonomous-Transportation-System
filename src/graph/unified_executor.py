@@ -294,7 +294,8 @@ class UnifiedExecutor:
                 task_id=task["task_id"],
                 task_type=self._infer_task_type(task),
                 task_description=task["task_description"],
-                context={}
+                context={},
+                parameters=task.get("parameters", {}),
             )
 
             # ─── Agent URL 解析（通过 MessageRouter）────────────────

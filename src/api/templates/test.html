@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent 实例测试</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/icon/logo_white.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/test.css') }}">
+</head>
+<body>
+<header>
+  <img src="{{ url_for('static', path='/icon/logo_white.png') }}" alt="logo" class="test-logo">
+  <h1>自主式计算系统</h1>
+  <span class="badge">Agent 测试控制台</span>
+  <span id="server-status" class="test-server-status">● 连接中...</span>
+</header>
+
+<main class="main">
+  <div id="test-alert" class="alert" role="alert"></div>
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" type="button" role="tab" aria-selected="true">
+      Agent 实例测试
+    </button>
+  </div>
+  <section class="tab-panel active" role="tabpanel">
+    <div class="toolbar">
+      <div>
+        <div class="toolbar-title">已启动的 Agent 实例</div>
+        <div class="test-help">选择运行中的实例，填写任务信息后发起标准 A2A 调用。</div>
+      </div>
+      <div class="toolbar-right">
+        <span class="refresh-hint" id="instances-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" id="refresh-instances" type="button">刷新</button>
+      </div>
+    </div>
+
+    <div class="test-table-wrap">
+      <table aria-label="Agent 实例列表">
+        <thead>
+          <tr><th>名称</th><th>状态</th><th>实例 ID</th><th>操作</th></tr>
+        </thead>
+        <tbody id="instances-body">
+          <tr class="empty-row"><td colspan="4">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="{{ url_for('static', path='/js/test.js') }}"></script>
+</body>
+</html>

@@ -51,6 +51,7 @@ class A2ATaskRequest(BaseModel):
     priority: Literal["low", "normal", "high"] = "normal"
     require_stream: bool = False  # 是否需要流式返回
     metadata: dict = Field(default_factory=dict)  # 额外元数据
+    parameters: dict = Field(default_factory=dict)  # 调用智能体时传递的业务参数
 
 
 class A2ATaskResponse(BaseModel):

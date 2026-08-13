@@ -13,6 +13,7 @@ import logging
 import os
 import time
 from typing import Any, AsyncIterator, Optional
+from uuid import uuid4
 
 import httpx
 
@@ -36,6 +37,16 @@ def _model_dump(model) -> dict:
     if hasattr(model, "model_dump"):
         return model.model_dump()
     return model.dict()
+
+
+def _legacy_task_payload(request: A2ATaskRequest) -> dict:
+    """构造兼容旧版 A2ATaskRequest 的 payload。"""
+    payload = _model_dump(request)
+    parameters = payload.pop("parameters", {})
+    metadata = dict(payload.get("metadata") or {})
+    metadata["parameters"] = parameters
+    payload["metadata"] = metadata
+    return payload
 
 
 def _copy_response(response: A2ATaskResponse, metadata: dict) -> A2ATaskResponse:
@@ -84,7 +95,7 @@ class _LegacyA2AClient:
             sender_id=self.sender_id,
             receiver_id=self._extract_agent_id(agent_url),
             message_type="request",
-            payload=_model_dump(request),
+            payload=_legacy_task_payload(request),
         )
 
         logger.info(f"📤 发送旧版 A2A 请求 [{message.message_id[:8]}]: {request.task_description[:50]}...")
@@ -223,8 +234,9 @@ class A2AClient:
     ) -> A2ATaskResponse:
         try:
             from a2a.client import ClientConfig, create_client
-            from a2a.helpers import new_text_message
-            from a2a.types.a2a_pb2 import Role, SendMessageRequest
+            from a2a.types.a2a_pb2 import Message, Part, Role, SendMessageRequest
+            from google.protobuf.json_format import ParseDict
+            from google.protobuf.struct_pb2 import Value
         except Exception as exc:
             raise RuntimeError("a2a-sdk 未安装或无法导入") from exc
 
@@ -242,9 +254,11 @@ class A2AClient:
                 ),
             )
             try:
-                message = new_text_message(
-                    self._standard_message_text(request),
+                data = ParseDict(self._standard_message_data(request), Value())
+                message = Message(
+                    message_id=uuid4().hex,
                     role=Role.ROLE_USER,
+                    parts=[Part(data=data, media_type="application/json")],
                 )
                 send_request = SendMessageRequest(message=message)
                 final_event = None
@@ -257,22 +271,25 @@ class A2AClient:
                 if client and hasattr(client, "close"):
                     await client.close()
 
-    def _standard_message_text(self, request: A2ATaskRequest) -> str:
+    def _standard_message_data(self, request: A2ATaskRequest) -> dict:
         """
-        构造标准 A2A text message。
+        构造标准 A2A data Part 的结构化内容。
 
-        Agent Template 通过 text/plain 中的 JSON metadata 覆盖 NATS subject；
-        metadata 为空时继续发送纯任务描述，保持最小标准 A2A 输入。
+        Agent Template 从 application/json Part 中读取任务描述、元数据和业务参数。
+        三个字段始终发送，以便接收端使用稳定的消息结构。
         """
-        if not request.metadata:
-            return request.task_description
-        return json.dumps(
-            {
-                "task_description": request.task_description,
-                "metadata": request.metadata,
-            },
-            ensure_ascii=False,
-            default=str,
+        # 先经过 JSON 归一化，延续旧 text Part 对非原生 JSON 类型使用 str 的行为，
+        # 再交给 ParseDict 转换为 google.protobuf.Value。
+        return json.loads(
+            json.dumps(
+                {
+                    "task_description": request.task_description,
+                    "metadata": request.metadata,
+                    "parameters": request.parameters,
+                },
+                ensure_ascii=False,
+                default=str,
+            )
         )
 
     def _response_from_a2a_python_event(
@@ -698,7 +715,7 @@ class A2AClient:
             sender_id=self.sender_id,
             receiver_id=self._extract_agent_id(agent_url),
             message_type="request",
-            payload=_model_dump(request),
+            payload=_legacy_task_payload(request),
         )
 
         logger.info(f"📤 启动流式 A2A 请求 [{message.message_id[:8]}]")
