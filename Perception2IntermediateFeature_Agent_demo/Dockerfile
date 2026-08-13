@@ -51,8 +51,7 @@ ENV PYTHONPATH=/app \
     A2A_AGENT_URL=http://localhost:9031 \
     MCP_SERVER_HOST=host.docker.internal \
     MCP_SERVER_PORT=8123 \
-    MODEL_CHECKPOINT_PATH=/app/checkpoints/point_pillar_where2comm/ \
-    FRONTEND_CALLBACK_URL=http://host.docker.internal:9002/temp/post_data
+    MODEL_CHECKPOINT_PATH=/app/checkpoints/point_pillar_where2comm/
 
 EXPOSE 9031
 
