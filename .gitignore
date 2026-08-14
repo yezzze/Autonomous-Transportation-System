@@ -30,6 +30,12 @@ logs/
 **/logs/
 *.tmp
 *.swp
+*.tar
+*.zip
+*.pth
+*.pkl
+*.mp4
+*.png
 
 # Notebook checkpoints
 .ipynb_checkpoints/
