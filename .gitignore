@@ -50,3 +50,4 @@ dist/
 .env.*
 
 .codex
+test_options/*
