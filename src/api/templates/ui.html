@@ -20,8 +20,9 @@
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="apps">📦 应用管理</button>
-    <!-- <button class="tab-btn" data-tab="instances">🖥 Agent 实例</button> -->
-    <button class="tab-btn" data-tab="qos">📊 QoS 监控</button>
+    <button class="tab-btn" data-tab="warehouse">🏬 智能体仓库</button>
+    <button class="tab-btn" data-tab="discovery">🔎 智能体发现</button>
+    <button class="tab-btn" data-tab="instances">🖥 智能体实例</button>
     <button class="tab-btn" data-tab="resources">🗃 资源状态</button>
     <button class="tab-btn" data-tab="agentfactory">&#x1F9E0; 智能体生成</button>
   </div>
@@ -105,43 +106,49 @@
     </table>
   </div>
 
+  <div id="tab-warehouse" class="tab-panel">
+    <div class="toolbar">
+      <span style="font-weight:600;font-size:15px">智能体仓库</span>
+      <div class="toolbar-right">
+        <span class="refresh-hint" id="warehouse-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadWarehouse()">🔄 刷新</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>智能体名称</th><th>镜像 ID</th><th>版本号</th>
+        <th>能力</th><th>注册状态</th><th>说明</th>
+      </tr></thead>
+      <tbody id="warehouse-tbody">
+        <tr class="empty-row"><td colspan="6">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="tab-discovery" class="tab-panel">
+    <div class="toolbar">
+      <span style="font-weight:600;font-size:15px">智能体发现</span>
+      <div class="toolbar-right">
+        <span class="refresh-hint" id="discovery-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadDiscovery()">🔄 刷新</button>
+      </div>
+    </div>
+    <div id="discovery-clusters" class="cluster-list">
+      <div class="empty-state">加载中...</div>
+    </div>
+  </div>
+
   <div id="tab-instances" class="tab-panel">
     <div class="toolbar">
-      <span style="font-weight:600;font-size:15px">Agent 实例</span>
+      <span style="font-weight:600;font-size:15px">智能体实例</span>
       <div class="toolbar-right">
         <span class="refresh-hint" id="inst-refresh-hint"></span>
         <button class="btn btn-ghost btn-sm" onclick="loadInstances()">🔄 刷新</button>
       </div>
     </div>
-    <table>
-      <thead><tr>
-        <th>Instance ID</th><th>Agent ID</th><th>Image ID</th>
-        <th>状态</th><th>引用计数</th><th>订阅工作流</th>
-      </tr></thead>
-      <tbody id="inst-tbody">
-        <tr class="empty-row"><td colspan="6">暂无实例数据</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div id="tab-qos" class="tab-panel">
-    <div id="qos-metrics-row" class="metric-row" style="margin-bottom:20px"></div>
-    <div class="toolbar">
-      <span style="font-weight:600;font-size:15px">Agent QoS 详情</span>
-      <div class="toolbar-right">
-        <span class="refresh-hint" id="qos-refresh-hint"></span>
-        <button class="btn btn-ghost btn-sm" onclick="loadQos()">🔄 刷新</button>
-      </div>
+    <div id="instance-clusters" class="cluster-list">
+      <div class="empty-state">加载中...</div>
     </div>
-    <table>
-      <thead><tr>
-        <th>Agent ID</th><th>总调用</th><th>成功</th><th>失败</th>
-        <th>平均延迟 (ms)</th><th>最大延迟 (ms)</th><th>成功率</th><th>告警</th>
-      </tr></thead>
-      <tbody id="qos-tbody">
-        <tr class="empty-row"><td colspan="8">暂无 QoS 数据</td></tr>
-      </tbody>
-    </table>
   </div>
 
   <div id="tab-resources" class="tab-panel">
@@ -153,15 +160,9 @@
         <button class="btn btn-ghost btn-sm" onclick="loadResources()">🔄 刷新</button>
       </div>
     </div>
-    <table>
-      <thead><tr>
-        <th>Node Name</th><th>IP</th><th>类型</th>
-        <th>CPU (可用/总)</th><th>内存 (可用/总 MB)</th><th>GPU (可用/总)</th><th>状态</th>
-      </tr></thead>
-      <tbody id="res-tbody">
-        <tr class="empty-row"><td colspan="7">加载中...</td></tr>
-      </tbody>
-    </table>
+    <div id="resource-clusters" class="cluster-list">
+      <div class="empty-state">加载中...</div>
+    </div>
   </div>
 
   <div id="tab-agentfactory" class="tab-panel">

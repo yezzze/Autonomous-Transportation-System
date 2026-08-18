@@ -1489,6 +1489,101 @@ async def list_agent_instances():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/agents/instances/by-cluster", summary="按集群获取活动 Agent 实例")
+async def list_agent_instances_by_cluster():
+    """汇总本集群和当前可用 peer 集群的活动实例。"""
+    import httpx
+
+    inactive_statuses = {"stopped"}
+    config = _load_aoe_config()
+    local_name = config.get("local_name") or "cluster"
+
+    def attach_qos(instances, metrics):
+        metrics_by_agent = {
+            metric.get("agent_id"): metric
+            for metric in metrics
+            if metric.get("agent_id")
+        }
+        for instance in instances:
+            instance["qos"] = metrics_by_agent.get(instance.get("agent_id"), {})
+        return instances
+
+    try:
+        from src.runtime.lifecycle_manager import get_lifecycle_manager
+        from src.runtime.qos_monitor import get_qos_monitor
+
+        local_instances = [
+            instance.to_dict()
+            for instance in get_lifecycle_manager().list_instances()
+            if instance.status not in inactive_statuses
+        ]
+        try:
+            local_metrics = get_qos_monitor().get_metrics_dict()
+        except Exception:
+            local_metrics = []
+        attach_qos(local_instances, local_metrics)
+        local_cluster = {
+            "name": local_name,
+            "url": config.get("local_aoe_url") or "",
+            "is_local": True,
+            "status": "ok",
+            "error": None,
+            "instances": local_instances,
+        }
+    except Exception as e:
+        local_cluster = {
+            "name": local_name,
+            "url": config.get("local_aoe_url") or "",
+            "is_local": True,
+            "status": "error",
+            "error": str(e),
+            "instances": [],
+        }
+
+    async def fetch_peer(client, peer):
+        name = peer.get("name") or "peer"
+        url = (peer.get("url") or "").rstrip("/")
+        cluster = {
+            "name": name,
+            "url": url,
+            "is_local": False,
+            "status": "ok",
+            "error": None,
+            "instances": [],
+        }
+        try:
+            response = await client.get(f"{url}/api/agents/instances")
+            response.raise_for_status()
+            rows = response.json().get("instances", [])
+            cluster["instances"] = [
+                row for row in rows if row.get("status") not in inactive_statuses
+            ]
+            try:
+                qos_response = await client.get(f"{url}/api/qos/metrics")
+                qos_response.raise_for_status()
+                metrics = qos_response.json().get("metrics", [])
+            except Exception:
+                metrics = []
+            attach_qos(cluster["instances"], metrics)
+        except Exception as e:
+            cluster["status"] = "error"
+            cluster["error"] = str(e)
+        return cluster
+
+    peers = config.get("peers") or []
+    if not peers:
+        return {"clusters": [local_cluster]}
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        peer_clusters = await asyncio.gather(
+            *(fetch_peer(client, peer) for peer in peers)
+        )
+    available_peers = [
+        cluster for cluster in peer_clusters if cluster["status"] == "ok"
+    ]
+    return {"clusters": [local_cluster, *available_peers]}
+
+
 @app.get("/api/agents/instances/{instance_id}", summary="获取单个 Agent 实例")
 async def get_agent_instance(instance_id: str):
     """ALCM: 查询单个 Agent 实例详情"""

@@ -21,8 +21,15 @@ function fmtTime() {
 // ====================================================================
 // Tab switching
 // ====================================================================
-const TAB_NAMES = ['apps','instances','qos','resources','agentfactory'];
-const TAB_LOADERS = { apps: loadApps, instances: loadInstances, qos: loadQos, resources: loadResources, agentfactory: loadAgentFactory };
+const TAB_NAMES = ['apps','warehouse','discovery','instances','resources','agentfactory'];
+const TAB_LOADERS = {
+  apps: loadApps,
+  warehouse: loadWarehouse,
+  discovery: loadDiscovery,
+  instances: loadInstances,
+  resources: loadResources,
+  agentfactory: loadAgentFactory,
+};
 let activeTab = 'apps';
 
 function switchTab(name) {
@@ -741,97 +748,234 @@ async function loadScheduleHistory(appId) {
 }
 
 // ====================================================================
-// Tab: INSTANCES
+// Tab: AGENT WAREHOUSE
 // ====================================================================
-async function loadInstances() {
+async function loadWarehouse() {
   try {
-    const res = await fetch(`${API}/api/agents/instances`);
+    const res = await fetch(`${API}/api/warehouse/images`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const rows = data.instances || [];
-    const tbody = document.getElementById('inst-tbody');
-    document.getElementById('inst-refresh-hint').textContent = `上次更新 ${fmtTime()}`;
+    const rows = data.images || [];
+    const tbody = document.getElementById('warehouse-tbody');
+    document.getElementById('warehouse-refresh-hint').textContent = `上次更新 ${fmtTime()}`;
     if (!rows.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无 Agent 实例</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">智能体仓库为空</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(r => `
       <tr>
-        <td style="font-family:monospace;font-size:12px">${r.instance_id||'—'}</td>
-        <td>${escHtml(r.agent_id||'—')}</td>
-        <td style="font-size:12px;color:#778">${r.image_id||'—'}</td>
-        <td>${statusBadge(r.status||'unknown')}</td>
-        <td style="text-align:center">${r.ref_count??'—'}</td>
-        <td style="font-size:12px;color:#778">${(r.subscribed_workflows||[]).join(', ')||'—'}</td>
+        <td><strong>${escHtml(r.name || '—')}</strong></td>
+        <td class="mono-cell">${escHtml(r.image_id || '—')}</td>
+        <td>${escHtml(r.version || '—')}</td>
+        <td>${escHtml(r.capability || '—')}</td>
+        <td>${statusBadge(r.registered ? 'registered' : 'unregistered')}</td>
+        <td class="muted-cell">${escHtml(r.description || '—')}</td>
       </tr>
     `).join('');
   } catch(e) {
-    document.getElementById('inst-tbody').innerHTML =
+    document.getElementById('warehouse-tbody').innerHTML =
       `<tr class="empty-row"><td colspan="6">❌ ${e.message}</td></tr>`;
   }
 }
 
 // ====================================================================
-// Tab: QoS
+// Tab: AGENT DISCOVERY
 // ====================================================================
-async function loadQos() {
+function normalizeClusterUrl(url) {
+  return (url || '').replace(/\/$/, '');
+}
+
+function renderDiscoveryCluster(cluster) {
+  const agents = cluster.agents || [];
+  const rows = agents.length ? agents.map(agent => `
+    <tr>
+      <td class="mono-cell">${escHtml(agent.id || '—')}</td>
+      <td>${escHtml(agent.capability || '—')}</td>
+      <td>${statusBadge(agent.status || 'unknown')}</td>
+      <td class="mono-cell">${escHtml(agent.ip || '—')}:${escHtml(agent.port ?? '—')}</td>
+      <td>${agent.is_local ? '本地' : '远端'}</td>
+    </tr>
+  `).join('') : '<tr class="empty-row"><td colspan="5">该集群暂无已注册智能体</td></tr>';
+  return `
+    <section class="cluster-section">
+      <div class="cluster-heading">
+        <strong>${escHtml(cluster.name)}</strong>
+        <span class="cluster-meta">${cluster.is_local ? '本集群' : escHtml(cluster.url || 'peer')} · ${agents.length} 个</span>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>智能体 ID</th><th>能力</th><th>状态</th><th>地址</th><th>来源</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </section>`;
+}
+
+async function loadDiscovery() {
+  const host = document.getElementById('discovery-clusters');
   try {
-    const res = await fetch(`${API}/api/qos/metrics`);
-    const data = await res.json();
-    document.getElementById('qos-refresh-hint').textContent = `上次更新 ${fmtTime()}`;
-    // summary cards
-    const s = data.summary || {};
-    document.getElementById('qos-metrics-row').innerHTML = `
-      <div class="metric-card">
-        <div class="metric-label">监控 Agent 数</div>
-        <div class="metric-value">${s.total_agents??0}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">告警 Agent 数</div>
-        <div class="metric-value" style="color:${(s.alert_agents_count||0)>0?'#ef4444':'#22c55e'}">${s.alert_agents_count??0}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">总调用次数</div>
-        <div class="metric-value">${s.total_calls??0}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">整体成功率</div>
-        <div class="metric-value">${s.overall_success_rate!=null?(s.overall_success_rate*100).toFixed(1)+'%':'—'}</div>
-      </div>
-    `;
-    // table
-    const metrics = data.metrics || [];
-    const tbody = document.getElementById('qos-tbody');
-    if (!metrics.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="8">暂无 QoS 数据（需先有 Agent 调用记录）</td></tr>';
-      return;
-    }
-    tbody.innerHTML = metrics.map(m => {
-      const alerting = m.is_alerting;
-      const sr = m.success_rate != null ? (m.success_rate*100).toFixed(1)+'%' : '—';
-      return `<tr class="${alerting?'warn-row':''}">
-        <td><strong>${escHtml(m.agent_id)}</strong></td>
-        <td>${m.total_calls??0}</td>
-        <td style="color:#16a34a">${m.success_count??0}</td>
-        <td style="color:#dc2626">${m.failure_count??0}</td>
-        <td>${m.avg_latency_ms!=null?m.avg_latency_ms.toFixed(0):'-'}</td>
-        <td>${m.max_latency_ms!=null?m.max_latency_ms.toFixed(0):'-'}</td>
-        <td>${sr}</td>
-        <td>${alerting?'<span style="color:#ef4444;font-weight:600">⚠️ 告警</span>':'<span style="color:#16a34a">✅ 正常</span>'}</td>
-      </tr>`;
-    }).join('');
+    const [registryRes, configRes] = await Promise.all([
+      fetch(`${API}/api/registry/agents`),
+      fetch(`${API}/api/aoe/config`),
+    ]);
+    if (!registryRes.ok) throw new Error(`注册表 HTTP ${registryRes.status}`);
+    if (!configRes.ok) throw new Error(`集群配置 HTTP ${configRes.status}`);
+    const registry = await registryRes.json();
+    const configPayload = await configRes.json();
+    const config = configPayload.config || {};
+    const peerData = registry.peers || {};
+    const configuredPeers = new Map(
+      (config.peers || []).map(peer => [normalizeClusterUrl(peer.url), peer])
+    );
+    const clusters = [{
+      name: config.local_name || 'cluster',
+      url: config.local_aoe_url || '',
+      is_local: true,
+      agents: registry.local || [],
+    }];
+    Object.entries(peerData).forEach(([url, source]) => {
+      const normalized = normalizeClusterUrl(url);
+      const peer = configuredPeers.get(normalized);
+      clusters.push({
+        name: (peer && peer.name) || normalized || 'peer',
+        url: normalized,
+        is_local: false,
+        agents: source.agents || [],
+      });
+    });
+    host.innerHTML = clusters.map(renderDiscoveryCluster).join('');
+    document.getElementById('discovery-refresh-hint').textContent = `上次更新 ${fmtTime()}`;
   } catch(e) {
-    document.getElementById('qos-tbody').innerHTML =
-      `<tr class="empty-row"><td colspan="8">❌ ${e.message}</td></tr>`;
+    host.innerHTML = `<div class="empty-state error-state">❌ 加载失败：${escHtml(e.message)}</div>`;
+  }
+}
+
+// ====================================================================
+// Tab: AGENT INSTANCES
+// ====================================================================
+function renderInstanceCluster(cluster) {
+  const instances = cluster.instances || [];
+  let body;
+  if (cluster.status === 'error') {
+    body = `<tr class="empty-row"><td colspan="10">❌ 集群不可用：${escHtml(cluster.error || '未知错误')}</td></tr>`;
+  } else if (!instances.length) {
+    body = '<tr class="empty-row"><td colspan="10">该集群暂无活动智能体实例</td></tr>';
+  } else {
+    body = instances.map(instance => {
+      const qos = instance.qos || {};
+      const avgLatency = Number.isFinite(qos.avg_latency_ms) ? qos.avg_latency_ms.toFixed(0) : '—';
+      const maxLatency = Number.isFinite(qos.max_latency_ms) ? qos.max_latency_ms.toFixed(0) : '—';
+      return `<tr>
+          <td><strong>${escHtml(instance.pod_name || instance.agent_id || '—')}</strong></td>
+          <td class="mono-cell">${escHtml(instance.instance_id || '—')}</td>
+          <td>${escHtml(instance.agent_id || '—')}</td>
+          <td class="mono-cell">${escHtml(instance.image_id || '—')}</td>
+          <td>${statusBadge(instance.status || 'unknown')}</td>
+          <td>${qos.total_calls ?? '—'}</td>
+          <td style="color:#16a34a">${qos.success_count ?? '—'}</td>
+          <td style="color:#dc2626">${qos.failure_count ?? '—'}</td>
+          <td>${avgLatency}</td>
+          <td>${maxLatency}</td>
+        </tr>`;
+    }).join('');
+  }
+  return `
+    <section class="cluster-section ${cluster.status === 'error' ? 'cluster-error' : ''}">
+      <div class="cluster-heading">
+        <strong>${escHtml(cluster.name || 'cluster')}</strong>
+        <span class="cluster-meta">${cluster.is_local ? '本集群' : escHtml(cluster.url || 'peer')} · ${instances.length} 个</span>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr>
+          <th>实例名称</th><th>实例 ID</th><th>智能体 ID</th><th>镜像 ID</th><th>状态</th>
+          <th>总调用</th><th>成功</th><th>失败</th><th>平均延迟 (ms)</th><th>最大延迟 (ms)</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>
+    </section>`;
+}
+
+async function loadInstances() {
+  const host = document.getElementById('instance-clusters');
+  try {
+    const res = await fetch(`${API}/api/agents/instances/by-cluster`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const clusters = (data.clusters || []).filter(cluster => cluster.is_local || cluster.status === 'ok');
+    host.innerHTML = clusters.length
+      ? clusters.map(renderInstanceCluster).join('')
+      : '<div class="empty-state">暂无集群实例数据</div>';
+    document.getElementById('inst-refresh-hint').textContent = `上次更新 ${fmtTime()}`;
+  } catch(e) {
+    host.innerHTML = `<div class="empty-state error-state">❌ 加载失败：${escHtml(e.message)}</div>`;
   }
 }
 
 // ====================================================================
 // Tab: Resources
 // ====================================================================
+function renderResourceCluster(cluster) {
+  const nodes = cluster.nodes || [];
+  const rows = nodes.length ? nodes.map(n => {
+    const cpuTotal = n.cpu_total || 0;
+    const cpuAvailable = n.cpu_available || 0;
+    const memTotal = n.mem_total_mb || 0;
+    const memAvailable = n.mem_available_mb || 0;
+    const cpuPct = cpuTotal ? (cpuAvailable / cpuTotal * 100) : 0;
+    const memPct = memTotal ? (memAvailable / memTotal * 100) : 0;
+    return `<tr>
+      <td><strong>${escHtml(n.node_id || '—')}</strong></td>
+      <td class="mono-cell">${escHtml(n.ip || '—')}</td>
+      <td>${escHtml(n.node_type || '—')}</td>
+      <td>
+        <div>${cpuAvailable.toFixed(1)} / ${cpuTotal.toFixed(1)}</div>
+        <div style="height:5px;background:#e8ecf2;border-radius:3px;margin-top:4px">
+          <div style="height:100%;width:${Math.min(100,cpuPct).toFixed(0)}%;background:#4a6cf7;border-radius:3px"></div>
+        </div>
+      </td>
+      <td>
+        <div>${memAvailable} / ${memTotal}</div>
+        <div style="height:5px;background:#e8ecf2;border-radius:3px;margin-top:4px">
+          <div style="height:100%;width:${Math.min(100,memPct).toFixed(0)}%;background:#22c55e;border-radius:3px"></div>
+        </div>
+      </td>
+      <td>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div>${n.gpu_available || 0} / ${n.gpu_count || 0}</div>
+          <div style="height:6px;width:96px;background:#e8ecf2;border-radius:3px;margin-top:2px">
+            <div style="height:100%;width:${Math.min(100, n.gpu_count ? (n.gpu_available / n.gpu_count * 100) : 0).toFixed(0)}%;background:#f59e0b;border-radius:3px"></div>
+          </div>
+        </div>
+      </td>
+      <td>${statusBadge(n.status || 'unknown')}</td>
+    </tr>`;
+  }).join('') : '<tr class="empty-row"><td colspan="7">该集群暂无可用节点</td></tr>';
+  return `
+    <section class="cluster-section">
+      <div class="cluster-heading">
+        <strong>${escHtml(cluster.name || 'cluster')}</strong>
+        <span class="cluster-meta">${cluster.is_local ? '本集群' : escHtml(cluster.url || 'peer')} · ${nodes.length} 个</span>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr>
+          <th>Node ID</th><th>IP</th><th>类型</th>
+          <th>CPU (可用/总)</th><th>内存 (可用/总 MB)</th><th>GPU (可用/总)</th><th>状态</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </section>`;
+}
+
 async function loadResources() {
+  const host = document.getElementById('resource-clusters');
   try {
-    const res = await fetch(`${API}/api/resources/`);
+    const [res, configRes] = await Promise.all([
+      fetch(`${API}/api/resources/`),
+      fetch(`${API}/api/aoe/config`),
+    ]);
+    if (!res.ok) throw new Error(`资源接口 HTTP ${res.status}`);
+    if (!configRes.ok) throw new Error(`集群配置 HTTP ${configRes.status}`);
     const data = await res.json();
+    const configPayload = await configRes.json();
+    const config = configPayload.config || {};
     document.getElementById('res-refresh-hint').textContent = `上次更新 ${fmtTime()}`;
     const s = data.summary || {};
     document.getElementById('res-summary-row').innerHTML = `
@@ -853,49 +997,32 @@ async function loadResources() {
       </div>
     `;
     const nodes = data.nodes || [];
-    const tbody = document.getElementById('res-tbody');
-    if (!nodes.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无节点数据</td></tr>';
-      return;
-    }
-    tbody.innerHTML = nodes.map(n => {
-      const cpuTotal = n.cpu_total || 0;
-      const cpuAvailable = n.cpu_available || 0;
-      const memTotal = n.mem_total_mb || 0;
-      const memAvailable = n.mem_available_mb || 0;
-      // 显示为 可用 / 总，并据此计算进度条宽度
-      const cpuPct = cpuTotal ? (cpuAvailable / cpuTotal * 100) : 0;
-      const memPct = memTotal ? (memAvailable / memTotal * 100) : 0;
-      return `<tr>
-        <td><strong>${escHtml(n.display_name || n.node_id)}</strong></td>
-        <td style="font-family:monospace;font-size:12px">${n.ip||'—'}</td>
-        <td>${n.node_type||'—'}</td>
-        <td>
-          <div>${cpuAvailable.toFixed(1)} / ${(cpuTotal||0).toFixed(1)}</div>
-          <div style="height:5px;background:#e8ecf2;border-radius:3px;margin-top:4px">
-            <div style="height:100%;width:${Math.min(100,cpuPct).toFixed(0)}%;background:#4a6cf7;border-radius:3px"></div>
-          </div>
-        </td>
-        <td>
-          <div>${memAvailable} / ${memTotal}</div>
-          <div style="height:5px;background:#e8ecf2;border-radius:3px;margin-top:4px">
-            <div style="height:100%;width:${Math.min(100,memPct).toFixed(0)}%;background:#22c55e;border-radius:3px"></div>
-          </div>
-        </td>
-        <td>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <div>${n.gpu_available||0} / ${n.gpu_count||0}</div>
-            <div style="height:6px;width:96px;background:#e8ecf2;border-radius:3px;margin-top:2px">
-              <div style="height:100%;width:${Math.min(100, n.gpu_count? (n.gpu_available/n.gpu_count*100):0).toFixed(0)}%;background:#f59e0b;border-radius:3px"></div>
-            </div>
-          </div>
-        </td>
-        <td>${statusBadge(n.status||'unknown')}</td>
-      </tr>`;
-    }).join('');
+    const peerNames = new Map(
+      (config.peers || []).map(peer => [normalizeClusterUrl(peer.url), peer.name])
+    );
+    const localCluster = {
+      name: config.local_name || 'cluster',
+      url: config.local_aoe_url || '',
+      is_local: true,
+      nodes: nodes.filter(node => node.is_local !== false),
+    };
+    const peerGroups = new Map();
+    nodes.filter(node => node.is_local === false).forEach(node => {
+      const url = normalizeClusterUrl(node.source_url);
+      if (!peerGroups.has(url)) {
+        peerGroups.set(url, {
+          name: peerNames.get(url) || url || 'peer',
+          url,
+          is_local: false,
+          nodes: [],
+        });
+      }
+      peerGroups.get(url).nodes.push(node);
+    });
+    const clusters = [localCluster, ...peerGroups.values()];
+    host.innerHTML = clusters.map(renderResourceCluster).join('');
   } catch(e) {
-    document.getElementById('res-tbody').innerHTML =
-      `<tr class="empty-row"><td colspan="7">❌ ${e.message}</td></tr>`;
+    host.innerHTML = `<div class="empty-state error-state">❌ 加载失败：${escHtml(e.message)}</div>`;
   }
 }
 

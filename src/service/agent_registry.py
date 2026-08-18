@@ -289,7 +289,9 @@ class AgentRegistryClient:
     def get_agents_by_source(self) -> Dict[str, Any]:
         """返回按来源分组的 Agent 视图，用于跨集群查看。"""
         return {
-            "local": self.get_local_agents(),
+            "local": [
+                agent for agent in self._mock_agents if self._agent_is_local(agent)
+            ],
             "peers": {
                 peer_url: {
                     "last_seen": self._peer_last_seen.get(peer_url),
