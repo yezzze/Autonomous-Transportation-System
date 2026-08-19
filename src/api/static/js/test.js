@@ -315,5 +315,132 @@ async function loadInstances() {
   }
 }
 
+let orchestrationCy = null;
+
+function switchTestTab(name) {
+  document.querySelectorAll('[data-test-tab]').forEach(button => {
+    const active = button.dataset.testTab === name;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  document.getElementById('test-panel-instances').classList.toggle('active', name === 'instances');
+  document.getElementById('test-panel-orchestration').classList.toggle('active', name === 'orchestration');
+  if (name === 'orchestration') loadOrchestrationApps();
+}
+
+function renderOrchestrationApps(apps) {
+  const body = document.getElementById('orchestration-apps-body');
+  body.replaceChildren();
+  if (!apps.length) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="5">暂无应用</td></tr>';
+    return;
+  }
+  apps.forEach(application => {
+    const row = document.createElement('tr');
+    const name = document.createElement('td');
+    const strong = document.createElement('strong');
+    strong.textContent = application.name || '—';
+    name.appendChild(strong);
+    const appId = document.createElement('td');
+    appId.className = 'test-instance-id';
+    appId.textContent = application.app_id || '—';
+    const status = document.createElement('td');
+    status.appendChild(statusBadge(application.status));
+    const handle = document.createElement('td');
+    handle.className = 'test-instance-id';
+    handle.textContent = application.workflow_handle || '—';
+    const operation = document.createElement('td');
+    const plan = document.createElement('button');
+    plan.type = 'button';
+    plan.className = 'btn btn-primary btn-sm';
+    plan.textContent = '编排';
+    plan.addEventListener('click', () => requestOrchestrationPlan({app_id: application.app_id}, plan));
+    operation.appendChild(plan);
+    row.append(name, appId, status, handle, operation);
+    body.appendChild(row);
+  });
+}
+
+async function loadOrchestrationApps() {
+  const refresh = document.getElementById('refresh-orchestration-apps');
+  refresh.disabled = true;
+  try {
+    const response = await fetch(`${API}/api/apps/`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    renderOrchestrationApps(data.apps || []);
+    document.getElementById('orchestration-apps-refresh-hint').textContent =
+      `上次更新 ${new Date().toLocaleTimeString('zh-CN')}`;
+    setServerStatus(true);
+  } catch (error) {
+    renderOrchestrationApps([]);
+    showAlert('error', `加载应用失败：${error.message}`);
+    setServerStatus(false);
+  } finally {
+    refresh.disabled = false;
+  }
+}
+
+function renderOrchestrationResult(data) {
+  const visualization = window.OrchestrationVisualization;
+  visualization.renderPipeline(document.getElementById('test-pipeline-flow'), data.orchestration || {});
+  const canvas = document.getElementById('test-cy');
+  const empty = document.getElementById('test-topology-empty');
+  const hasNodes = Array.isArray(data.topology && data.topology.nodes) && data.topology.nodes.length > 0;
+  canvas.classList.toggle('show', hasNodes);
+  empty.style.display = hasNodes ? 'none' : 'block';
+  empty.textContent = hasNodes ? '' : '未生成任务图';
+  if (!hasNodes) {
+    if (orchestrationCy) orchestrationCy.elements().remove();
+    return;
+  }
+  if (!orchestrationCy) orchestrationCy = visualization.createTopology(canvas);
+  visualization.renderTopology(orchestrationCy, data.topology);
+  orchestrationCy.resize();
+  orchestrationCy.fit(undefined, 30);
+}
+
+async function requestOrchestrationPlan(payload, trigger) {
+  const state = document.getElementById('orchestration-plan-state');
+  clearAlert();
+  trigger.disabled = true;
+  const originalText = trigger.textContent;
+  trigger.textContent = '编排中...';
+  state.textContent = '正在生成执行计划';
+  try {
+    const response = await fetch(`${API}/tests/orchestration/plan`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    renderOrchestrationResult(data);
+    state.textContent = `编排完成，共 ${data.topology.total || 0} 个任务`;
+  } catch (error) {
+    state.textContent = '编排失败';
+    showAlert('error', `编排失败：${error.message}`);
+  } finally {
+    trigger.disabled = false;
+    trigger.textContent = originalText;
+  }
+}
+
+document.querySelectorAll('[data-test-tab]').forEach(button => {
+  button.addEventListener('click', () => switchTestTab(button.dataset.testTab));
+});
+document.getElementById('refresh-orchestration-apps').addEventListener('click', loadOrchestrationApps);
+document.getElementById('plan-custom-orchestration').addEventListener('click', event => {
+  const taskDescription = document.getElementById('orchestration-task-description').value.trim();
+  if (!taskDescription) {
+    showAlert('error', '请填写任务描述');
+    document.getElementById('orchestration-task-description').focus();
+    return;
+  }
+  requestOrchestrationPlan({
+    task_description: taskDescription,
+    skills_content: document.getElementById('orchestration-skills-content').value,
+  }, event.currentTarget);
+});
 document.getElementById('refresh-instances').addEventListener('click', loadInstances);
 loadInstances();

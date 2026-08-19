@@ -124,6 +124,7 @@ class DistributedState(MessagesState):
     # ========== 应用层指引 ==========
     skills_content: str  # Skills.md 注入内容（来自 GuidanceFile）
     pipeline_topology: List  # 固定拓扑链路（来自 PipelineParser，空列表=使用LLM Planner）
+    planning_preview: bool  # 只生成计划，不执行跨主体注册或后续任务
 
     # ========== 路由控制 ==========
     next: str  # 下一个节点名称

@@ -7,6 +7,9 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', path='/icon/logo_white.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='/css/test.css') }}">
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
 </head>
 <body>
 <header>
@@ -19,11 +22,12 @@
 <main class="main">
   <div id="test-alert" class="alert" role="alert"></div>
   <div class="tabs" role="tablist">
-    <button class="tab-btn active" type="button" role="tab" aria-selected="true">
+    <button class="tab-btn active" type="button" role="tab" data-test-tab="instances" aria-selected="true">
       Agent 实例测试
     </button>
+    <button class="tab-btn" type="button" role="tab" data-test-tab="orchestration" aria-selected="false">智能体编排测试</button>
   </div>
-  <section class="tab-panel active" role="tabpanel">
+  <section id="test-panel-instances" class="tab-panel active" role="tabpanel">
     <div class="toolbar">
       <div>
         <div class="toolbar-title">已启动的 Agent 实例</div>
@@ -46,8 +50,58 @@
       </table>
     </div>
   </section>
+
+  <section id="test-panel-orchestration" class="tab-panel" role="tabpanel">
+    <div class="toolbar">
+      <div>
+        <div class="toolbar-title">应用列表</div>
+        <div class="test-help">使用应用已保存的任务描述与 Skills.md 生成编排预览。</div>
+      </div>
+      <div class="toolbar-right">
+        <span class="refresh-hint" id="orchestration-apps-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" id="refresh-orchestration-apps" type="button">刷新</button>
+      </div>
+    </div>
+    <div class="test-table-wrap">
+      <table aria-label="编排测试应用列表">
+        <thead><tr><th>名称</th><th>应用 ID</th><th>状态</th><th>Workflow Handle</th><th>操作</th></tr></thead>
+        <tbody id="orchestration-apps-body"><tr class="empty-row"><td colspan="5">加载中...</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card orchestration-input-card">
+      <div class="card-title">自定义编排输入</div>
+      <div class="orchestration-input-grid">
+        <div class="form-group">
+          <label for="orchestration-task-description">任务描述 *</label>
+          <textarea id="orchestration-task-description" placeholder="请输入需要拆解和编排的任务"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="orchestration-skills-content">Skills.md 内容</label>
+          <textarea id="orchestration-skills-content" class="skills-editor" placeholder="# 应用技能&#10;## Pipeline&#10;search:检索 -> nlp:总结"></textarea>
+        </div>
+      </div>
+      <div class="orchestration-actions">
+        <button class="btn btn-primary" id="plan-custom-orchestration" type="button">编排</button>
+        <span id="orchestration-plan-state" class="test-call-state"></span>
+      </div>
+    </div>
+
+    <div id="orchestration-result" class="orchestration-result">
+      <div class="card">
+        <div class="card-title">Pipeline 流程</div>
+        <div id="test-pipeline-flow" class="viz-pipeline-flow"><span class="empty-state">请先发起编排</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">任务图</div>
+        <div id="test-topology-empty" class="empty-state">请先发起编排</div>
+        <div id="test-cy" class="test-topology-canvas"></div>
+      </div>
+    </div>
+  </section>
 </main>
 
+<script src="{{ url_for('static', path='/js/orchestration_visualization.js') }}"></script>
 <script src="{{ url_for('static', path='/js/test.js') }}"></script>
 </body>
 </html>

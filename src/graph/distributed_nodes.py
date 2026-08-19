@@ -588,7 +588,7 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
         all_agents = registry_client.get_all_agents()
         cross_host = identify_cross_host_tasks(execution_plan, all_agents)
         cross_host_sessions: dict[str, Dict[str, Any]] = {}
-        if cross_host:
+        if cross_host and not state.get("planning_preview", False):
             logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
             cross_host_sessions = await register_cross_host_workflows(
                 execution_plan=execution_plan,
@@ -870,7 +870,7 @@ interface ExecutionPlan {{
         # 这里再把这些跨主体任务注册到远端，运行期就不再重复下发整张子任务图。
         cross_host = identify_cross_host_tasks(execution_plan, available_agents)
         cross_host_sessions: dict[str, Dict[str, Any]] = {}
-        if cross_host:
+        if cross_host and not state.get("planning_preview", False):
             logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
             cross_host_sessions = await register_cross_host_workflows(
                 execution_plan=execution_plan,

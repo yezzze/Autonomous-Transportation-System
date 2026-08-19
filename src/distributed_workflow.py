@@ -138,6 +138,7 @@ async def run_distributed_workflow(
         "skills_content": skills_content,
         # 固定拓扑（Pipeline 模式，非空时 Planner 直接使用，跳过 LLM）
         "pipeline_topology": pipeline_topology,
+        "planning_preview": False,
 
         # Magentic-One 相关字段（如果使用）
         "magentic_round": 0,

@@ -109,6 +109,14 @@ class _AgentTestCallRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class _OrchestrationPlanPreviewRequest(BaseModel):
+    """编排测试页的只读规划请求。"""
+
+    app_id: Optional[str] = None
+    task_description: Optional[str] = None
+    skills_content: Optional[str] = ""
+
+
 class _NatsPublishRequest(BaseModel):
     """由编排服务代发 NATS 消息，默认投递到本集群 NATS。"""
     subject: str = Field(..., description="要发布的 NATS subject")
@@ -1664,6 +1672,69 @@ async def test_call_agent(request: _AgentTestCallRequest):
         "result": response.result,
         "error_message": response.error_message,
         "metadata": response.metadata,
+    }
+
+
+@app.post("/tests/orchestration/plan", summary="只读生成智能体编排预览")
+async def preview_orchestration_plan(request: _OrchestrationPlanPreviewRequest):
+    """复用正式 Planner 生成计划，但不部署、调用 Agent 或注册远端子工作流。"""
+    from langchain_core.messages import HumanMessage
+    from src.api.visualization import extract_full_view
+    from src.app.pipeline_parser import parse_pipeline
+    from src.graph.distributed_nodes import distributed_planner_node
+
+    task_description = (request.task_description or "").strip()
+    skills_content = request.skills_content or ""
+    source = "custom"
+
+    if request.app_id:
+        from src.app.app_manager import get_app_manager
+
+        app_info = get_app_manager().get_app(request.app_id)
+        if app_info is None:
+            raise HTTPException(status_code=404, detail=f"应用 {request.app_id} 不存在")
+        if app_info.guidance_file is None:
+            raise HTTPException(status_code=422, detail=f"应用 {request.app_id} 没有编排指导文件")
+        task_description = app_info.guidance_file.task_description.strip()
+        skills_content = app_info.guidance_file.skills_content or ""
+        source = "application"
+
+    if not task_description:
+        raise HTTPException(status_code=422, detail="任务描述不能为空")
+
+    pipeline_topology = parse_pipeline(skills_content) or []
+    state: Dict[str, Any] = {
+        "messages": [HumanMessage(content=task_description)],
+        "skills_content": skills_content,
+        "pipeline_topology": pipeline_topology,
+        "planning_preview": True,
+        "execution_plan": [],
+        "current_task_index": 0,
+        "failed_tasks": [],
+        "cross_host_sessions": {},
+        "failed_remote_aoe_urls": {},
+        "timeout_seconds": 30,
+        "session_timeout_seconds": 30,
+        "complexity_level": "pipeline" if pipeline_topology else "dynamic",
+        "orchestration_mode": "sequential",
+    }
+
+    command = await distributed_planner_node(state)
+    update = dict(command.update or {})
+    state.update(update)
+    if not state.get("plan_generated"):
+        messages = state.get("messages") or []
+        detail = getattr(messages[-1], "content", "未能生成执行计划") if messages else "未能生成执行计划"
+        raise HTTPException(status_code=422, detail=detail)
+
+    view = extract_full_view(state)
+    return {
+        "source": source,
+        "app_id": request.app_id,
+        "task_description": task_description,
+        "execution_plan": state.get("execution_plan", []),
+        "orchestration": view["orchestration"],
+        "topology": view["topology"],
     }
 
 
