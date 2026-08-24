@@ -365,6 +365,7 @@ class ResourceRegistry:
         min_mem_mb: int = 256,
         node_type: Optional[str] = None,
         tags: Optional[List[str]] = None,
+        min_gpu: int = 0,
     ) -> List[ResourceInfo]:
         """
         查询满足条件的节点列表（按可用 CPU 降序排列）
@@ -374,6 +375,7 @@ class ResourceRegistry:
             min_mem_mb: 最低可用内存 (MB)
             node_type:  节点类型过滤 ("device"/"edge"/"cloud")
             tags:       标签过滤（所需标签至少有一个匹配）
+            min_gpu:    最低可用 GPU 数量
 
         Returns:
             符合条件的 ResourceInfo 列表，按 cpu_available 降序
@@ -387,6 +389,8 @@ class ResourceRegistry:
             if node.cpu_available < min_cpu:
                 continue
             if node.mem_available_mb < min_mem_mb:
+                continue
+            if node.gpu_available < min_gpu:
                 continue
             if node_type and node.node_type != node_type:
                 continue

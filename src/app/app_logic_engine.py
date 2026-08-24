@@ -562,8 +562,7 @@ class AppLogicEngine:
                     effective_config = (
                         copy.deepcopy(resource_config)
                         if resource_config is not None
-                        else self._resource_config_from_image(image)
-                        or self._auto_resource_config(capability)
+                        else self._resource_config_from_image(image, capability)
                     )
                     instance = alcm.deploy_agent(agent_id, image.image_id, effective_config)
                     instance_ids.append(instance.instance_id)
@@ -631,100 +630,15 @@ class AppLogicEngine:
             snapshots.append(instance.to_dict())
         return snapshots
 
-    def _resource_config_from_image(self, image) -> Optional[ResourceConfig]:
-        """从 AgentImage.metadata.k8s 读取默认资源配置。"""
+    def _resource_config_from_image(
+        self, image, capability: Optional[str] = None
+    ) -> Optional[ResourceConfig]:
+        """解析镜像资源需求；未指定 node_id 时由本地 RRDC 自动选点。"""
         if image is None:
             return None
-        k8s_config = image.metadata.get("k8s", {}) if image.metadata else {}
-        if not k8s_config:
-            return None
-        return ResourceConfig(
-            cpu_cores=float(k8s_config.get("cpu_cores", 1.0)),
-            memory_mb=int(k8s_config.get("memory_mb", 512)),
-            node_id=str(k8s_config.get("node_id", "localhost")),
-            gpu_count=int(k8s_config.get("gpu_count", 0)),
-        )
+        from src.runtime.resource_selection import resource_config_for_image
 
-    def _auto_resource_config(self, capability: str) -> ResourceConfig:
-        """
-        自动为 capability 挑选资源配置：
-        1. 优先选 tag 命中的在线节点
-        2. 其次选任意有余量的在线节点
-        3. 根据能力给一组保守默认资源
-        """
-        cpu = 0.5
-        memory_mb = 512
-        gpu = 0
-
-        if capability in {"agent-grpc", "agent-a"}:
-            cpu = 0.5
-            memory_mb = 512
-        elif capability == "agent-b":
-            cpu = 0.5
-            memory_mb = 512
-        elif capability == "agent-c":
-            cpu = 0.5
-            memory_mb = 512
-        elif capability in {"vision"}:
-            cpu = 1.0
-            memory_mb = 1024
-            gpu = 1
-        elif capability == "perception2intermediatefeature":
-            cpu = 2.0
-            memory_mb = 4096
-            gpu = 1
-        elif capability == "cooperativefeaturefusiondetectionviz":
-            cpu = 2.0
-            memory_mb = 8192
-            gpu = 1
-        elif capability in {"compute", "nlp", "code_execution"}:
-            cpu = 1.0
-            memory_mb = 1024
-
-        try:
-            from src.service.resource_registry import get_resource_registry
-
-            registry = get_resource_registry()
-            if not registry.refresh_from_kubernetes():
-                raise RuntimeError("Kubernetes 资源状态刷新失败")
-            candidates = registry.query_available_resources(
-                min_cpu=cpu,
-                min_mem_mb=memory_mb,
-                tags=[capability],
-            )
-            if not candidates:
-                candidates = registry.query_available_resources(
-                    min_cpu=cpu,
-                    min_mem_mb=memory_mb,
-                )
-            if candidates:
-                chosen = candidates[0]
-                if gpu > 0:
-                    gpu_candidates = [
-                        node for node in candidates if node.gpu_available >= gpu
-                    ]
-                    if gpu_candidates:
-                        chosen = gpu_candidates[0]
-                    else:
-                        logger.warning(
-                            f"[ALRE] GPU 资源不足: capability={capability}, "
-                            f"required_gpu={gpu}"
-                        )
-                return ResourceConfig(
-                    cpu_cores=cpu,
-                    memory_mb=memory_mb,
-                    node_id=chosen.node_id,
-                    gpu_count=gpu,
-                )
-        except Exception as exc:
-            logger.warning(f"[ALRE] 自动资源分配失败，回退默认配置: capability={capability}, error={exc}")
-
-        return ResourceConfig(
-            cpu_cores=cpu,
-            memory_mb=memory_mb,
-            node_id="localhost",
-            gpu_count=gpu,
-        )
+        return resource_config_for_image(image, capability=capability)
 
     def _unsubscribe_instances(
         self, app_id: str, workflow_handle: Optional[str]

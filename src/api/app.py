@@ -869,7 +869,7 @@ async def register_subworkflow(req: _RegisterSubWorkflowRequest):
     try:
         from src.app.agent_warehouse import get_agent_warehouse
         from src.runtime.lifecycle_manager import get_lifecycle_manager
-        from src.runtime.models import ResourceConfig
+        from src.runtime.resource_selection import resource_config_for_image
 
         warehouse = get_agent_warehouse()
         alcm = get_lifecycle_manager()
@@ -884,12 +884,13 @@ async def register_subworkflow(req: _RegisterSubWorkflowRequest):
                         f"Agent {agent_id} 在远端 Agent Warehouse 中匹配到 {len(matches)} 个镜像"
                     )
                 image = matches[0]
-                k8s = dict((image.metadata or {}).get("k8s") or {})
-                resource_config = ResourceConfig(
-                    cpu_cores=float(k8s.get("cpu_cores", 1.0)),
-                    memory_mb=int(k8s.get("memory_mb", 512)),
-                    node_id=str(k8s.get("node_id", "localhost")),
-                    gpu_count=int(k8s.get("gpu_count", 0)),
+                resource_config = resource_config_for_image(
+                    image,
+                    capability=str(
+                        step.get("capability")
+                        or getattr(image, "capability", "")
+                        or agent_id
+                    ),
                 )
                 instance = alcm.deploy_agent(agent_id, image.image_id, resource_config)
                 deployed_instance_ids.append(instance.instance_id)
