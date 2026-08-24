@@ -469,9 +469,12 @@ class AgentRegistryClient:
         self._gossip_task = asyncio.create_task(_loop())
         logger.info("[ARDC Gossip] 后台任务已创建")
     
-    def get_agent_by_id(self, agent_id: str) -> AgentInfo:
+    def get_agent_by_id(self, agent_id: str) -> Optional[AgentInfo]:
         """
-        根据 ID 获取特定 Agent
+        根据 ID 从聚合注册表获取特定 Agent。
+
+        与 get_all_agents()/query_agents() 保持一致，查询范围包含本地 Agent
+        和 Gossip 同步得到的其他集群 Agent；同 ID 时仍遵循本地优先。
         
         Args:
             agent_id: Agent 的唯一标识符
@@ -479,10 +482,10 @@ class AgentRegistryClient:
         Returns:
             Agent 信息，如果不存在则返回 None
         """
-        for agent in self._mock_agents:
-            if agent["id"] == agent_id:
-                return agent
-        return None
+        return next(
+            (agent for agent in self._merge_all_agents() if agent["id"] == agent_id),
+            None,
+        )
     
     def update_agent_status(self, agent_id: str, status: str):
         """
