@@ -49,5 +49,18 @@ def build_distributed_graph():
     return builder.compile()
 
 
+def build_preplanned_distributed_graph():
+    """Build an execution graph for an already bound and frozen plan."""
+    builder = StateGraph(DistributedState)
+    builder.add_edge(START, "executor")
+    builder.add_node("executor", distributed_executor_node)
+    builder.add_node("monitor", distributed_monitor_node)
+    builder.add_node("reporter", distributed_reporter_node)
+    # Monitor may still route to planner on legacy failure paths.  Keeping the
+    # node registered lets the frozen-route guard reject such a change cleanly.
+    builder.add_node("planner", distributed_planner_node)
+    return builder.compile()
+
+
 # 为了兼容原有的导入方式，提供一个别名
 build_graph = build_distributed_graph

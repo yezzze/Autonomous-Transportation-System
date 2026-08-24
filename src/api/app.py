@@ -464,10 +464,12 @@ def _cleanup_remote_workflow(workflow: Dict[str, Any], final_status: str = "clos
     from src.runtime.lifecycle_manager import get_lifecycle_manager
 
     alcm = get_lifecycle_manager()
+    released: set[str] = set()
     for binding in workflow.get("route_instances", []):
         instance_id = binding.get("instance_id")
-        if instance_id:
+        if instance_id and instance_id not in released:
             alcm.unsubscribe(instance_id, workflow["workflow_handle"])
+            released.add(instance_id)
     workflow["resources_released"] = True
     workflow["status"] = final_status
 
@@ -863,6 +865,7 @@ async def register_subworkflow(req: _RegisterSubWorkflowRequest):
     workflow["cluster_id"] = _load_aoe_config()["local_name"]
     workflow["route_instances"] = []
     deployed_instance_ids: List[str] = []
+    deployed_by_agent: Dict[str, Any] = {}
     try:
         from src.app.agent_warehouse import get_agent_warehouse
         from src.runtime.lifecycle_manager import get_lifecycle_manager
@@ -873,25 +876,28 @@ async def register_subworkflow(req: _RegisterSubWorkflowRequest):
         images = warehouse.list_images()
         for step in pipeline_topology:
             agent_id = str(step["agent_id"])
-            matches = [image for image in images if image.name == agent_id]
-            if len(matches) != 1:
-                raise RuntimeError(
-                    f"Agent {agent_id} 在远端 Agent Warehouse 中匹配到 {len(matches)} 个镜像"
+            instance = deployed_by_agent.get(agent_id)
+            if instance is None:
+                matches = [image for image in images if image.name == agent_id]
+                if len(matches) != 1:
+                    raise RuntimeError(
+                        f"Agent {agent_id} 在远端 Agent Warehouse 中匹配到 {len(matches)} 个镜像"
+                    )
+                image = matches[0]
+                k8s = dict((image.metadata or {}).get("k8s") or {})
+                resource_config = ResourceConfig(
+                    cpu_cores=float(k8s.get("cpu_cores", 1.0)),
+                    memory_mb=int(k8s.get("memory_mb", 512)),
+                    node_id=str(k8s.get("node_id", "localhost")),
+                    gpu_count=int(k8s.get("gpu_count", 0)),
                 )
-            image = matches[0]
-            k8s = dict((image.metadata or {}).get("k8s") or {})
-            resource_config = ResourceConfig(
-                cpu_cores=float(k8s.get("cpu_cores", 1.0)),
-                memory_mb=int(k8s.get("memory_mb", 512)),
-                node_id=str(k8s.get("node_id", "localhost")),
-                gpu_count=int(k8s.get("gpu_count", 0)),
-            )
-            instance = alcm.deploy_agent(agent_id, image.image_id, resource_config)
-            deployed_instance_ids.append(instance.instance_id)
-            if instance.status != "running":
-                raise RuntimeError(instance.error_message or f"Agent {agent_id} 部署失败")
-            if not alcm.subscribe(instance.instance_id, workflow_handle):
-                raise RuntimeError(f"Agent {agent_id} 实例订阅失败")
+                instance = alcm.deploy_agent(agent_id, image.image_id, resource_config)
+                deployed_instance_ids.append(instance.instance_id)
+                deployed_by_agent[agent_id] = instance
+                if instance.status != "running":
+                    raise RuntimeError(instance.error_message or f"Agent {agent_id} 部署失败")
+                if not alcm.subscribe(instance.instance_id, workflow_handle):
+                    raise RuntimeError(f"Agent {agent_id} 实例订阅失败")
             workflow["route_instances"].append({
                 "task_id": step["task_id"],
                 "agent_id": instance.agent_id,
@@ -994,6 +1000,10 @@ async def finalize_subworkflow(sub_workflow_id: str, req: _FinalizeSubWorkflowRe
         for step, task in zip(expected_tasks, req.tasks)
     ]
     workflow["status"] = "finalized"
+    expiry_task = workflow.get("expiry_task")
+    if expiry_task:
+        expiry_task.cancel()
+        workflow["expiry_task"] = None
     return {"status": "finalized", "sub_workflow_id": sub_workflow_id}
 
 
@@ -1027,12 +1037,12 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
         # The finalized segment already contains its global boundary parameters.
         run_distributed_workflow(
             user_input=workflow.get("task_description", ""),
-            pipeline_topology=workflow.get("pipeline_topology", []),
             adaptive_mode=False,
             timeout_seconds=timeout,
             workflow_id=workflow_handle,
             route_instances=workflow.get("route_instances", []),
             route_prevalidated=True,
+            execution_plan=[dict(task) for task in workflow.get("finalized_tasks", [])],
             frozen_plan_signature=[
                 list(item) for item in plan_signature(workflow.get("finalized_tasks", []))
             ],
@@ -1042,7 +1052,7 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
 
     try:
         result = await asyncio.wait_for(asyncio.shield(workflow_task), timeout=float(timeout))
-        workflow["status"] = "completed"
+        workflow["status"] = "finalized"
         logger.info("[E_AOE] 子工作流执行完成: swf=%s, session_id=%s", sub_workflow_id, req.session_id)
         return {
             "status": "completed",
@@ -1083,10 +1093,10 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
             "result": f"子工作流执行失败: {str(e)}",
         }
     finally:
-        expiry_task = workflow.get("expiry_task")
-        if expiry_task and expiry_task is not asyncio.current_task():
-            expiry_task.cancel()
-        _cleanup_remote_workflow(workflow, workflow.get("status", "closed"))
+        # A finalized remote workflow is reusable for subsequent queries and
+        # remains subscribed until DELETE /orchestration/session/{session_id}.
+        if workflow.get("status") == "error":
+            _cleanup_remote_workflow(workflow, "error")
 
 
 @app.delete("/orchestration/session/{session_id}", summary="关闭跨 AOE 会话")
@@ -1855,10 +1865,9 @@ async def test_call_agent(request: _AgentTestCallRequest):
 @app.post("/tests/orchestration/plan", summary="只读生成智能体编排预览")
 async def preview_orchestration_plan(request: _OrchestrationPlanPreviewRequest):
     """复用正式 Planner 生成计划，但不部署、调用 Agent 或注册远端子工作流。"""
-    from langchain_core.messages import HumanMessage
     from src.api.visualization import extract_full_view
     from src.app.pipeline_parser import parse_pipeline
-    from src.graph.distributed_nodes import distributed_planner_node
+    from src.distributed_workflow import generate_execution_plan
 
     task_description = (request.task_description or "").strip()
     skills_content = request.skills_content or ""
@@ -1880,29 +1889,25 @@ async def preview_orchestration_plan(request: _OrchestrationPlanPreviewRequest):
         raise HTTPException(status_code=422, detail="任务描述不能为空")
 
     pipeline_topology = parse_pipeline(skills_content) or []
+    planning = await generate_execution_plan(
+        task_description,
+        skills_content=skills_content,
+        pipeline_topology=pipeline_topology,
+        timeout_seconds=30,
+    )
     state: Dict[str, Any] = {
-        "messages": [HumanMessage(content=task_description)],
+        "messages": [],
+        "execution_plan": planning["execution_plan"],
         "skills_content": skills_content,
         "pipeline_topology": pipeline_topology,
-        "planning_preview": True,
-        "execution_plan": [],
         "current_task_index": 0,
         "failed_tasks": [],
         "cross_host_sessions": {},
         "failed_remote_aoe_urls": {},
-        "timeout_seconds": 30,
-        "session_timeout_seconds": 30,
-        "complexity_level": "pipeline" if pipeline_topology else "dynamic",
-        "orchestration_mode": "sequential",
+        "complexity_level": planning["complexity_level"],
+        "orchestration_mode": planning["orchestration_mode"],
+        "plan_generated": True,
     }
-
-    command = await distributed_planner_node(state)
-    update = dict(command.update or {})
-    state.update(update)
-    if not state.get("plan_generated"):
-        messages = state.get("messages") or []
-        detail = getattr(messages[-1], "content", "未能生成执行计划") if messages else "未能生成执行计划"
-        raise HTTPException(status_code=422, detail=detail)
 
     view = extract_full_view(state)
     return {

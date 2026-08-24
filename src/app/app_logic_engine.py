@@ -48,6 +48,9 @@ class AppLogicEngine:
         self._workflow_handles: Dict[str, str] = {}
         # app_id → [instance_id, ...]（ALCM 部署的 Agent 实例）
         self._instance_ids: Dict[str, List[str]] = {}
+        self._execution_plans: Dict[str, List[Dict[str, Any]]] = {}
+        self._frozen_plan_signatures: Dict[str, List[List[str]]] = {}
+        self._cross_host_sessions: Dict[str, Dict[str, Any]] = {}
         # QoS 告警回调是否已注册（每个进程只注册一次）
         self._qos_callback_registered = False
         logger.info("AppLogicEngine (ALRE) 初始化完成")
@@ -144,18 +147,61 @@ class AppLogicEngine:
             f"mode={guidance.orchestration_mode}"
         )
 
-        # 部署并订阅 Agent 实例（对应接口文档 §2 ORCH→RUN）
-        instance_ids = self._deploy_and_subscribe(
-            guidance,
-            workflow_handle,
-            resource_config=resource_config,
-        )
-        self._instance_ids[app_id] = instance_ids
-
-        # deploy_only 应用只负责把 Agent 服务拉起，不执行编排工作流
         if guidance.metadata.get("deploy_only"):
-            logger.info(f"[ALRE] deploy_only 应用已启动: app_id={app_id}, workflow_handle={workflow_handle}")
-            return workflow_handle
+            self._workflow_handles.pop(app_id, None)
+            raise RuntimeError("DEPLOY_ONLY_UNSUPPORTED: 应用必须先生成 execution_plan")
+
+        pipeline_topology = []
+        if guidance.skills_content:
+            from src.app.pipeline_parser import parse_pipeline
+            pipeline_topology = parse_pipeline(guidance.skills_content) or []
+
+        from src.distributed_workflow import generate_execution_plan
+        from src.graph.distributed_nodes import (
+            _cleanup_registered_remote_workflows,
+            bind_and_finalize_execution_plan,
+            register_cross_host_workflows,
+        )
+
+        timeout = guidance.constraints.get("timeout_seconds", guidance.constraints.get("max_timeout", 120))
+        instance_ids: List[str] = []
+        remote_sessions: Dict[str, Dict[str, Any]] = {}
+        try:
+            planning = await generate_execution_plan(
+                guidance.task_description,
+                skills_content=guidance.skills_content or "",
+                pipeline_topology=pipeline_topology,
+                timeout_seconds=timeout,
+            )
+            local_bindings, instance_ids = self._deploy_plan_local_agents(
+                planning["execution_plan"],
+                planning["agent_registry_cache"],
+                workflow_handle,
+                resource_config,
+            )
+            self._instance_ids[app_id] = instance_ids
+            if planning["cross_host"]:
+                remote_sessions = await register_cross_host_workflows(
+                    planning["execution_plan"], planning["cross_host"], timeout
+                )
+            bound_plan, frozen_signature = await bind_and_finalize_execution_plan(
+                planning["execution_plan"],
+                {
+                    "route_instances": local_bindings,
+                    "timeout_seconds": timeout,
+                    "session_timeout_seconds": timeout,
+                },
+                remote_sessions,
+            )
+            self._execution_plans[app_id] = bound_plan
+            self._frozen_plan_signatures[app_id] = frozen_signature
+            self._cross_host_sessions[app_id] = remote_sessions
+        except Exception:
+            if remote_sessions:
+                await _cleanup_registered_remote_workflows(remote_sessions, timeout)
+            self._unsubscribe_instances(app_id, workflow_handle)
+            self._workflow_handles.pop(app_id, None)
+            raise
 
         # 启动后台工作流任务
         task = asyncio.create_task(
@@ -188,18 +234,8 @@ class AppLogicEngine:
         Returns:
             True 表示成功停止，False 表示未找到运行中任务
         """
-        guidance = self._guidance_files.get(app_id)
         task = self._running_tasks.get(app_id)
-        if guidance and guidance.metadata.get("deploy_only"):
-            workflow_handle = self._workflow_handles.get(app_id)
-            self._unsubscribe_instances(app_id, workflow_handle)
-            self._running_tasks.pop(app_id, None)
-            if app_id in self._workflow_handles:
-                del self._workflow_handles[app_id]
-            logger.info(f"[ALRE] ✅ deploy_only 应用已停止: app_id={app_id}")
-            return True
-
-        if not task or task.done():
+        if not task and app_id not in self._execution_plans:
             logger.warning(f"[ALRE] stop_app: app_id={app_id} 无运行中工作流")
             return False
 
@@ -218,28 +254,37 @@ class AppLogicEngine:
         except Exception as e:
             logger.debug(f"[ALRE] 远端会话通知失败（非关键）: {e}")
 
-        task.cancel()
-        try:
-            await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
-        except (asyncio.CancelledError, asyncio.TimeoutError):
-            pass
+        if task and not task.done():
+            task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+
+        remote_sessions = self._cross_host_sessions.get(app_id, {})
+        if remote_sessions:
+            try:
+                from src.graph.distributed_nodes import _cleanup_registered_remote_workflows
+                await _cleanup_registered_remote_workflows(remote_sessions, 10)
+            except Exception as exc:
+                logger.warning("[ALRE] 清理应用远端子工作流失败: app_id=%s, error=%s", app_id, exc)
 
         # 退订 Agent 实例（对应接口文档 §3 引用计数自减）
         workflow_handle = self._workflow_handles.get(app_id)
         self._unsubscribe_instances(app_id, workflow_handle)
 
-        del self._running_tasks[app_id]
+        self._running_tasks.pop(app_id, None)
         if app_id in self._workflow_handles:
             del self._workflow_handles[app_id]
+        self._execution_plans.pop(app_id, None)
+        self._frozen_plan_signatures.pop(app_id, None)
+        self._cross_host_sessions.pop(app_id, None)
 
         logger.info(f"[ALRE] ✅ 停止应用: app_id={app_id}")
         return True
 
     def is_running(self, app_id: str) -> bool:
         """检查应用是否正在运行"""
-        guidance = self._guidance_files.get(app_id)
-        if guidance and guidance.metadata.get("deploy_only"):
-            return bool(self._instance_ids.get(app_id))
         task = self._running_tasks.get(app_id)
         return task is not None and not task.done()
 
@@ -286,27 +331,25 @@ class AppLogicEngine:
                 f"app_id={app_id}, skills_len={len(guidance.skills_content)}"
             )
 
-        # 解析 Pipeline 拓扑（若 Skills.md 中包含 ## Pipeline 段落）
-        pipeline_topology = []
-        if guidance.skills_content:
-            from src.app.pipeline_parser import parse_pipeline, topology_to_description
-            pipeline_topology = parse_pipeline(guidance.skills_content) or []
-            if pipeline_topology:
-                from src.app.pipeline_parser import topology_to_description
-                logger.info(
-                    f"[ALRE] ⚡ 检测到 Pipeline 拓扑，跳过 LLM Planner: "
-                    f"{topology_to_description(pipeline_topology)}"
-                )
+        plan = self._execution_plans.get(app_id)
+        signature = self._frozen_plan_signatures.get(app_id)
+        if not plan or not signature:
+            raise RuntimeError("FROZEN_PLAN_MISSING: 应用尚未启动或没有冻结执行计划")
+        query_plan = self._inject_query_into_plan(plan, user_input)
 
         try:
             result = await run_distributed_workflow(
                 user_input=user_input,
-                adaptive_mode=(guidance.orchestration_mode == "adaptive"),
+                adaptive_mode=False,
+                replanning_enabled=False,
                 max_retries=guidance.constraints.get("max_retries", 3),
                 timeout_seconds=timeout,
                 skills_content=guidance.skills_content or "",
-                pipeline_topology=pipeline_topology,
                 route_instances=self._runtime_route_instances(app_id),
+                route_prevalidated=True,
+                frozen_plan_signature=signature,
+                execution_plan=query_plan,
+                cross_host_sessions=self._cross_host_sessions.get(app_id, {}),
             )
             logger.info(f"[ALRE] run_query 完成: app_id={app_id}")
             return {
@@ -398,24 +441,22 @@ class AppLogicEngine:
                 f"task={guidance.task_description[:80]}..."
             )
 
-            # 解析 Pipeline 拓扑（与 run_query 保持一致）
-            pipeline_topology = []
-            if guidance.skills_content:
-                from src.app.pipeline_parser import parse_pipeline, topology_to_description
-                pipeline_topology = parse_pipeline(guidance.skills_content) or []
-                if pipeline_topology:
-                    logger.info(
-                        f"[ALRE] ⚡ 检测到 Pipeline 拓扑，跳过 LLM Planner: "
-                        f"{topology_to_description(pipeline_topology)}"
-                    )
+            plan = self._execution_plans.get(app_id)
+            signature = self._frozen_plan_signatures.get(app_id)
+            if not plan or not signature:
+                raise RuntimeError("FROZEN_PLAN_MISSING: 应用没有冻结执行计划")
 
             result = await run_distributed_workflow(
                 user_input=guidance.task_description,
-                adaptive_mode=(guidance.orchestration_mode == "adaptive"),
+                adaptive_mode=False,
+                replanning_enabled=False,
                 max_retries=guidance.constraints.get("max_retries", 3),
                 timeout_seconds=timeout,
                 skills_content=guidance.skills_content or "",
-                pipeline_topology=pipeline_topology,
+                execution_plan=[copy.deepcopy(task) for task in plan],
+                cross_host_sessions=self._cross_host_sessions.get(app_id, {}),
+                route_prevalidated=True,
+                frozen_plan_signature=signature,
                 # 把 viz_enabled 及 state_callback 透传给编排层：
                 # - viz_enabled 控制是否在 VizBus 中注册/推送逐节点更新
                 # - state_callback 是一个可选回调（由上层传入），用于把逐节点
@@ -471,69 +512,102 @@ class AppLogicEngine:
     # ALCM 集成（§2/§3 ORCH↔RUN 生命周期）
     # ------------------------------------------------------------------
 
-    def _deploy_and_subscribe(
+    def _deploy_plan_local_agents(
         self,
-        guidance: GuidanceFile,
+        execution_plan: List[Dict[str, Any]],
+        registry_snapshot: List[Dict[str, Any]],
         workflow_handle: str,
         resource_config: Optional[ResourceConfig] = None,
-    ) -> List[str]:
-        """
-        为 agents_required 中的每个能力部署 Agent 实例，并订阅到本工作流。
+    ) -> tuple[List[Dict[str, Any]], List[str]]:
+        """Deploy only agents explicitly owned by this AOE in the frozen plan."""
+        from src.app.agent_warehouse import get_agent_warehouse
+        from src.runtime.lifecycle_manager import get_lifecycle_manager
 
-        流程（对应接口文档 §2）：
-        ORCH → RUN: 部署智能体 → ALCM.subscribe()
+        registry = {
+            str(agent.get("id") or agent.get("agent_id") or ""): agent
+            for agent in registry_snapshot
+        }
+        local_tasks: List[Dict[str, Any]] = []
+        for task in execution_plan:
+            agent_id = str(task.get("assigned_agent_id") or "")
+            agent = registry.get(agent_id)
+            if agent is None:
+                raise RuntimeError(f"AGENT_OWNERSHIP_UNKNOWN: {agent_id}")
+            if agent.get("is_local") is True:
+                local_tasks.append(task)
 
-        Returns:
-            已部署实例的 instance_id 列表
-        """
-        if not guidance.agents_required:
-            return []
-
+        warehouse = get_agent_warehouse()
+        alcm = get_lifecycle_manager()
+        images = warehouse.list_images()
+        deployed_by_agent: Dict[str, Any] = {}
+        instance_ids: List[str] = []
+        subscribed_ids: set[str] = set()
+        bindings: List[Dict[str, Any]] = []
         try:
-            from src.runtime.lifecycle_manager import get_lifecycle_manager
-            from src.app.agent_warehouse import get_agent_warehouse
-
-            alcm = get_lifecycle_manager()
-            warehouse = get_agent_warehouse()
-            instance_ids: List[str] = []
-
-            for capability in guidance.agents_required:
-                # 从 AW 查找对应能力的镜像
-                images = warehouse.find_by_capability(capability)
-                image = images[0] if images else None
-                image_id = image.image_id if image else f"img_{capability}_default"
-                agent_id = image.name if image else f"{capability}_agent"
-                effective_resource_config = (
-                    copy.deepcopy(resource_config)
-                    if resource_config is not None
-                    else self._resource_config_from_image(image)
-                    or self._auto_resource_config(capability)
-                )
-
-                # 部署 Agent 实例
-                instance = alcm.deploy_agent(
-                    agent_id=agent_id,
-                    image_id=image_id,
-                    resource_config=effective_resource_config,
-                )
-                if instance.status == "error":
-                    raise RuntimeError(
-                        instance.error_message
-                        or f"Agent 部署失败: agent_id={agent_id}"
+            for task in local_tasks:
+                agent_id = str(task["assigned_agent_id"])
+                instance = deployed_by_agent.get(agent_id)
+                if instance is None:
+                    matches = [image for image in images if image.name == agent_id]
+                    if len(matches) != 1:
+                        raise RuntimeError(
+                            f"Agent {agent_id} 在本地 Agent Warehouse 中匹配到 {len(matches)} 个镜像"
+                        )
+                    image = matches[0]
+                    capability = str(
+                        task.get("capability_required")
+                        or registry[agent_id].get("capability")
+                        or agent_id
                     )
-                # 工作流订阅（引用计数 +1）
-                alcm.subscribe(instance.instance_id, workflow_handle)
-                instance_ids.append(instance.instance_id)
-                logger.info(
-                    f"[ALRE→ALCM] 部署+订阅: capability={capability}, "
-                    f"instance={instance.instance_id}, workflow={workflow_handle}"
-                )
+                    effective_config = (
+                        copy.deepcopy(resource_config)
+                        if resource_config is not None
+                        else self._resource_config_from_image(image)
+                        or self._auto_resource_config(capability)
+                    )
+                    instance = alcm.deploy_agent(agent_id, image.image_id, effective_config)
+                    instance_ids.append(instance.instance_id)
+                    deployed_by_agent[agent_id] = instance
+                    if instance.status != "running":
+                        raise RuntimeError(instance.error_message or f"Agent {agent_id} 部署失败")
+                    if not alcm.subscribe(instance.instance_id, workflow_handle):
+                        raise RuntimeError(f"Agent {agent_id} 实例订阅失败")
+                    subscribed_ids.add(instance.instance_id)
 
-            return instance_ids
-
-        except Exception as e:
-            logger.error(f"[ALRE→ALCM] 部署 Agent 实例失败: {e}")
+                bindings.append({
+                    "task_id": task["task_id"],
+                    "agent_id": instance.agent_id,
+                    "instance_id": instance.instance_id,
+                    "cluster_id": instance.cluster_id,
+                    "status": instance.status,
+                })
+            return bindings, instance_ids
+        except Exception:
+            for instance_id in reversed(instance_ids):
+                try:
+                    if instance_id in subscribed_ids:
+                        alcm.unsubscribe(instance_id, workflow_handle)
+                    elif alcm.get_instance(instance_id):
+                        alcm.shutdown_agent(instance_id, force=True)
+                except Exception as cleanup_exc:
+                    logger.warning("本地计划部署回滚失败: instance=%s, error=%s", instance_id, cleanup_exc)
             raise
+
+    @staticmethod
+    def _inject_query_into_plan(
+        execution_plan: List[Dict[str, Any]], user_input: str
+    ) -> List[Dict[str, Any]]:
+        """Refresh business descriptions without changing frozen routing fields."""
+        updated = [copy.deepcopy(task) for task in execution_plan]
+        for task in updated:
+            description = str(task.get("task_description") or "")
+            marker = "\n\n用户请求："
+            base = description.split(marker, 1)[0]
+            task["task_description"] = f"{base}{marker}{user_input}" if base else f"用户请求：{user_input}"
+            task["status"] = "pending"
+            task["result"] = ""
+            task["retry_count"] = 0
+        return updated
 
     def _runtime_route_instances(self, app_id: str) -> List[Dict[str, Any]]:
         """Return the app's subscribed runtime instances, never registry placeholders."""

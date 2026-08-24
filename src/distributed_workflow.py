@@ -6,7 +6,7 @@
 import logging
 import asyncio
 from typing import Any, Callable, Dict, Optional
-from src.graph.distributed_builder import build_distributed_graph
+from src.graph.distributed_builder import build_distributed_graph, build_preplanned_distributed_graph
 from src.graph.magentic_builder import build_magentic_graph
 from src.graph.adaptive_orchestrator import evaluate_task_complexity
 from src.service.viz_bus import get_viz_bus
@@ -18,6 +18,69 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def generate_execution_plan(
+    user_input: str,
+    *,
+    skills_content: str = "",
+    pipeline_topology: Optional[list] = None,
+    timeout_seconds: int = 30,
+) -> Dict[str, Any]:
+    """Generate a plan without deploying, registering remotes, or executing it."""
+    if not user_input or not user_input.strip():
+        raise ValueError("用户输入不能为空")
+
+    from langchain_core.messages import HumanMessage
+    from src.graph.distributed_nodes import distributed_planner_node, identify_cross_host_tasks
+
+    topology = list(pipeline_topology or [])
+    state: Dict[str, Any] = {
+        "messages": [HumanMessage(content=user_input)],
+        "skills_content": skills_content,
+        "pipeline_topology": topology,
+        "planning_preview": True,
+        "execution_plan": [],
+        "current_task_index": 0,
+        "failed_tasks": [],
+        "cross_host_sessions": {},
+        "failed_remote_aoe_urls": {},
+        "timeout_seconds": timeout_seconds,
+        "session_timeout_seconds": timeout_seconds,
+        "complexity_level": "pipeline" if topology else "dynamic",
+        "orchestration_mode": "sequential",
+        "route_binding_required": False,
+        "route_prevalidated": False,
+        "route_instances": [],
+        "frozen_plan_signature": [],
+    }
+    command = await distributed_planner_node(state)
+    state.update(dict(command.update or {}))
+    execution_plan = list(state.get("execution_plan") or [])
+    if not state.get("plan_generated") or not execution_plan:
+        messages = state.get("messages") or []
+        detail = getattr(messages[-1], "content", "未能生成执行计划") if messages else "未能生成执行计划"
+        raise ValueError(str(detail))
+
+    agents = list(state.get("agent_registry_cache") or [])
+    # Never infer an unknown agent as local.  Every planned task must resolve
+    # to the registry snapshot that was used for placement.
+    by_id = {str(agent.get("id") or agent.get("agent_id") or ""): agent for agent in agents}
+    missing = [
+        str(task.get("assigned_agent_id") or "")
+        for task in execution_plan
+        if str(task.get("assigned_agent_id") or "") not in by_id
+    ]
+    if missing:
+        raise ValueError(f"AGENT_OWNERSHIP_UNKNOWN: {', '.join(sorted(set(missing)))}")
+
+    return {
+        "execution_plan": execution_plan,
+        "agent_registry_cache": agents,
+        "cross_host": identify_cross_host_tasks(execution_plan, agents),
+        "orchestration_mode": state.get("orchestration_mode", "sequential"),
+        "complexity_level": state.get("complexity_level", "dynamic"),
+    }
 
 
 def enable_debug_logging():
@@ -41,6 +104,8 @@ async def run_distributed_workflow(
     route_instances: Optional[list] = None,
     route_prevalidated: bool = False,
     frozen_plan_signature: Optional[list] = None,
+    execution_plan: Optional[list] = None,
+    cross_host_sessions: Optional[dict] = None,
 ):
     """
     运行分布式 Agent 调度工作流（支持自适应编排）
@@ -71,7 +136,13 @@ async def run_distributed_workflow(
         enable_debug_logging()
 
     # ========== Pipeline 模式：直接跳过复杂度评估 ==========
-    if pipeline_topology:
+    if execution_plan is not None:
+        if not route_prevalidated or not frozen_plan_signature:
+            raise ValueError("预生成执行计划必须提供已校验的冻结路由签名")
+        complexity = "preplanned"
+        orchestration_mode = "sequential"
+        graph = build_preplanned_distributed_graph()
+    elif pipeline_topology:
         logger.info(f"⚡ Pipeline 模式：跳过复杂度评估，固定拓扑 {len(pipeline_topology)} 步")
         complexity = "pipeline"
         orchestration_mode = "sequential"
@@ -119,9 +190,9 @@ async def run_distributed_workflow(
         
         # 初始化运行时状态
         "agent_registry_cache": [],
-        "execution_plan": [],
+        "execution_plan": [dict(task) for task in (execution_plan or [])],
         "current_task_index": 0,
-        "plan_generated": False,
+        "plan_generated": execution_plan is not None,
         "all_tasks_completed": False,
         "failed_tasks": [],
         "registry_last_update": "",
@@ -138,7 +209,7 @@ async def run_distributed_workflow(
         "orchestration_mode": orchestration_mode,
 
         # 跨主体编排状态（§2.2）
-        "cross_host_sessions": {},
+        "cross_host_sessions": dict(cross_host_sessions or {}),
         "session_timeout_seconds": timeout_seconds,
         "failed_cross_host_tasks": [],
         "failed_remote_aoe_urls": {},
