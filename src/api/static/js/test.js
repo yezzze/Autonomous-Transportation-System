@@ -316,6 +316,7 @@ async function loadInstances() {
 }
 
 let orchestrationCy = null;
+let selectedOrchestrationAppId = null;
 
 function switchTestTab(name) {
   document.querySelectorAll('[data-test-tab]').forEach(button => {
@@ -350,15 +351,28 @@ function renderOrchestrationApps(apps) {
     handle.className = 'test-instance-id';
     handle.textContent = application.workflow_handle || '—';
     const operation = document.createElement('td');
-    const plan = document.createElement('button');
-    plan.type = 'button';
-    plan.className = 'btn btn-primary btn-sm';
-    plan.textContent = '编排';
-    plan.addEventListener('click', () => requestOrchestrationPlan({app_id: application.app_id}, plan));
-    operation.appendChild(plan);
+    const details = document.createElement('button');
+    details.type = 'button';
+    details.className = 'btn btn-primary btn-sm';
+    details.textContent = '查看详情';
+    details.addEventListener('click', () => showApplicationOrchestrationDetails(application));
+    operation.appendChild(details);
     row.append(name, appId, status, handle, operation);
     body.appendChild(row);
   });
+}
+
+function showApplicationOrchestrationDetails(application) {
+  selectedOrchestrationAppId = application.app_id;
+  const guidance = application.guidance_file || {};
+  const card = document.getElementById('application-orchestration-card');
+  document.getElementById('application-orchestration-name').textContent =
+    `${application.name || '未命名应用'}（${application.app_id || '—'}）`;
+  document.getElementById('application-task-description').value = guidance.task_description || '';
+  document.getElementById('application-skills-content').value = guidance.skills_content || '';
+  document.getElementById('application-orchestration-plan-state').textContent = '';
+  card.hidden = false;
+  card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
 
 async function loadOrchestrationApps() {
@@ -384,9 +398,14 @@ async function loadOrchestrationApps() {
 function renderOrchestrationResult(data) {
   const visualization = window.OrchestrationVisualization;
   visualization.renderPipeline(document.getElementById('test-pipeline-flow'), data.orchestration || {});
+  const taskGraph = data.task_graph || data.topology || {};
+  document.getElementById('test-execution-plan-json').textContent =
+    JSON.stringify(data.execution_plan || [], null, 2);
+  document.getElementById('test-task-graph-json').textContent =
+    JSON.stringify(taskGraph, null, 2);
   const canvas = document.getElementById('test-cy');
   const empty = document.getElementById('test-topology-empty');
-  const hasNodes = Array.isArray(data.topology && data.topology.nodes) && data.topology.nodes.length > 0;
+  const hasNodes = Array.isArray(taskGraph.nodes) && taskGraph.nodes.length > 0;
   canvas.classList.toggle('show', hasNodes);
   empty.style.display = hasNodes ? 'none' : 'block';
   empty.textContent = hasNodes ? '' : '未生成任务图';
@@ -395,13 +414,13 @@ function renderOrchestrationResult(data) {
     return;
   }
   if (!orchestrationCy) orchestrationCy = visualization.createTopology(canvas);
-  visualization.renderTopology(orchestrationCy, data.topology);
+  visualization.renderTopology(orchestrationCy, taskGraph);
   orchestrationCy.resize();
   orchestrationCy.fit(undefined, 30);
 }
 
-async function requestOrchestrationPlan(payload, trigger) {
-  const state = document.getElementById('orchestration-plan-state');
+async function requestOrchestrationPlan(payload, trigger, stateElementId = 'orchestration-plan-state') {
+  const state = document.getElementById(stateElementId);
   clearAlert();
   trigger.disabled = true;
   const originalText = trigger.textContent;
@@ -416,7 +435,7 @@ async function requestOrchestrationPlan(payload, trigger) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
     renderOrchestrationResult(data);
-    state.textContent = `编排完成，共 ${data.topology.total || 0} 个任务`;
+    state.textContent = `编排完成，共 ${(data.task_graph || data.topology || {}).total || 0} 个任务`;
   } catch (error) {
     state.textContent = '编排失败';
     showAlert('error', `编排失败：${error.message}`);
@@ -430,6 +449,17 @@ document.querySelectorAll('[data-test-tab]').forEach(button => {
   button.addEventListener('click', () => switchTestTab(button.dataset.testTab));
 });
 document.getElementById('refresh-orchestration-apps').addEventListener('click', loadOrchestrationApps);
+document.getElementById('plan-application-orchestration').addEventListener('click', event => {
+  if (!selectedOrchestrationAppId) {
+    showAlert('error', '请先从应用列表中选择应用');
+    return;
+  }
+  requestOrchestrationPlan(
+    {app_id: selectedOrchestrationAppId},
+    event.currentTarget,
+    'application-orchestration-plan-state',
+  );
+});
 document.getElementById('plan-custom-orchestration').addEventListener('click', event => {
   const taskDescription = document.getElementById('orchestration-task-description').value.trim();
   if (!taskDescription) {

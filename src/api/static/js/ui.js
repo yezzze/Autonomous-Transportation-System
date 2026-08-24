@@ -359,7 +359,7 @@ function renderApps(apps) {
             </div>
             <div>
               <label style="font-size:12px;color:#778">Skills.md 内容</label>
-              <textarea id="es-${a.app_id}" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:12px;font-family:monospace;resize:vertical;min-height:80px" placeholder="# 应用技能&#10;## Pipeline&#10;search:描述 -> nlp:描述">${escHtml((a.guidance_file && a.guidance_file.skills_content) || '')}</textarea>
+              <textarea id="es-${a.app_id}" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:6px 8px;font-size:12px;font-family:monospace;resize:vertical;min-height:80px" placeholder="# 应用技能&#10;## Pipeline&#10;search_agent_001:描述 -> capability(nlp):描述">${escHtml((a.guidance_file && a.guidance_file.skills_content) || '')}</textarea>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end">
               <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${a.app_id}')">取消</button>

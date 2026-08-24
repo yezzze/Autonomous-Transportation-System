@@ -306,6 +306,7 @@ class AppLogicEngine:
                 timeout_seconds=timeout,
                 skills_content=guidance.skills_content or "",
                 pipeline_topology=pipeline_topology,
+                route_instances=self._runtime_route_instances(app_id),
             )
             logger.info(f"[ALRE] run_query 完成: app_id={app_id}")
             return {
@@ -422,6 +423,7 @@ class AppLogicEngine:
                 viz_enabled=viz_enabled,
                 workflow_id=workflow_handle,
                 state_callback=state_callback,
+                route_instances=self._runtime_route_instances(app_id),
             )
 
             logger.info(
@@ -532,6 +534,28 @@ class AppLogicEngine:
         except Exception as e:
             logger.error(f"[ALRE→ALCM] 部署 Agent 实例失败: {e}")
             raise
+
+    def _runtime_route_instances(self, app_id: str) -> List[Dict[str, Any]]:
+        """Return the app's subscribed runtime instances, never registry placeholders."""
+        from src.runtime.lifecycle_manager import get_lifecycle_manager
+
+        workflow_handle = self._workflow_handles.get(app_id)
+        instance_ids = self._instance_ids.get(app_id, [])
+        snapshots: List[Dict[str, Any]] = []
+        for instance_id in instance_ids:
+            instance = get_lifecycle_manager().get_instance(instance_id)
+            if instance is None:
+                raise RuntimeError(f"INSTANCE_MISSING: 运行实例 {instance_id} 不存在")
+            if instance.status != "running":
+                raise RuntimeError(
+                    f"INSTANCE_NOT_RUNNING: 运行实例 {instance_id} 状态为 {instance.status}"
+                )
+            if not workflow_handle or workflow_handle not in instance.subscribed_workflows:
+                raise RuntimeError(
+                    f"INSTANCE_NOT_SUBSCRIBED: 运行实例 {instance_id} 未订阅当前应用工作流"
+                )
+            snapshots.append(instance.to_dict())
+        return snapshots
 
     def _resource_config_from_image(self, image) -> Optional[ResourceConfig]:
         """从 AgentImage.metadata.k8s 读取默认资源配置。"""

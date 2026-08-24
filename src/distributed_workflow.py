@@ -38,6 +38,9 @@ async def run_distributed_workflow(
     viz_enabled: bool = True,
     workflow_id: Optional[str] = None,
     state_callback: Optional[Callable[[Dict[str, Any], str], None]] = None,
+    route_instances: Optional[list] = None,
+    route_prevalidated: bool = False,
+    frozen_plan_signature: Optional[list] = None,
 ):
     """
     运行分布式 Agent 调度工作流（支持自适应编排）
@@ -98,6 +101,12 @@ async def run_distributed_workflow(
         logger.info(f"启动分布式工作流（混合模式），用户请求：{user_input}")
         logger.info(f"重规划设置：enabled={replanning_enabled}, max={max_replanning}")
         graph = build_distributed_graph()
+
+    if route_instances is not None and orchestration_mode == "magentic":
+        from src.service.workflow_routing import WorkflowRoutingError
+        raise WorkflowRoutingError(
+            "NON_LINEAR_WORKFLOW: 基于实际实例绑定的应用工作流不支持 Magentic 动态拓扑"
+        )
     
     # 初始化状态
     initial_state = {
@@ -139,6 +148,10 @@ async def run_distributed_workflow(
         # 固定拓扑（Pipeline 模式，非空时 Planner 直接使用，跳过 LLM）
         "pipeline_topology": pipeline_topology,
         "planning_preview": False,
+        "route_binding_required": route_instances is not None and not route_prevalidated,
+        "route_prevalidated": route_prevalidated,
+        "route_instances": list(route_instances or []),
+        "frozen_plan_signature": list(frozen_plan_signature or []),
 
         # Magentic-One 相关字段（如果使用）
         "magentic_round": 0,
@@ -201,6 +214,15 @@ async def run_distributed_workflow(
         logger.debug(f"最终状态：{result}")
         return result
     except Exception as e:
+        try:
+            sessions = (last_state if "last_state" in locals() else initial_state).get(
+                "cross_host_sessions", {}
+            )
+            if sessions:
+                from src.graph.distributed_nodes import _cleanup_registered_remote_workflows
+                await _cleanup_registered_remote_workflows(sessions, timeout_seconds)
+        except Exception as cleanup_error:
+            logger.warning("跨主体注册资源清理失败: %s", cleanup_error)
         if workflow_id:
             logger.error(f"工作流执行出错 [wf_id={workflow_id}]：{e}", exc_info=True)
         else:

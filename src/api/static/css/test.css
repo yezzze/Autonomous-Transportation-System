@@ -135,6 +135,15 @@
   margin-top: 24px;
 }
 
+.application-orchestration-card[hidden] {
+  display: none;
+}
+
+.application-orchestration-card textarea[readonly] {
+  background: #f8fafc;
+  color: #475569;
+}
+
 .orchestration-input-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -207,6 +216,36 @@
   display: block;
 }
 
+.orchestration-data-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.orchestration-data-block {
+  min-width: 0;
+}
+
+.orchestration-data-title {
+  margin-bottom: 8px;
+  color: #445;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.orchestration-json {
+  min-height: 260px;
+  max-height: 520px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 14px;
+  white-space: pre;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 @media (max-width: 760px) {
   .test-call-grid {
     grid-template-columns: 1fr;
@@ -226,6 +265,10 @@
   }
 
   .orchestration-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .orchestration-data-grid {
     grid-template-columns: 1fr;
   }
 }

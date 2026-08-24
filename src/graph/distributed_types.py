@@ -51,6 +51,12 @@ class CrossHostWorkflowInfo(TypedDict, total=False):
     session_id: str
     # 保存编排期提交的原始任务快照，便于调试和状态回放。
     source_task: Dict[str, Any]
+    segment_task_ids: List[str]
+    segment_head_task_id: str
+    cluster_id: str
+    route_instances: List[Dict[str, Any]]
+    frozen_signature: List[List[str]]
+    finalize_status: str
 
 
 class TaskAssignment(TypedDict):
@@ -66,6 +72,7 @@ class TaskAssignment(TypedDict):
     retry_count: int  # 重试次数
     parallel_group: str  # 并行组标识（同值=并行，空字符串=串行）
     sub_workflow_id: str  # 非空时表示此任务路由到子工作流（而非单个 agent）
+    parameters: Dict[str, Any]  # A2A 业务参数及系统生成的实例路由字段
 
 
 class DistributedState(MessagesState):
@@ -125,6 +132,10 @@ class DistributedState(MessagesState):
     skills_content: str  # Skills.md 注入内容（来自 GuidanceFile）
     pipeline_topology: List  # 固定拓扑链路（来自 PipelineParser，空列表=使用LLM Planner）
     planning_preview: bool  # 只生成计划，不执行跨主体注册或后续任务
+    route_binding_required: bool
+    route_prevalidated: bool
+    route_instances: List[Dict[str, Any]]
+    frozen_plan_signature: List
 
     # ========== 路由控制 ==========
     next: str  # 下一个节点名称

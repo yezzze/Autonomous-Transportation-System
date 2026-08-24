@@ -3,7 +3,6 @@ FastAPI application for LangManus.
 """
 
 import json
-import hashlib
 import logging
 import os
 import re
@@ -33,6 +32,11 @@ from src.api.nats_cloud_edge import (
 )
 from src.config import TEAM_MEMBERS
 from src.service.workflow_service import run_agent_workflow
+from src.service.aoe_config import (
+    AOE_CLUSTER_CONFIG_PATH as _AOE_CLUSTER_CONFIG_PATH,
+    default_aoe_config,
+    load_aoe_config,
+)
 from src.api.visualization_routes import router as viz_router
 
 # Configure logging
@@ -98,6 +102,13 @@ class _ExecuteSubWorkflowRequest(BaseModel):
     session_id: str
     source_aoe_url: str = ""
     timeout_seconds: int = 60
+
+
+class _FinalizeSubWorkflowRequest(BaseModel):
+    """编排期：写回并冻结远端子图的最终全局路由。"""
+    tasks: List[Dict[str, Any]]
+    route_instances: List[Dict[str, Any]]
+    frozen_signature: List[List[str]]
 
 
 class _AgentTestCallRequest(BaseModel):
@@ -268,15 +279,7 @@ async def _ensure_jetstream_stream(js, req: _NatsPublishRequest) -> Dict[str, An
     return {"created": False, "updated": True, "subjects": merged_subjects, "added_subjects": missing}
 
 
-AOE_CLUSTER_CONFIG_PATH = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
-        "config",
-        "aoe_cluster_config.json",
-    )
-)
+AOE_CLUSTER_CONFIG_PATH = str(_AOE_CLUSTER_CONFIG_PATH)
 
 
 def _clean_aoe_url(url: str) -> str:
@@ -289,33 +292,14 @@ def _clean_aoe_url(url: str) -> str:
 
 
 def _default_aoe_config() -> Dict[str, Any]:
-    local_url = os.getenv("LOCAL_AOE_URL", "http://localhost:8001").strip()
-    peer_urls_raw = os.getenv("PEER_AOE_URLS", "").strip()
-    peer_urls = [u.strip().rstrip("/") for u in re.split(r"[\s,]+", peer_urls_raw) if u.strip()]
-    default_peer = peer_urls[0] if peer_urls else ""
-    return {
-        "local_name": os.getenv("AOE_CLUSTER_NAME", "cluster").strip() or "cluster",
-        "local_aoe_url": local_url,
-        "default_peer_url": default_peer,
-        "peers": [
-            {"name": f"peer-{idx + 1}", "url": url}
-            for idx, url in enumerate(peer_urls)
-        ],
-        "default_timeout_seconds": int(os.getenv("AOE_DEFAULT_TIMEOUT_SECONDS", "60")),
-    }
+    return default_aoe_config()
 
 
 def _load_aoe_config() -> Dict[str, Any]:
-    if not os.path.exists(AOE_CLUSTER_CONFIG_PATH):
-        return _default_aoe_config()
     try:
-        with open(AOE_CLUSTER_CONFIG_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        base = load_aoe_config(AOE_CLUSTER_CONFIG_PATH)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取 AOE 配置失败: {e}")
-
-    base = _default_aoe_config()
-    base.update(data or {})
     base["local_aoe_url"] = (base.get("local_aoe_url") or "").strip()
     base["default_peer_url"] = (base.get("default_peer_url") or "").strip().rstrip("/")
     base["peers"] = [
@@ -389,15 +373,15 @@ class _WorkflowRegistry:
 
     def __init__(self):
         self._workflows: Dict[str, Dict[str, Any]] = {}
-        self._signature_index: Dict[str, str] = {}
-
-    @staticmethod
-    def _signature(subtask: Dict[str, Any]) -> str:
-        payload = json.dumps(subtask, ensure_ascii=False, sort_keys=True, default=str)
-        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def get(self, sub_workflow_id: str) -> Optional[Dict[str, Any]]:
         return self._workflows.get(sub_workflow_id)
+
+    def get_by_handle(self, workflow_handle: str) -> Optional[Dict[str, Any]]:
+        return next(
+            (item for item in self._workflows.values() if item.get("workflow_handle") == workflow_handle),
+            None,
+        )
 
     def register(
         self,
@@ -409,16 +393,6 @@ class _WorkflowRegistry:
         validation_message: str,
         timeout_seconds: int,
     ) -> Dict[str, Any]:
-        signature = self._signature(subtask)
-        existing_id = self._signature_index.get(signature)
-        if existing_id and existing_id in self._workflows:
-            workflow = self._workflows[existing_id]
-            workflow["reference_count"] = int(workflow.get("reference_count", 0)) + 1
-            workflow["status"] = "exists"
-            workflow["validation_message"] = validation_message
-            workflow["last_source_url"] = source_url
-            return workflow
-
         sub_workflow_id = f"swf_{subtask.get('task_id', uuid.uuid4().hex[:8])}_{uuid.uuid4().hex[:6]}"
         workflow = {
             "sub_workflow_id": sub_workflow_id,
@@ -429,14 +403,16 @@ class _WorkflowRegistry:
             "pipeline_topology": pipeline_topology,
             "timeout_seconds": timeout_seconds,
             "validation_message": validation_message,
-            "status": "ready",
+            "status": "registering",
             "reference_count": 1,
             "created_at": uuid.uuid4().hex,
             "last_source_url": source_url,
         }
         self._workflows[sub_workflow_id] = workflow
-        self._signature_index[signature] = sub_workflow_id
         return workflow
+
+    def remove(self, sub_workflow_id: str) -> Optional[Dict[str, Any]]:
+        return self._workflows.pop(sub_workflow_id, None)
 
 
 _workflow_registry = _WorkflowRegistry()
@@ -448,27 +424,60 @@ def _validate_and_build_workflow(subtask: Dict[str, Any]) -> tuple[bool, str, Li
     if not task_description:
         return False, "task_description 不能为空", []
 
-    agent_id = (subtask.get("assigned_agent_id") or "").strip()
-    if not agent_id:
-        return False, "assigned_agent_id 不能为空", []
-
     from src.service.agent_registry import get_registry_client
 
     registry = get_registry_client()
-    agent = registry.get_agent_by_id(agent_id)
-    if not agent:
-        return False, f"Agent {agent_id} 不存在", []
-    if agent.get("status") != "online":
-        return False, f"Agent {agent_id} 当前不可用: {agent.get('status')}", []
-
-    pipeline_topology = subtask.get("pipeline_topology") or [{
-        "capability": subtask.get("capability_required") or agent.get("capability", ""),
-        "agent_id": agent_id,
-        "description": task_description,
-        "target_ip": agent.get("ip", "127.0.0.1"),
-        "target_port": agent.get("port", 8000),
-    }]
+    pipeline_topology = subtask.get("pipeline_topology")
+    if not pipeline_topology:
+        agent_id = (subtask.get("assigned_agent_id") or "").strip()
+        if not agent_id:
+            return False, "assigned_agent_id 不能为空", []
+        pipeline_topology = [{
+            "task_id": subtask.get("task_id", uuid.uuid4().hex[:8]),
+            "capability": subtask.get("capability_required", ""),
+            "agent_id": agent_id,
+            "description": task_description,
+            "parameters": dict(subtask.get("parameters") or {}),
+        }]
+    if any(not isinstance(step, dict) for step in pipeline_topology):
+        return False, "远端子任务图必须是非空的线性节点列表", []
+    task_ids = [str(step.get("task_id") or "") for step in pipeline_topology]
+    if any(not task_id for task_id in task_ids) or len(set(task_ids)) != len(task_ids):
+        return False, "远端子任务图 task_id 必须存在且唯一", []
+    for step in pipeline_topology:
+        agent_id = str(step.get("agent_id") or "").strip()
+        if not agent_id:
+            return False, f"节点 {step.get('task_id')} 缺少 agent_id", []
+        agent = registry.get_agent_by_id(agent_id)
+        if not agent:
+            return False, f"Agent {agent_id} 不存在", []
+        if agent.get("status") != "online":
+            return False, f"Agent {agent_id} 当前不可用: {agent.get('status')}", []
     return True, "子任务图校验通过", pipeline_topology
+
+
+def _cleanup_remote_workflow(workflow: Dict[str, Any], final_status: str = "closed") -> None:
+    """Idempotently unsubscribe the exact instances owned by a remote workflow."""
+    if workflow.get("resources_released"):
+        workflow["status"] = final_status
+        return
+    from src.runtime.lifecycle_manager import get_lifecycle_manager
+
+    alcm = get_lifecycle_manager()
+    for binding in workflow.get("route_instances", []):
+        instance_id = binding.get("instance_id")
+        if instance_id:
+            alcm.unsubscribe(instance_id, workflow["workflow_handle"])
+    workflow["resources_released"] = True
+    workflow["status"] = final_status
+
+
+async def _expire_remote_workflow(sub_workflow_id: str, timeout_seconds: int) -> None:
+    await asyncio.sleep(max(1, timeout_seconds))
+    workflow = _workflow_registry.get(sub_workflow_id)
+    if workflow and workflow.get("status") in {"registering", "ready", "finalized"}:
+        _cleanup_remote_workflow(workflow, "expired")
+        _session_registry.unregister(workflow.get("session_id", ""))
 
 
 @app.post("/registry/sync", summary="ARDC Gossip 接收 peer 推送")
@@ -779,6 +788,33 @@ async def orchestration_dispatch(req: _DispatchRequest):
             "sub_workflow_id": register_result.get("sub_workflow_id", ""),
         }
 
+    workflow = _workflow_registry.get(register_result["sub_workflow_id"])
+    compatibility_tasks = []
+    for step in workflow.get("pipeline_topology", []):
+        compatibility_tasks.append({
+            "task_id": step["task_id"],
+            "assigned_agent_id": step["agent_id"],
+            "parameters": dict(step.get("parameters") or {}),
+        })
+    from src.service.workflow_routing import plan_signature
+    finalize_result = await finalize_subworkflow(
+        register_result["sub_workflow_id"],
+        _FinalizeSubWorkflowRequest(
+            tasks=compatibility_tasks,
+            route_instances=register_result.get("route_instances", []),
+            frozen_signature=[list(item) for item in plan_signature(compatibility_tasks)],
+        ),
+    )
+    if finalize_result.get("status") != "finalized":
+        return {
+            "task_id": task_id,
+            "session_id": req.session_id,
+            "workflow_handle": register_result.get("workflow_handle", ""),
+            "status": "finalize_error",
+            "result": finalize_result.get("detail", "远端子工作流冻结失败"),
+            "sub_workflow_id": register_result.get("sub_workflow_id", ""),
+        }
+
     execute_result = await execute_subworkflow(
         sub_workflow_id=register_result["sub_workflow_id"],
         req=_ExecuteSubWorkflowRequest(
@@ -823,6 +859,74 @@ async def register_subworkflow(req: _RegisterSubWorkflowRequest):
         validation_message=validation_message,
         timeout_seconds=timeout_seconds,
     )
+    workflow["session_id"] = req.session_id
+    workflow["cluster_id"] = _load_aoe_config()["local_name"]
+    workflow["route_instances"] = []
+    deployed_instance_ids: List[str] = []
+    try:
+        from src.app.agent_warehouse import get_agent_warehouse
+        from src.runtime.lifecycle_manager import get_lifecycle_manager
+        from src.runtime.models import ResourceConfig
+
+        warehouse = get_agent_warehouse()
+        alcm = get_lifecycle_manager()
+        images = warehouse.list_images()
+        for step in pipeline_topology:
+            agent_id = str(step["agent_id"])
+            matches = [image for image in images if image.name == agent_id]
+            if len(matches) != 1:
+                raise RuntimeError(
+                    f"Agent {agent_id} 在远端 Agent Warehouse 中匹配到 {len(matches)} 个镜像"
+                )
+            image = matches[0]
+            k8s = dict((image.metadata or {}).get("k8s") or {})
+            resource_config = ResourceConfig(
+                cpu_cores=float(k8s.get("cpu_cores", 1.0)),
+                memory_mb=int(k8s.get("memory_mb", 512)),
+                node_id=str(k8s.get("node_id", "localhost")),
+                gpu_count=int(k8s.get("gpu_count", 0)),
+            )
+            instance = alcm.deploy_agent(agent_id, image.image_id, resource_config)
+            deployed_instance_ids.append(instance.instance_id)
+            if instance.status != "running":
+                raise RuntimeError(instance.error_message or f"Agent {agent_id} 部署失败")
+            if not alcm.subscribe(instance.instance_id, workflow_handle):
+                raise RuntimeError(f"Agent {agent_id} 实例订阅失败")
+            workflow["route_instances"].append({
+                "task_id": step["task_id"],
+                "agent_id": instance.agent_id,
+                "instance_id": instance.instance_id,
+                "cluster_id": instance.cluster_id,
+                "status": instance.status,
+            })
+        workflow["status"] = "ready"
+        _session_registry.register(req.session_id, workflow_handle)
+        workflow["expiry_task"] = asyncio.create_task(
+            _expire_remote_workflow(workflow["sub_workflow_id"], timeout_seconds)
+        )
+    except Exception as exc:
+        logger.error("[E_AOE] 子工作流实例部署失败: task_id=%s, error=%s", task_id, exc)
+        try:
+            from src.runtime.lifecycle_manager import get_lifecycle_manager
+            alcm = get_lifecycle_manager()
+            subscribed_ids = {item["instance_id"] for item in workflow.get("route_instances", [])}
+            for instance_id in deployed_instance_ids:
+                if instance_id in subscribed_ids:
+                    alcm.unsubscribe(instance_id, workflow_handle)
+                elif alcm.get_instance(instance_id):
+                    alcm.shutdown_agent(instance_id, force=True)
+        finally:
+            _workflow_registry.remove(workflow["sub_workflow_id"])
+        return {
+            "status": "deployment_error",
+            "task_id": task_id,
+            "workflow_handle": workflow_handle,
+            "sub_workflow_id": "",
+            "execute_url": "",
+            "validation_message": "远端实例部署失败",
+            "deployment_error": str(exc),
+            "source_aoe_url": req.source_aoe_url,
+        }
     execute_url = f"{local_aoe_url}/orchestration/execute/{workflow['sub_workflow_id']}"
     workflow["execute_url"] = execute_url
 
@@ -840,13 +944,64 @@ async def register_subworkflow(req: _RegisterSubWorkflowRequest):
         "execute_url": execute_url,
         "validation_message": workflow["validation_message"],
         "source_aoe_url": req.source_aoe_url,
+        "cluster_id": workflow["cluster_id"],
+        "route_instances": workflow["route_instances"],
     }
+
+
+@app.post("/orchestration/finalize/{sub_workflow_id}", summary="编排期：冻结远端子工作流路由")
+async def finalize_subworkflow(sub_workflow_id: str, req: _FinalizeSubWorkflowRequest):
+    from src.service.workflow_routing import plan_signature
+    workflow = _workflow_registry.get(sub_workflow_id)
+    if not workflow:
+        return {"status": "not_found", "sub_workflow_id": sub_workflow_id}
+    if workflow.get("status") != "ready":
+        return {"status": "invalid_state", "sub_workflow_id": sub_workflow_id}
+
+    expected_tasks = workflow["pipeline_topology"]
+    expected_ids = [str(step["task_id"]) for step in expected_tasks]
+    received_ids = [str(task.get("task_id") or "") for task in req.tasks]
+    expected_bindings = [
+        (str(item["task_id"]), str(item["agent_id"]), str(item["instance_id"]), str(item["cluster_id"]))
+        for item in workflow["route_instances"]
+    ]
+    received_bindings = [
+        (
+            str(item.get("task_id") or ""), str(item.get("agent_id") or ""),
+            str(item.get("instance_id") or ""), str(item.get("cluster_id") or ""),
+        )
+        for item in req.route_instances
+    ]
+    if received_ids != expected_ids:
+        return {"status": "binding_mismatch", "detail": "远端节点集合或顺序不一致"}
+    if received_bindings != expected_bindings:
+        return {"status": "binding_mismatch", "detail": "远端实际实例绑定不一致"}
+    for task, expected in zip(req.tasks, expected_tasks):
+        if str(task.get("assigned_agent_id") or "") != str(expected.get("agent_id") or ""):
+            return {"status": "binding_mismatch", "detail": "远端节点 Agent 不一致"}
+    global_rows = {str(row[0]): tuple(str(value) for value in row) for row in req.frozen_signature if row}
+    for row in plan_signature(req.tasks):
+        if global_rows.get(row[0]) != row:
+            return {"status": "binding_mismatch", "detail": "冻结签名与最终系统路由不一致"}
+
+    workflow["finalized_tasks"] = [dict(task) for task in req.tasks]
+    workflow["frozen_signature"] = [list(item) for item in req.frozen_signature]
+    workflow["pipeline_topology"] = [
+        {
+            **dict(step),
+            "parameters": dict(task.get("parameters") or {}),
+        }
+        for step, task in zip(expected_tasks, req.tasks)
+    ]
+    workflow["status"] = "finalized"
+    return {"status": "finalized", "sub_workflow_id": sub_workflow_id}
 
 
 @app.post("/orchestration/execute/{sub_workflow_id}", summary="运行期：执行已注册跨 AOE 子工作流")
 async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequest):
     """运行期入口：按 sub_workflow_id 执行远端已注册工作流。"""
     from src.distributed_workflow import run_distributed_workflow
+    from src.service.workflow_routing import plan_signature
 
     workflow = _workflow_registry.get(sub_workflow_id)
     if not workflow:
@@ -856,23 +1011,38 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
             "session_id": req.session_id,
             "result": "未找到已注册的子工作流",
         }
+    if workflow.get("status") != "finalized":
+        return {
+            "status": "not_finalized",
+            "sub_workflow_id": sub_workflow_id,
+            "session_id": req.session_id,
+            "result": "远端子工作流尚未完成路由冻结",
+        }
 
     workflow_handle = workflow["workflow_handle"]
+    workflow["status"] = "running"
     timeout = int(req.timeout_seconds or workflow.get("timeout_seconds", 60))
 
     workflow_task = asyncio.create_task(
+        # The finalized segment already contains its global boundary parameters.
         run_distributed_workflow(
             user_input=workflow.get("task_description", ""),
             pipeline_topology=workflow.get("pipeline_topology", []),
             adaptive_mode=False,
             timeout_seconds=timeout,
             workflow_id=workflow_handle,
+            route_instances=workflow.get("route_instances", []),
+            route_prevalidated=True,
+            frozen_plan_signature=[
+                list(item) for item in plan_signature(workflow.get("finalized_tasks", []))
+            ],
         )
     )
     _session_registry.register(req.session_id, workflow_handle, task=workflow_task)
 
     try:
         result = await asyncio.wait_for(asyncio.shield(workflow_task), timeout=float(timeout))
+        workflow["status"] = "completed"
         logger.info("[E_AOE] 子工作流执行完成: swf=%s, session_id=%s", sub_workflow_id, req.session_id)
         return {
             "status": "completed",
@@ -883,6 +1053,7 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
         }
     except asyncio.TimeoutError:
         workflow_task.cancel()
+        workflow["status"] = "error"
         logger.warning("[E_AOE] 子工作流执行超时: swf=%s, session_id=%s", sub_workflow_id, req.session_id)
         return {
             "status": "timeout",
@@ -892,6 +1063,7 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
             "result": f"子工作流执行超时（{timeout}s）",
         }
     except asyncio.CancelledError:
+        workflow["status"] = "error"
         logger.info("[E_AOE] 子工作流被取消: swf=%s, session_id=%s", sub_workflow_id, req.session_id)
         return {
             "status": "cancelled",
@@ -901,6 +1073,7 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
             "result": "子工作流已取消",
         }
     except Exception as e:
+        workflow["status"] = "error"
         logger.error("[E_AOE] 子工作流执行失败: swf=%s, session_id=%s, err=%s", sub_workflow_id, req.session_id, e)
         return {
             "status": "error",
@@ -909,6 +1082,11 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
             "sub_workflow_id": sub_workflow_id,
             "result": f"子工作流执行失败: {str(e)}",
         }
+    finally:
+        expiry_task = workflow.get("expiry_task")
+        if expiry_task and expiry_task is not asyncio.current_task():
+            expiry_task.cancel()
+        _cleanup_remote_workflow(workflow, workflow.get("status", "closed"))
 
 
 @app.delete("/orchestration/session/{session_id}", summary="关闭跨 AOE 会话")
@@ -923,13 +1101,12 @@ async def close_orchestration_session(session_id: str):
         return {"status": "not_found", "session_id": session_id}
 
     try:
-        from src.runtime.lifecycle_manager import get_lifecycle_manager
-
-        alcm = get_lifecycle_manager()
-        for instance_id in list(alcm._instances.keys()):
-            instance = alcm._instances.get(instance_id)
-            if instance and workflow_handle in getattr(instance, "subscribers", []):
-                alcm.unsubscribe(instance_id, workflow_handle)
+        workflow = _workflow_registry.get_by_handle(workflow_handle)
+        if workflow:
+            expiry_task = workflow.get("expiry_task")
+            if expiry_task:
+                expiry_task.cancel()
+            _cleanup_remote_workflow(workflow, "closed")
     except Exception as e:
         logger.warning("[E_AOE] ALCM 退订失败（非关键）: %s", e)
 
@@ -1735,6 +1912,7 @@ async def preview_orchestration_plan(request: _OrchestrationPlanPreviewRequest):
         "execution_plan": state.get("execution_plan", []),
         "orchestration": view["orchestration"],
         "topology": view["topology"],
+        "task_graph": view["topology"],
     }
 
 

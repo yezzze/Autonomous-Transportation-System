@@ -28,9 +28,9 @@ class GuidanceFile:
 
 | 字段 | 类型 | 说明 | 示例值 |
 |------|------|------|--------|
-| `capability` | str | 能力标签（小写） | `"search"`, `"nlp"`, `"compute"` |
+| `capability` | str | 注册表中的真实能力标签，或 `capability(...)` 声明的能力 | `"search"`, `"nlp"`, `"compute"` |
 | `description` | str | 自定义任务描述 | `"搜索与用户查询相关的最新资讯"` |
-| `agent_id` | str | 绑定的 Agent ID | `"search_agent_001"` |
+| `agent_id` | str（可选） | 显式绑定的 Agent ID；能力选择器节点不包含该字段 | `"search_agent_001"` |
 
 **Pipeline 拓扑解析**：
 
@@ -38,13 +38,13 @@ class GuidanceFile:
 # 数据结构
 PipelineTopology = List[PipelineStep]
 PipelineStep = Union[AgentStep, List[AgentStep]]  # 列表=并行组
-AgentStep = {"capability": str, "description": str, "agent_id": str}
+AgentStep = {"capability": str, "description": str, "agent_id"?: str}
 
 # 示例：Pipeline 段落
 ## Pipeline
-search:搜索最新竞品资讯
--> [nlp:对搜索结果做摘要分析, compute:计算指标]  # 并行组
--> nlp:生成结构化报告
+search_agent_001:搜索最新竞品资讯
+-> [capability(nlp):对搜索结果做摘要分析, capability(compute):计算指标]  # 并行组
+-> nlp_agent_001:生成结构化报告
 ```
 
 **关键 API**：
@@ -171,7 +171,7 @@ failed_remote_aoe_urls: Dict[str, List[str]]  # {task_id → [尝试过的失败
 | 组件 | 数据结构 | 来源 |
 |------|--------|------|
 | **拓扑类型** | `PipelineTopology = List[PipelineStep]` | 固定管道或 LLM 规划 |
-| **节点** | `AgentStep = {"capability", "description", "agent_id"}` | 管道解析或 LLM 输出 |
+| **节点** | `AgentStep = {"capability", "description", "agent_id"?}` | 管道解析或 LLM 输出 |
 | **边** | 隐式（列表顺序 + 并行组） | 管道语法或 LLM 任务依赖描述 |
 
 **拓扑示例**：
@@ -180,7 +180,7 @@ failed_remote_aoe_urls: Dict[str, List[str]]  # {task_id → [尝试过的失败
 # 管道 1：串行链
 [
   {"capability": "search", "description": "搜索资讯", "agent_id": "search_agent_001"},
-  {"capability": "nlp", "description": "做摘要", "agent_id": "nlp_agent_001"},
+  {"capability": "nlp", "description": "做摘要"},
   {"capability": "nlp", "description": "生成报告", "agent_id": "nlp_agent_001"}
 ]
 
@@ -188,8 +188,8 @@ failed_remote_aoe_urls: Dict[str, List[str]]  # {task_id → [尝试过的失败
 [
   {"capability": "search", "description": "...", "agent_id": "search_agent_001"},
   [  # 并行组（List[AgentStep]）
-    {"capability": "nlp", "description": "摘要分析", "agent_id": "nlp_agent_001"},
-    {"capability": "compute", "description": "计算指标", "agent_id": "compute_agent_001"}
+    {"capability": "nlp", "description": "摘要分析"},
+    {"capability": "compute", "description": "计算指标"}
   ],
   {"capability": "vision", "description": "图表生成", "agent_id": "vision_agent_001"}
 ]
@@ -720,4 +720,3 @@ WS /api/execution/events/{workflow_id}
 3. 前端展示工具链路图
 
 ---
-

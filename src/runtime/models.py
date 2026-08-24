@@ -46,6 +46,7 @@ class AgentInstance:
     instance_id: str
     agent_id: str
     image_id: str
+    cluster_id: str = "cluster"
     pod_name: Optional[str] = None
     status: str = "deploying"       # deploying | running | stopping | stopped | error
     error_message: Optional[str] = None
@@ -62,12 +63,14 @@ class AgentInstance:
         instance_id: str,
         agent_id: str,
         image_id: str,
+        cluster_id: str = "cluster",
         resource_config: Optional[ResourceConfig] = None,
     ) -> "AgentInstance":
         return cls(
             instance_id=instance_id,
             agent_id=agent_id,
             image_id=image_id,
+            cluster_id=cluster_id,
             resource_config=resource_config or ResourceConfig(),
         )
 
@@ -95,6 +98,7 @@ class AgentInstance:
             "instance_id": self.instance_id,
             "pod_name": self.pod_name,
             "agent_id": self.agent_id,
+            "cluster_id": self.cluster_id,
             "image_id": self.image_id,
             "status": self.status,
             "error_message": self.error_message,

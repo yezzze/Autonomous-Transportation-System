@@ -69,6 +69,24 @@
       </table>
     </div>
 
+    <div id="application-orchestration-card" class="card orchestration-input-card application-orchestration-card" hidden>
+      <div class="card-title">应用编排详情：<span id="application-orchestration-name">—</span></div>
+      <div class="orchestration-input-grid">
+        <div class="form-group">
+          <label for="application-task-description">任务描述</label>
+          <textarea id="application-task-description" readonly></textarea>
+        </div>
+        <div class="form-group">
+          <label for="application-skills-content">Skills.md 内容</label>
+          <textarea id="application-skills-content" class="skills-editor" readonly></textarea>
+        </div>
+      </div>
+      <div class="orchestration-actions">
+        <button class="btn btn-primary" id="plan-application-orchestration" type="button">编排</button>
+        <span id="application-orchestration-plan-state" class="test-call-state"></span>
+      </div>
+    </div>
+
     <div class="card orchestration-input-card">
       <div class="card-title">自定义编排输入</div>
       <div class="orchestration-input-grid">
@@ -78,7 +96,7 @@
         </div>
         <div class="form-group">
           <label for="orchestration-skills-content">Skills.md 内容</label>
-          <textarea id="orchestration-skills-content" class="skills-editor" placeholder="# 应用技能&#10;## Pipeline&#10;search:检索 -> nlp:总结"></textarea>
+          <textarea id="orchestration-skills-content" class="skills-editor" placeholder="# 应用技能&#10;## Pipeline&#10;search_agent_001:检索 -> capability(nlp):总结"></textarea>
         </div>
       </div>
       <div class="orchestration-actions">
@@ -96,6 +114,19 @@
         <div class="card-title">任务图</div>
         <div id="test-topology-empty" class="empty-state">请先发起编排</div>
         <div id="test-cy" class="test-topology-canvas"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">编排数据</div>
+        <div class="orchestration-data-grid">
+          <div class="orchestration-data-block">
+            <div class="orchestration-data-title">execution_plan</div>
+            <pre id="test-execution-plan-json" class="orchestration-json">请先发起编排</pre>
+          </div>
+          <div class="orchestration-data-block">
+            <div class="orchestration-data-title">task_graph</div>
+            <pre id="test-task-graph-json" class="orchestration-json">请先发起编排</pre>
+          </div>
+        </div>
       </div>
     </div>
   </section>

@@ -5,20 +5,22 @@ Pipeline 拓扑解析器
 支持串行（A -> B -> C）和并行（[A, B] -> C）语法。
 
 语法规范：
-    search                          # 仅指定 capability（描述自动由用户输入补充）
-    search:搜索最新竞品资讯          # capability:自定义描述
-    [search, compute:计算指标] -> nlp:综合分析  # 并行组 -> 下一步
+    search_agent_001                         # 指定已注册 Agent
+    search_agent_001:搜索最新竞品资讯     # agent_id:自定义描述
+    capability(search):搜索最新资讯          # 仅声明能力，延迟绑定 Agent
+    [search_agent_001, capability(compute):计算指标]
+      -> nlp_agent_001:综合分析                 # 并行组 -> 下一步
 
 返回结构：
     PipelineTopology = List[PipelineStep]
     PipelineStep = AgentStep | List[AgentStep]   (列表 = 并行组)
-    AgentStep = {"capability": str, "description": str, "agent_id": str}
+    AgentStep = {"capability": str, "description": str, "agent_id"?: str}
 
 示例：
     ## Pipeline
-    search:搜索与用户查询相关的最新资讯
-    -> nlp:对搜索结果做摘要分析
-    -> nlp:生成包含竞品对比表格的结构化报告
+    search_agent_001:搜索与用户查询相关的最新资讯
+    -> capability(nlp):对搜索结果做摘要分析
+    -> nlp_agent_001:生成包含竞品对比表格的结构化报告
 """
 
 import logging
@@ -27,8 +29,8 @@ from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-# 单个 Agent 步骤
-AgentStep = Dict[str, str]  # {"capability": str, "description": str, "agent_id": str}
+# 单个 Agent 步骤；capability(...) 节点不含 agent_id
+AgentStep = Dict[str, str]
 
 # 单个执行步骤：单 Agent 或并行组
 PipelineStep = Union[AgentStep, List[AgentStep]]
@@ -36,45 +38,50 @@ PipelineStep = Union[AgentStep, List[AgentStep]]
 # 完整拓扑
 PipelineTopology = List[PipelineStep]
 
-# capability → agent_id 默认映射（与 agent_registry.json 一致）
-_CAPABILITY_TO_AGENT_ID = {
-    "search": "search_agent_001",
-    "nlp": "nlp_agent_001",
-    "compute": "compute_agent_001",
-    "vision": "vision_agent_001",
-    "code": "code_agent_001",
-    "code_execution": "code_agent_001",
-    "web": "web_agent_001",
-    "web_interaction": "web_agent_001",
-    # 车辆协同感知 Demo
-    "perception": "perception_self_001",
-    "cognition": "cognition_main_001",
-}
-
-
-def _resolve_agent_id(capability: str) -> str:
-    """将 capability 映射到 agent_id（未知 capability 生成通用 ID）"""
-    return _CAPABILITY_TO_AGENT_ID.get(capability.lower(), f"{capability}_agent_001")
-
-
 def _parse_agent_step(token: str) -> AgentStep:
     """
     解析单个 Agent token：
-      "search"           → capability=search, description=""
-      "search:描述文字"   → capability=search, description="描述文字"
+      "search_agent_001"         → 查询注册表得到 capability
+      "search_agent_001:描述"    → 固定 Agent 及自定义描述
+      "capability(search):描述"  → 仅声明 capability，不生成 agent_id
     """
     token = token.strip()
     if ":" in token:
-        capability, description = token.split(":", 1)
-        capability = capability.strip()
+        selector, description = token.split(":", 1)
+        selector = selector.strip()
         description = description.strip()
     else:
-        capability = token
+        selector = token
         description = ""
+
+    capability_match = re.fullmatch(r"capability\(([^()]*)\)", selector)
+    if capability_match:
+        capability = capability_match.group(1).strip()
+        if not capability:
+            raise ValueError("capability(...) 中的 capability 不能为空")
+        return {
+            "capability": capability,
+            "description": description,
+        }
+
+    if selector.startswith("capability("):
+        raise ValueError(f"无效的 capability token: {selector}")
+
+    agent_id = selector
+    if not agent_id:
+        raise ValueError("agent_id 不能为空")
+
+    # 延迟导入，避免 pipeline_parser 在模块加载时引入注册表依赖。
+    from src.service.agent_registry import get_registry_client
+
+    agent_info = get_registry_client().get_agent_by_id(agent_id)
+    if not agent_info:
+        raise ValueError(f"Agent {agent_id} 未在注册表中找到")
+
     return {
-        "capability": capability.lower(),
+        "capability": agent_info["capability"],
         "description": description,
-        "agent_id": _resolve_agent_id(capability),
+        "agent_id": agent_id,
     }
 
 

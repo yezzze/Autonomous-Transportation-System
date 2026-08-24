@@ -152,6 +152,9 @@ async def register_subtask_graph_to_remote_aoe(
             "session_id": session_id,
             # 保存原始任务快照，便于后续排障或可视化回溯。
             "source_task": subtask,
+            "cluster_id": data.get("cluster_id", ""),
+            "route_instances": data.get("route_instances", []),
+            "deployment_error": data.get("deployment_error", ""),
         }
 
     except httpx.TimeoutException:
@@ -464,20 +467,144 @@ async def register_cross_host_workflows(
     这里负责把这些任务图逐个送到远端，拿到可在运行期直接调用的工作流元数据。
     """
     cross_host_sessions: dict[str, Dict[str, Any]] = {}
-    for task in execution_plan:
-        task_id = task.get("task_id")
-        remote_aoe_url = cross_host.get(task_id)
+    index = 0
+    while index < len(execution_plan):
+        first = execution_plan[index]
+        remote_aoe_url = cross_host.get(first.get("task_id"))
         if not remote_aoe_url:
+            index += 1
             continue
+        segment = [first]
+        cursor = index + 1
+        while cursor < len(execution_plan):
+            candidate = execution_plan[cursor]
+            if cross_host.get(candidate.get("task_id")) != remote_aoe_url:
+                break
+            segment.append(candidate)
+            cursor += 1
+
+        pipeline = [
+            {
+                "task_id": task["task_id"],
+                "agent_id": task["assigned_agent_id"],
+                "capability": task.get("capability_required", ""),
+                "description": task.get("task_description", ""),
+                "parameters": dict(task.get("parameters") or {}),
+            }
+            for task in segment
+        ]
+        registration_task = {
+            **dict(first),
+            "pipeline_topology": pipeline,
+            "segment_task_ids": [task["task_id"] for task in segment],
+            "timeout_seconds": session_timeout,
+        }
         workflow_info = await register_subtask_graph_to_remote_aoe(
-            subtask=task,
+            subtask=registration_task,
             remote_aoe_url=remote_aoe_url,
             session_timeout=session_timeout,
         )
-        # 把源任务一并保存下来，方便后续在 UI / 日志里对照“注册前后的变化”。
-        workflow_info["source_task"] = dict(task)
-        cross_host_sessions[task_id] = workflow_info
+        workflow_info["source_task"] = registration_task
+        workflow_info["segment_task_ids"] = registration_task["segment_task_ids"]
+        workflow_info["segment_head_task_id"] = first["task_id"]
+        if workflow_info.get("status") in {"ready", "exists"} and workflow_info.get("session_id"):
+            _active_remote_sessions[workflow_info["session_id"]] = remote_aoe_url
+        for task in segment:
+            cross_host_sessions[task["task_id"]] = dict(workflow_info)
+        index = cursor
     return cross_host_sessions
+
+
+async def finalize_cross_host_workflows(
+    execution_plan: list,
+    cross_host_sessions: dict[str, Dict[str, Any]],
+    frozen_signature: list,
+    session_timeout: int,
+) -> dict[str, Dict[str, Any]]:
+    """Write the globally bound parameters back to every unique remote segment."""
+    import httpx
+
+    by_task = {task["task_id"]: task for task in execution_plan}
+    finalized: set[str] = set()
+    for info in cross_host_sessions.values():
+        sub_workflow_id = info.get("sub_workflow_id", "")
+        if not sub_workflow_id or sub_workflow_id in finalized:
+            continue
+        task_ids = list(info.get("segment_task_ids") or [])
+        tasks = [by_task[task_id] for task_id in task_ids]
+        remote_bindings = list(info.get("route_instances") or [])
+        url = f"{info['remote_aoe_url']}/orchestration/finalize/{sub_workflow_id}"
+        async with httpx.AsyncClient(timeout=float(session_timeout)) as client:
+            response = await client.post(url, json={
+                "tasks": tasks,
+                "route_instances": remote_bindings,
+                "frozen_signature": [list(item) for item in frozen_signature],
+            })
+            response.raise_for_status()
+            data = response.json()
+        if data.get("status") != "finalized":
+            raise RuntimeError(
+                f"REMOTE_FINALIZE_FAILED: {sub_workflow_id}: {data.get('detail') or data.get('status')}"
+            )
+        finalized.add(sub_workflow_id)
+    return cross_host_sessions
+
+
+async def _cleanup_registered_remote_workflows(
+    cross_host_sessions: dict[str, Dict[str, Any]], timeout: int,
+) -> None:
+    import httpx
+
+    seen: set[tuple[str, str]] = set()
+    for info in cross_host_sessions.values():
+        key = (str(info.get("remote_aoe_url", "")), str(info.get("session_id", "")))
+        if not all(key) or key in seen:
+            continue
+        seen.add(key)
+        try:
+            async with httpx.AsyncClient(timeout=float(timeout)) as client:
+                await client.delete(f"{key[0]}/orchestration/session/{key[1]}")
+        except Exception as exc:
+            logger.warning("[跨主体] 回滚远端注册失败: %s", exc)
+        finally:
+            _active_remote_sessions.pop(key[1], None)
+
+
+async def bind_and_finalize_execution_plan(
+    execution_plan: list,
+    state: DistributedState,
+    cross_host_sessions: dict[str, Dict[str, Any]],
+) -> tuple[list, list]:
+    """Merge local/remote runtime identities, bind globally, then finalize remotes."""
+    from src.service.workflow_routing import WorkflowRoutingError, bind_linear_workflow
+
+    timeout = state.get("session_timeout_seconds", state.get("timeout_seconds", 60))
+    failed = [
+        info for info in cross_host_sessions.values()
+        if info.get("status") not in {"ready", "exists"}
+    ]
+    if failed:
+        await _cleanup_registered_remote_workflows(cross_host_sessions, timeout)
+        detail = failed[0].get("deployment_error") or failed[0].get("validation_message")
+        raise WorkflowRoutingError(f"REMOTE_REGISTRATION_FAILED: {detail or '远端注册失败'}")
+
+    route_instances = list(state.get("route_instances", []))
+    seen_remote: set[tuple[str, str]] = set()
+    for info in cross_host_sessions.values():
+        for binding in info.get("route_instances", []):
+            key = (str(binding.get("task_id", "")), str(binding.get("instance_id", "")))
+            if key not in seen_remote:
+                route_instances.append(dict(binding))
+                seen_remote.add(key)
+    try:
+        bound_plan, frozen_signature = bind_linear_workflow(execution_plan, route_instances)
+        await finalize_cross_host_workflows(
+            bound_plan, cross_host_sessions, frozen_signature, timeout
+        )
+        return bound_plan, [list(item) for item in frozen_signature]
+    except Exception:
+        await _cleanup_registered_remote_workflows(cross_host_sessions, timeout)
+        raise
 
 
 def _build_sub_workflow_prompt_section(sub_workflows: list) -> str:
@@ -548,7 +675,7 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                     desc = sub_step.get("description") or sub_step.get("capability", "")
                     task_desc = f"{desc}\n\n用户请求：{user_request}" if desc else f"用户请求：{user_request}"
                     execution_plan.append({
-                        "task_id": f"pipeline_{step_idx}_{len(execution_plan):03d}",
+                        "task_id": sub_step.get("task_id") or f"pipeline_{step_idx}_{len(execution_plan):03d}",
                         "task_title": f"[并行] {sub_step.get('capability', '')}",
                         "task_description": task_desc,
                         "assigned_agent_id": agent_id,
@@ -559,6 +686,7 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                         "retry_count": 0,
                         "parallel_group": group_id,
                         "sub_workflow_id": "",
+                        "parameters": dict(sub_step.get("parameters") or {}),
                     })
             else:
                 # 串行步骤
@@ -567,7 +695,7 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                 desc = step.get("description") or step.get("capability", "")
                 task_desc = f"{desc}\n\n用户请求：{user_request}" if desc else f"用户请求：{user_request}"
                 execution_plan.append({
-                    "task_id": f"pipeline_{step_idx}_{len(execution_plan):03d}",
+                    "task_id": step.get("task_id") or f"pipeline_{step_idx}_{len(execution_plan):03d}",
                     "task_title": step.get("capability", ""),
                     "task_description": task_desc,
                     "assigned_agent_id": agent_id,
@@ -578,15 +706,19 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                     "retry_count": 0,
                     "parallel_group": "",
                     "sub_workflow_id": "",
+                    "parameters": dict(step.get("parameters") or {}),
                 })
 
         plan_summary = f"⚡ Pipeline 模式：{len(execution_plan)} 步固定拓扑（无 LLM Planner）"
-
         # ── §2.2 跨主体识别：根据 Agent IP 预填 cross_host_sessions ────────
         # 这一步仍然处于编排阶段：先确定哪些任务需要发往远端，
         # 再把这些任务对应的远端注册结果保存到 state 中，供运行期直接读取。
         all_agents = registry_client.get_all_agents()
-        cross_host = identify_cross_host_tasks(execution_plan, all_agents)
+        cross_host = (
+            {} if state.get("route_prevalidated")
+            else identify_cross_host_tasks(execution_plan, all_agents)
+        )
+        frozen_signature = []
         cross_host_sessions: dict[str, Dict[str, Any]] = {}
         if cross_host and not state.get("planning_preview", False):
             logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
@@ -595,6 +727,14 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                 cross_host=cross_host,
                 session_timeout=state.get("session_timeout_seconds", state.get("timeout_seconds", 60)),
             )
+        if state.get("route_binding_required"):
+            execution_plan, frozen_signature = await bind_and_finalize_execution_plan(
+                execution_plan, state, cross_host_sessions
+            )
+        elif state.get("route_prevalidated"):
+            from src.service.workflow_routing import assert_frozen_plan
+            frozen_signature = state.get("frozen_plan_signature", [])
+            assert_frozen_plan(execution_plan, frozen_signature)
 
         return Command(
             update={
@@ -605,6 +745,7 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                 "all_tasks_completed": False,
                 "cross_host_sessions": cross_host_sessions,
                 "agent_registry_cache": all_agents,
+                "frozen_plan_signature": frozen_signature,
             },
             goto="executor"
         )
@@ -794,6 +935,7 @@ interface ExecutionPlan {{
                 "retry_count": 0,
                 "parallel_group": "",
                 "sub_workflow_id": swf_id,
+                "parameters": dict(task.get("parameters") or {}),
             }
             execution_plan.append(task_assignment)
         
@@ -868,7 +1010,11 @@ interface ExecutionPlan {{
         # 8. §2.2 跨主体识别：根据 Agent IP 预填 cross_host_sessions 并完成远端注册
         # LLM 规划路径与 Pipeline 快速路径保持一致：Planner 先决定“是否跨主体”，
         # 这里再把这些跨主体任务注册到远端，运行期就不再重复下发整张子任务图。
-        cross_host = identify_cross_host_tasks(execution_plan, available_agents)
+        cross_host = (
+            {} if state.get("route_prevalidated")
+            else identify_cross_host_tasks(execution_plan, available_agents)
+        )
+        frozen_signature = []
         cross_host_sessions: dict[str, Dict[str, Any]] = {}
         if cross_host and not state.get("planning_preview", False):
             logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
@@ -877,6 +1023,14 @@ interface ExecutionPlan {{
                 cross_host=cross_host,
                 session_timeout=state.get("session_timeout_seconds", state.get("timeout_seconds", 60)),
             )
+        if state.get("route_binding_required"):
+            execution_plan, frozen_signature = await bind_and_finalize_execution_plan(
+                execution_plan, state, cross_host_sessions
+            )
+        elif state.get("route_prevalidated"):
+            from src.service.workflow_routing import assert_frozen_plan
+            frozen_signature = state.get("frozen_plan_signature", [])
+            assert_frozen_plan(execution_plan, frozen_signature)
 
         # 9. 正常情况：更新状态并跳转到执行器
         plan_summary = f"""
@@ -901,6 +1055,7 @@ interface ExecutionPlan {{
                 "agent_registry_cache": available_agents,
                 "registry_last_update": datetime.now().isoformat(),
                 "cross_host_sessions": cross_host_sessions,
+                "frozen_plan_signature": frozen_signature,
             },
             goto="executor"
         )
@@ -971,6 +1126,9 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     
     current_index = state.get("current_task_index", 0)
     execution_plan = state["execution_plan"]
+    if state.get("route_binding_required") or state.get("route_prevalidated"):
+        from src.service.workflow_routing import assert_frozen_plan
+        assert_frozen_plan(execution_plan, state.get("frozen_plan_signature", []))
     
     if current_index >= len(execution_plan):
         logger.info("所有任务已完成！")
@@ -1387,7 +1545,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
             }
     
     # 4. 兼容性处理：如果统一执行层不可用，降级到 LLM 模拟器
-    if task_status == "failed" and USE_LLM_SIMULATOR:
+    if task_status == "failed" and USE_LLM_SIMULATOR and not remote_aoe_url:
         logger.info(f"🤖 降级到 LLM 智能体模拟器（模型: {LLM_SIMULATOR_MODEL}）")
         
         try:
@@ -1435,6 +1593,14 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     updated_plan[current_index]["status"] = task_status
     updated_plan[current_index]["result"] = result_message
     updated_plan[current_index]["retry_count"] += 1
+    segment_task_ids = list(remote_info.get("segment_task_ids") or []) if remote_aoe_url else []
+    if task_status == "completed" and segment_task_ids:
+        for task_index, task in enumerate(updated_plan):
+            if task.get("task_id") in segment_task_ids:
+                updated_plan[task_index]["status"] = "completed"
+                updated_plan[task_index]["result"] = result_message
+                if task_index != current_index:
+                    updated_plan[task_index]["retry_count"] += 1
     
     # 记录使用的协议信息
     if 'result_data' in locals() and result_data:
@@ -1468,6 +1634,12 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     
     # 7. 移动到下一个任务
     next_index = current_index + 1
+    if task_status == "completed" and segment_task_ids:
+        segment_indexes = [
+            index for index, task in enumerate(updated_plan)
+            if task.get("task_id") in segment_task_ids
+        ]
+        next_index = max(segment_indexes) + 1 if segment_indexes else next_index
     
     return Command(
         update={

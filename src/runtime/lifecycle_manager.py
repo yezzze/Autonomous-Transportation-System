@@ -16,6 +16,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from src.runtime.models import AgentInstance, ResourceConfig
+from src.service.aoe_config import get_local_cluster_name
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,7 @@ class AgentLifecycleManager:
             instance_id=reservation_id,
             agent_id=agent_id,
             image_id=image_id,
+            cluster_id=get_local_cluster_name(),
             resource_config=rc,
         )
 
