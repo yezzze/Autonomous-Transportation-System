@@ -4,16 +4,42 @@
   "registry_type": "file",
   "agents": [
     {
-      "id": "Perception2IntermediateFeature_agent_001",
+      "id": "perception2intermediatefeature-agent",
       "ip": "192.168.49.2",
-      "port": 30091,
+      "port": 30391,
       "capability": "Perception2IntermediateFeature",
       "status": "online",
       "description": "专门用于将自车感知数据转换为中间通信特征的 Agent，支持端端协同感知流程",
       "enabled": true,
       "priority": 10,
       "tags": ["perception", "intermediate_feature", "vehicle", "cooperative"],
-      "node_name": "10.112.136.44",
+      "node_name": "minikube",
+      "is_local": true
+    },
+    {
+      "id": "cooperativefeaturefusiondetectionviz-agent",
+      "ip": "192.168.49.2",
+      "port": 30392,
+      "capability": "CooperativeFeatureFusionDetectionViz",
+      "status": "online",
+      "description": "收集自车和协同车辆的中间特征，进行融合并可视化检测结果的 Agent，支持端端协同感知流程",
+      "enabled": true,
+      "priority": 10,
+      "tags": ["intermediate_feature", "vehicle", "cooperative", "fusion", "detection", "visualization"],
+      "node_name": "minikube",
+      "is_local": true
+    },
+    {
+      "id": "agent-template",
+      "ip": "192.168.49.2",
+      "port": 30091,
+      "capability": "agentTemplateTest",
+      "status": "online",
+      "description": "这是一个测试 Agent 模板，部署在本地节点",
+      "enabled": true,
+      "priority": 10,
+      "tags": ["test", "agentTemplate"],
+      "node_name": "minikube",
       "is_local": true
     }
   ],

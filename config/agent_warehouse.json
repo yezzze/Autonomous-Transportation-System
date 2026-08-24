@@ -34,9 +34,9 @@
       "registered": true
     },
     {
-      "image_id": "perception2intermediatefeature-agent:0.1.2",
+      "image_id": "perception2intermediatefeature-agent:0.2.0",
       "name": "perception2intermediatefeature-agent",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "capability": "perception",
       "description": "专门用于将自车感知数据转换为中间通信特征的 Agent，支持端端协同感知流程",
       "exposed_external": false,
@@ -45,11 +45,22 @@
       "registered": true
     },
     {
-      "image_id": "cooperativefeaturefusiondetectionviz-agent:0.1.2",
+      "image_id": "cooperativefeaturefusiondetectionviz-agent:0.2.0",
       "name": "cooperativefeaturefusiondetectionviz-agent",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "capability": "cognition",
       "description": "收集自车和协同车辆的中间特征，进行融合并可视化检测结果的 Agent，支持端端协同感知流程",
+      "exposed_external": false,
+      "metadata": {},
+      "created_at": "2026-04-25T18:45:58.601887",
+      "registered": true
+    },
+    {
+      "image_id": "agent-template:0.2.1",
+      "name": "agent-template",
+      "version": "0.2.1",
+      "capability": "agentTemplateTest",
+      "description": "Agent 模板，用于快速创建新的 Agent 实例",
       "exposed_external": false,
       "metadata": {},
       "created_at": "2026-04-25T18:45:58.601887",

@@ -16,30 +16,35 @@ spec:
     spec:
       containers:
         - name: perception2intermediatefeature-agent
-          image: perception2intermediatefeature-agent:0.1.3
+          image: perception2intermediatefeature-agent:0.2.0
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 9001
+            - containerPort: 9031
               name: http
           env:
+            - name: A2A_AGENT_URL
+              value: http://192.168.49.2:30391
             - name: MCP_SERVER_HOST
-              value: host.minikube.internal
+              value: 10.112.136.44
             - name: MCP_SERVER_PORT
               value: "8123"
             - name: MODEL_CHECKPOINT_PATH
               value: /app/checkpoints/point_pillar_where2comm/
-            - name: FRONTEND_CALLBACK_URL
-              value: http://host.minikube.internal:9002/temp/post_data
-            - name: NATS_SERVERS
-              value: nats://nats:4222
-            - name: NATS_SERVER_URL
-              value: nats://nats:4222
-            - name: NATS_JETSTREAM_DOMAIN
-              value: hub
-            - name: NATS_STREAM_SUBJECTS
-              value: workflow.>
-            - name: NATS_SUBJECT
-              value: workflow.demo.perception2feature.result.dx86.0601
+            - name: AGENT_MAX_CONCURRENT_TASKS
+              value: "1"
+            # 工作流路由使用的集群标识；需与发送方使用的 target_cluster 一致。
+            - name: CLUSTER_ID
+              value: edge-c
+            # Agent 逻辑标识；同一种 Agent 的所有副本应使用相同值。
+            - name: AGENT_ID
+              value: perception2intermediatefeature-agent
+            # 每个 Pod 使用独立实例标识，从而创建独享的 WF_<instance-id> Stream。
+            - name: AGENT_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: NATS_CONTROL_MAX_BYTES
+              value: "67108864"
           resources:
             requests:
               nvidia.com/gpu: "1"
@@ -58,7 +63,25 @@ spec:
   ports:
     - name: http
       protocol: TCP
-      port: 9001
-      nodePort: 30091
-      targetPort: 9001
+      port: 9031
+      nodePort: 30391
+      targetPort: 9031
   type: NodePort
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: perception2intermediatefeature-agent
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      app: perception2intermediatefeature-agent
+  endpoints:
+    - port: http
+      path: /metrics/
+      interval: 15s
+      scrapeTimeout: 10s
