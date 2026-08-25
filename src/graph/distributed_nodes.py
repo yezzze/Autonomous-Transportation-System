@@ -598,6 +598,35 @@ async def bind_and_finalize_execution_plan(
                 seen_remote.add(key)
     try:
         bound_plan, frozen_signature = bind_linear_workflow(execution_plan, route_instances)
+        remote_endpoints: dict[str, tuple[str, int]] = {}
+        for info in cross_host_sessions.values():
+            for binding in info.get("route_instances", []):
+                task_id = str(binding.get("task_id") or "")
+                service_ip = str(binding.get("service_ip") or "").strip()
+                try:
+                    service_port = int(binding.get("service_port") or 0)
+                except (TypeError, ValueError):
+                    service_port = 0
+                if not task_id or not service_ip or not 1 <= service_port <= 65535:
+                    raise WorkflowRoutingError(
+                        f"REMOTE_SERVICE_ENDPOINT_MISSING: 远端任务 {task_id or 'unknown'} "
+                        "缺少有效的 Agent Service IP 或端口"
+                    )
+                remote_endpoints[task_id] = (service_ip, service_port)
+        bound_plan = [
+            {
+                **task,
+                **(
+                    {
+                        "target_ip": remote_endpoints[str(task.get("task_id") or "")][0],
+                        "target_port": remote_endpoints[str(task.get("task_id") or "")][1],
+                    }
+                    if str(task.get("task_id") or "") in remote_endpoints
+                    else {}
+                ),
+            }
+            for task in bound_plan
+        ]
         await finalize_cross_host_workflows(
             bound_plan, cross_host_sessions, frozen_signature, timeout
         )

@@ -866,13 +866,16 @@ async def register_subworkflow(req: _RegisterSubWorkflowRequest):
     workflow["route_instances"] = []
     deployed_instance_ids: List[str] = []
     deployed_by_agent: Dict[str, Any] = {}
+    service_endpoint_by_agent: Dict[str, tuple[str, int]] = {}
     try:
         from src.app.agent_warehouse import get_agent_warehouse
         from src.runtime.lifecycle_manager import get_lifecycle_manager
         from src.runtime.resource_selection import resource_config_for_image
+        from src.service.agent_registry import get_registry_client
 
         warehouse = get_agent_warehouse()
         alcm = get_lifecycle_manager()
+        registry = get_registry_client()
         images = warehouse.list_images()
         for step in pipeline_topology:
             agent_id = str(step["agent_id"])
@@ -899,11 +902,32 @@ async def register_subworkflow(req: _RegisterSubWorkflowRequest):
                     raise RuntimeError(instance.error_message or f"Agent {agent_id} 部署失败")
                 if not alcm.subscribe(instance.instance_id, workflow_handle):
                     raise RuntimeError(f"Agent {agent_id} 实例订阅失败")
+                agent_info = registry.get_local_agent_by_id(agent_id)
+                service_ip = str((agent_info or {}).get("ip") or "").strip()
+                try:
+                    service_port = int((agent_info or {}).get("port") or 0)
+                except (TypeError, ValueError):
+                    service_port = 0
+                if (
+                    not agent_info
+                    or agent_info.get("status") != "online"
+                    or not service_ip
+                    or service_ip == "0.0.0.0"
+                    or not 1 <= service_port <= 65535
+                ):
+                    raise RuntimeError(
+                        f"Agent {agent_id} 部署后未在本地 Agent Registry 注册有效的 "
+                        "Service IP 和端口"
+                    )
+                service_endpoint_by_agent[agent_id] = (service_ip, service_port)
+            service_ip, service_port = service_endpoint_by_agent[agent_id]
             workflow["route_instances"].append({
                 "task_id": step["task_id"],
                 "agent_id": instance.agent_id,
                 "instance_id": instance.instance_id,
                 "cluster_id": instance.cluster_id,
+                "service_ip": service_ip,
+                "service_port": service_port,
                 "status": instance.status,
             })
         workflow["status"] = "ready"
@@ -969,13 +993,17 @@ async def finalize_subworkflow(sub_workflow_id: str, req: _FinalizeSubWorkflowRe
     expected_ids = [str(step["task_id"]) for step in expected_tasks]
     received_ids = [str(task.get("task_id") or "") for task in req.tasks]
     expected_bindings = [
-        (str(item["task_id"]), str(item["agent_id"]), str(item["instance_id"]), str(item["cluster_id"]))
+        (
+            str(item["task_id"]), str(item["agent_id"]), str(item["instance_id"]),
+            str(item["cluster_id"]), str(item["service_ip"]), str(item["service_port"]),
+        )
         for item in workflow["route_instances"]
     ]
     received_bindings = [
         (
             str(item.get("task_id") or ""), str(item.get("agent_id") or ""),
             str(item.get("instance_id") or ""), str(item.get("cluster_id") or ""),
+            str(item.get("service_ip") or ""), str(item.get("service_port") or ""),
         )
         for item in req.route_instances
     ]
@@ -991,7 +1019,22 @@ async def finalize_subworkflow(sub_workflow_id: str, req: _FinalizeSubWorkflowRe
         if global_rows.get(row[0]) != row:
             return {"status": "binding_mismatch", "detail": "冻结签名与最终系统路由不一致"}
 
-    workflow["finalized_tasks"] = [dict(task) for task in req.tasks]
+    endpoint_by_task = {
+        str(item["task_id"]): (str(item["service_ip"]), int(item["service_port"]))
+        for item in workflow["route_instances"]
+    }
+    finalized_tasks = []
+    for task in req.tasks:
+        task_id = str(task.get("task_id") or "")
+        endpoint = endpoint_by_task.get(task_id)
+        if not endpoint:
+            return {"status": "binding_mismatch", "detail": f"任务 {task_id} 缺少实际服务地址绑定"}
+        finalized_tasks.append({
+            **dict(task),
+            "target_ip": endpoint[0],
+            "target_port": endpoint[1],
+        })
+    workflow["finalized_tasks"] = finalized_tasks
     workflow["frozen_signature"] = [list(item) for item in req.frozen_signature]
     workflow["pipeline_topology"] = [
         {

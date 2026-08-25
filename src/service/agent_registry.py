@@ -286,6 +286,17 @@ class AgentRegistryClient:
         """仅返回本地 online agents，用于向 peer 推送"""
         return [a for a in self._mock_agents if a.get("status") == "online" and self._agent_is_local(a)]
 
+    def get_local_agent_by_id(self, agent_id: str) -> Optional[AgentInfo]:
+        """按 ID 查询本地 Agent，禁止回退到 Gossip 同步的远端记录。"""
+        return next(
+            (
+                agent
+                for agent in self._mock_agents
+                if agent.get("id") == agent_id and self._agent_is_local(agent)
+            ),
+            None,
+        )
+
     def get_agents_by_source(self) -> Dict[str, Any]:
         """返回按来源分组的 Agent 视图，用于跨集群查看。"""
         return {
@@ -530,6 +541,7 @@ class AgentRegistryClient:
                 agent["port"] = port
                 agent["capability"] = capability
                 agent["status"] = status
+                agent["is_local"] = True
                 if description:
                     agent["description"] = description
                 logger.info(
@@ -544,6 +556,7 @@ class AgentRegistryClient:
             "capability": capability,
             "status": status,
             "description": description or f"subprocess 部署的 {capability} agent",
+            "is_local": True,
         })
         logger.info(
             f"[ARDC] 注册新 agent: id={agent_id}, {ip}:{port}, cap={capability}"

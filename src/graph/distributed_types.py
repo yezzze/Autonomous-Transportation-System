@@ -54,9 +54,20 @@ class CrossHostWorkflowInfo(TypedDict, total=False):
     segment_task_ids: List[str]
     segment_head_task_id: str
     cluster_id: str
-    route_instances: List[Dict[str, Any]]
+    route_instances: List["RouteInstanceBinding"]
     frozen_signature: List[List[str]]
     finalize_status: str
+
+
+class RouteInstanceBinding(TypedDict):
+    """任务与实际 Agent 实例及其数据面服务地址的绑定。"""
+    task_id: str
+    agent_id: str
+    instance_id: str
+    cluster_id: str
+    service_ip: str
+    service_port: int
+    status: str
 
 
 class TaskAssignment(TypedDict):
@@ -65,8 +76,8 @@ class TaskAssignment(TypedDict):
     task_title: str  # 任务标题
     task_description: str  # 任务详细描述
     assigned_agent_id: str  # 分配的 Agent ID
-    target_ip: str  # 目标 IP 地址
-    target_port: int  # 目标端口
+    target_ip: str  # Executor 调用 Agent 的实际数据面 Service IP
+    target_port: int  # Executor 调用 Agent 的实际数据面 Service 端口
     status: Literal["pending", "running", "completed", "failed"]  # 任务状态
     result: str  # 任务执行结果
     retry_count: int  # 重试次数
