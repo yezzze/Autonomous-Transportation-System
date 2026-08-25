@@ -346,7 +346,11 @@ class AppManager:
     # 周期调度
     # ------------------------------------------------------------------
 
-    async def start_schedule(self, app_id: str) -> bool:
+    async def start_schedule(
+        self,
+        app_id: str,
+        resource_config: Optional[ResourceConfig] = None,
+    ) -> bool:
         """
         启动应用的周期调度
 
@@ -375,7 +379,15 @@ class AppManager:
             return False
 
         deploy_only = bool(app.guidance_file.metadata.get("deploy_only"))
-        if deploy_only and not self._get_engine().is_deployed(app_id):
+        engine = self._get_engine()
+        if not deploy_only and app.status not in {"idle", "stopped", "error"}:
+            logger.error(
+                "[APPM] start_schedule: 普通应用 %s 当前状态 %s，不能定时启动",
+                app_id,
+                app.status,
+            )
+            return False
+        if deploy_only and not engine.is_deployed(app_id):
             logger.error(
                 "[APPM] start_schedule: deploy_only 应用 %s 尚未完成部署",
                 app_id,
@@ -394,10 +406,41 @@ class AppManager:
         max_parallel = int(constraints.get("schedule_max_parallel", 5))
         max_history = int(constraints.get("schedule_max_history", 100))
 
+        # 普通应用的“定时启动”与普通启动共用完整编排部署流程，区别仅在于
+        # 冻结计划后不立即执行，而是交给调度器按周期触发。
+        deployed_for_schedule = False
+        if not deploy_only and not engine.is_deployed(app_id):
+            app.update_status("starting")
+            try:
+                handle = await engine.start_app(
+                    app_id,
+                    resource_config=resource_config,
+                    auto_execute=False,
+                )
+            except Exception as exc:
+                app.update_status("error", str(exc))
+                self._save_to_disk()
+                logger.error("[APPM] 定时启动部署失败: app_id=%s, error=%s", app_id, exc)
+                return False
+            if not handle:
+                app.update_status("error", "ALRE 未能完成定时启动部署")
+                self._save_to_disk()
+                return False
+            deployed_for_schedule = True
+            app.workflow_handle = handle
+            app.app_interface_url = f"/api/apps/{app_id}/interface"
+
         scheduler = self._get_scheduler()
         success = await scheduler.start_schedule(
             app_id, int(interval), max_parallel, max_history
         )
+        if not success and deployed_for_schedule:
+            await engine.stop_app(app_id)
+            app.workflow_handle = None
+            app.app_interface_url = None
+            app.update_status("error", "部署完成，但周期调度器启动失败，已回滚部署")
+            self._save_to_disk()
+            return False
         if success:
             schedule_status = scheduler.get_schedule_status(app_id) or {}
             if not deploy_only:
@@ -445,12 +488,16 @@ class AppManager:
             )
             return False
 
-        success = await scheduler.stop_schedule(app_id)
+        success = await scheduler.stop_schedule(app_id, cancel_active=not deploy_only)
         if success:
             if deploy_only and self._get_engine().is_deployed(app_id):
                 app.update_status("running")
             else:
+                # 普通“定时启动”的部署由调度生命周期持有；停止调度时同时
+                # 释放本地实例、远端会话和冻结计划。
+                await self._get_engine().stop_app(app_id)
                 app.workflow_handle = None
+                app.app_interface_url = None
                 app.update_status("stopped")
             self._save_to_disk()
             logger.info(f"[APPM] 周期调度已停止: app_id={app_id}")

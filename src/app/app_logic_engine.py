@@ -109,6 +109,7 @@ class AppLogicEngine:
         self,
         app_id: str,
         resource_config: Optional[ResourceConfig] = None,
+        auto_execute: bool = True,
     ) -> Optional[str]:
         """
         启动应用
@@ -122,6 +123,7 @@ class AppLogicEngine:
         Args:
             app_id: 应用 ID
             resource_config: 启动时为每个 Agent 实例申请的资源
+            auto_execute: 部署冻结完成后是否立即执行；定时启动传 False
 
         Returns:
             workflow_handle（str），失败返回 None
@@ -131,8 +133,8 @@ class AppLogicEngine:
             logger.error(f"[ALRE] start_app: app_id={app_id} 没有指导文件")
             return None
 
-        if guidance.metadata.get("deploy_only") and self.is_deployed(app_id):
-            logger.warning("[ALRE] deploy_only 应用 %s 已完成部署", app_id)
+        if (guidance.metadata.get("deploy_only") or not auto_execute) and self.is_deployed(app_id):
+            logger.warning("[ALRE] 应用 %s 已完成部署", app_id)
             return self._workflow_handles.get(app_id)
 
         if app_id in self._running_tasks and not self._running_tasks[app_id].done():
@@ -196,7 +198,7 @@ class AppLogicEngine:
             self._execution_plans[app_id] = bound_plan
             self._frozen_plan_signatures[app_id] = frozen_signature
             self._cross_host_sessions[app_id] = remote_sessions
-            if guidance.metadata.get("deploy_only"):
+            if guidance.metadata.get("deploy_only") or not auto_execute:
                 self._publish_deployment_plan(
                     app_id=app_id,
                     guidance=guidance,
@@ -214,8 +216,8 @@ class AppLogicEngine:
             self._workflow_handles.pop(app_id, None)
             raise
 
-        if guidance.metadata.get("deploy_only"):
-            logger.info("[ALRE] ✅ deploy_only 编排部署完成（等待显式执行）: %s", workflow_handle)
+        if guidance.metadata.get("deploy_only") or not auto_execute:
+            logger.info("[ALRE] ✅ 编排部署完成（等待显式或定时执行）: %s", workflow_handle)
             return workflow_handle
 
         # 启动后台工作流任务

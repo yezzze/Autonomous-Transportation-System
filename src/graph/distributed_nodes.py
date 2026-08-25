@@ -248,9 +248,6 @@ async def execute_registered_subworkflow(
         logger.info(
             f"[跨主体] 子工作流执行完成: task_id={task_id}, swf={sub_workflow_id}, status={data.get('status')}"
         )
-        asyncio.create_task(
-            _cleanup_remote_session(remote_aoe_url, session_id, session_timeout)
-        )
         return {
             "status": data.get("status", "completed"),
             "workflow_handle": data.get("workflow_handle", workflow_handle),
@@ -315,11 +312,21 @@ async def dispatch_subtask_to_remote_aoe(
     )
     if workflow_info.get("status") not in {"ready", "exists"} or not workflow_info.get("sub_workflow_id"):
         return workflow_info
-    return await execute_registered_subworkflow(
-        subtask=subtask,
-        workflow_info=workflow_info,
-        session_timeout=session_timeout,
-    )
+    # 兼容入口创建的是一次性远端工作流，因此仍在调用结束后主动清理。
+    # 正式应用直接调用 execute_registered_subworkflow()，其冻结会话必须保留，
+    # 直到 stop_app() 显式关闭，才能支持 deploy_only 的重复/周期执行。
+    try:
+        return await execute_registered_subworkflow(
+            subtask=subtask,
+            workflow_info=workflow_info,
+            session_timeout=session_timeout,
+        )
+    finally:
+        await _cleanup_remote_session(
+            workflow_info.get("remote_aoe_url", remote_aoe_url),
+            workflow_info.get("session_id") or subtask.get("session_id", ""),
+            session_timeout,
+        )
 
 
 async def _cleanup_remote_session(

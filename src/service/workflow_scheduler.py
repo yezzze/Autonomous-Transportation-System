@@ -128,11 +128,12 @@ class WorkflowScheduler:
         )
         return True
 
-    async def stop_schedule(self, app_id: str) -> bool:
+    async def stop_schedule(self, app_id: str, cancel_active: bool = False) -> bool:
         """
         停止应用的周期调度。
 
-        活跃的工作流实例继续运行直到完成（不强制取消）。
+        默认让活跃工作流继续运行；当调度生命周期同时持有 Agent 部署时，
+        调用方可传 cancel_active=True，先取消活跃执行再安全释放部署。
 
         Args:
             app_id: 应用 ID
@@ -156,6 +157,13 @@ class WorkflowScheduler:
                 pass
 
         active_count = len(state.active_runs)
+        if cancel_active and state.active_runs:
+            active_tasks = list(state.active_runs.values())
+            for task in active_tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*active_tasks, return_exceptions=True)
+            state.active_runs.clear()
         self._publish_schedule_viz_state(
             state,
             node_name="schedule_stopped",
@@ -168,7 +176,7 @@ class WorkflowScheduler:
         logger.info(
             f"[Scheduler] 周期调度已停止: app_id={app_id}, "
             f"total_runs={state.total_runs}, "
-            f"active_runs={active_count}（将继续运行至完成）"
+            f"active_runs={active_count}（{'已取消' if cancel_active else '将继续运行至完成'}）"
         )
         return True
 
