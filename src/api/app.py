@@ -1427,13 +1427,20 @@ async def start_app(app_id: str, request: Optional[StartAppRequest] = None):
                 detail=f"启动失败: {app.error_message or '未知错误'}",
             )
 
+        app = manager.get_app(app_id)
+        deploy_only = bool(
+            app
+            and app.guidance_file
+            and app.guidance_file.metadata.get("deploy_only")
+        )
+
         return {
             "app_id": app_id,
             "workflow_handle": handle,
             "status": "running",
             "resource_config": resource_config.to_dict() if resource_config else None,
             "app_interface_url": f"/api/apps/{app_id}/interface",
-            "message": "启动成功",
+            "message": "部署成功" if deploy_only else "启动成功",
         }
     except HTTPException:
         raise
@@ -1484,6 +1491,17 @@ async def start_schedule(app_id: str):
         app = manager.get_app(app_id)
         if not app:
             raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+        if (
+            app.guidance_file
+            and app.guidance_file.metadata.get("deploy_only")
+        ):
+            from src.app.app_logic_engine import get_app_logic_engine
+
+            if not get_app_logic_engine().is_deployed(app_id):
+                raise HTTPException(
+                    status_code=409,
+                    detail="APP_NOT_DEPLOYED: 请先部署应用，再启动周期执行",
+                )
 
         success = await manager.start_schedule(app_id)
         if not success:
@@ -2024,6 +2042,25 @@ async def query_resources(
 
 class AppQueryRequest(BaseModel):
     query: str = Field(..., description="用户输入的查询内容")
+
+
+@app.post("/api/apps/{app_id}/execute", summary="执行已部署应用的冻结计划")
+async def execute_deployed_app(app_id: str):
+    """Explicitly execute a deploy_only app without planning or deployment."""
+    from src.app.app_logic_engine import get_app_logic_engine
+    from src.app.app_manager import get_app_manager
+
+    app_info = get_app_manager().get_app(app_id)
+    if not app_info:
+        raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+    if not app_info.guidance_file or not app_info.guidance_file.metadata.get("deploy_only"):
+        raise HTTPException(status_code=400, detail="该接口仅用于 deploy_only 应用的显式执行")
+    if not get_app_logic_engine().is_deployed(app_id):
+        raise HTTPException(status_code=409, detail="APP_NOT_DEPLOYED: 请先部署应用")
+    return await query_app_interface(
+        app_id,
+        AppQueryRequest(query=app_info.guidance_file.task_description),
+    )
 
 
 @app.post("/api/apps/{app_id}/interface", summary="向应用发送查询")

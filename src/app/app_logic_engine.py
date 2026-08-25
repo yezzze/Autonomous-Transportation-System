@@ -131,6 +131,10 @@ class AppLogicEngine:
             logger.error(f"[ALRE] start_app: app_id={app_id} 没有指导文件")
             return None
 
+        if guidance.metadata.get("deploy_only") and self.is_deployed(app_id):
+            logger.warning("[ALRE] deploy_only 应用 %s 已完成部署", app_id)
+            return self._workflow_handles.get(app_id)
+
         if app_id in self._running_tasks and not self._running_tasks[app_id].done():
             logger.warning(f"[ALRE] start_app: app_id={app_id} 已在运行中")
             return self._workflow_handles.get(app_id)
@@ -146,10 +150,6 @@ class AppLogicEngine:
             f"workflow_handle={workflow_handle}, "
             f"mode={guidance.orchestration_mode}"
         )
-
-        if guidance.metadata.get("deploy_only"):
-            self._workflow_handles.pop(app_id, None)
-            raise RuntimeError("DEPLOY_ONLY_UNSUPPORTED: 应用必须先生成 execution_plan")
 
         pipeline_topology = []
         if guidance.skills_content:
@@ -196,12 +196,27 @@ class AppLogicEngine:
             self._execution_plans[app_id] = bound_plan
             self._frozen_plan_signatures[app_id] = frozen_signature
             self._cross_host_sessions[app_id] = remote_sessions
+            if guidance.metadata.get("deploy_only"):
+                self._publish_deployment_plan(
+                    app_id=app_id,
+                    guidance=guidance,
+                    workflow_handle=workflow_handle,
+                    planning=planning,
+                    pipeline_topology=pipeline_topology,
+                    execution_plan=bound_plan,
+                    frozen_signature=frozen_signature,
+                    remote_sessions=remote_sessions,
+                )
         except Exception:
             if remote_sessions:
                 await _cleanup_registered_remote_workflows(remote_sessions, timeout)
             self._unsubscribe_instances(app_id, workflow_handle)
             self._workflow_handles.pop(app_id, None)
             raise
+
+        if guidance.metadata.get("deploy_only"):
+            logger.info("[ALRE] ✅ deploy_only 编排部署完成（等待显式执行）: %s", workflow_handle)
+            return workflow_handle
 
         # 启动后台工作流任务
         task = asyncio.create_task(
@@ -238,6 +253,15 @@ class AppLogicEngine:
         if not task and app_id not in self._execution_plans:
             logger.warning(f"[ALRE] stop_app: app_id={app_id} 无运行中工作流")
             return False
+
+        try:
+            from src.service.workflow_scheduler import get_workflow_scheduler
+
+            scheduler = get_workflow_scheduler()
+            if scheduler.is_scheduled(app_id):
+                await scheduler.stop_schedule(app_id)
+        except Exception as exc:
+            logger.warning("[ALRE] 停止应用周期执行失败: app_id=%s, error=%s", app_id, exc)
 
         # §2.4：通知所有活跃远端 AOE 会话提前终止（fire-and-forget，不阻塞）
         try:
@@ -285,8 +309,19 @@ class AppLogicEngine:
 
     def is_running(self, app_id: str) -> bool:
         """检查应用是否正在运行"""
+        guidance = self._guidance_files.get(app_id)
+        if guidance and guidance.metadata.get("deploy_only") and self.is_deployed(app_id):
+            return True
         task = self._running_tasks.get(app_id)
         return task is not None and not task.done()
+
+    def is_deployed(self, app_id: str) -> bool:
+        """Return whether the app owns a frozen plan and deployment handle."""
+        return bool(
+            self._workflow_handles.get(app_id)
+            and self._execution_plans.get(app_id)
+            and self._frozen_plan_signatures.get(app_id)
+        )
 
     def get_workflow_handle(self, app_id: str) -> Optional[str]:
         """获取运行中工作流的 handle"""
@@ -295,6 +330,44 @@ class AppLogicEngine:
     def get_guidance(self, app_id: str) -> Optional[GuidanceFile]:
         """获取应用的编排指导文件"""
         return self._guidance_files.get(app_id)
+
+    def _publish_deployment_plan(
+        self,
+        *,
+        app_id: str,
+        guidance: GuidanceFile,
+        workflow_handle: str,
+        planning: Dict[str, Any],
+        pipeline_topology: List[Any],
+        execution_plan: List[Dict[str, Any]],
+        frozen_signature: List[List[str]],
+        remote_sessions: Dict[str, Dict[str, Any]],
+    ) -> None:
+        """Publish a completed orchestration snapshot without entering Executor."""
+        from src.service.viz_bus import get_viz_bus
+
+        state = {
+            "app_id": app_id,
+            "messages": [],
+            "skills_content": guidance.skills_content or "",
+            "pipeline_topology": pipeline_topology,
+            "execution_plan": [copy.deepcopy(task) for task in execution_plan],
+            "current_task_index": 0,
+            "plan_generated": True,
+            "all_tasks_completed": False,
+            "failed_tasks": [],
+            "agent_registry_cache": planning.get("agent_registry_cache", []),
+            "cross_host_sessions": remote_sessions,
+            "frozen_plan_signature": frozen_signature,
+            "route_prevalidated": True,
+            "orchestration_mode": planning.get("orchestration_mode", "sequential"),
+            "complexity_level": planning.get("complexity_level", "pipeline"),
+            "deployment_only": True,
+        }
+        bus = get_viz_bus()
+        bus.register(title=guidance.task_description[:60], workflow_id=workflow_handle)
+        bus.update_state(workflow_handle, state, node_name="deployment_planned")
+        bus.finish(workflow_handle, status="done", final_state=state)
 
     async def run_query(self, app_id: str, user_input: str) -> dict:
         """

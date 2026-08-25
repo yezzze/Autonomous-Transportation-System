@@ -260,14 +260,20 @@ class AppManager:
             logger.error(f"[APPM] start: app_id={app_id} 未找到")
             return None
 
-        if app.status == "running":
+        engine = self._get_engine()
+        deploy_only = bool(
+            app.guidance_file
+            and app.guidance_file.metadata.get("deploy_only")
+        )
+        if app.status == "running" and (
+            not deploy_only or engine.is_deployed(app_id)
+        ):
             logger.warning(f"[APPM] start: app_id={app_id} 已在运行中")
             return app.workflow_handle
 
         app.update_status("starting")
 
         try:
-            engine = self._get_engine()
             handle = await engine.start_app(app_id, resource_config=resource_config)
 
             if handle:
@@ -368,6 +374,14 @@ class AppManager:
             logger.error(f"[APPM] start_schedule: app_id={app_id} 无指导文件")
             return False
 
+        deploy_only = bool(app.guidance_file.metadata.get("deploy_only"))
+        if deploy_only and not self._get_engine().is_deployed(app_id):
+            logger.error(
+                "[APPM] start_schedule: deploy_only 应用 %s 尚未完成部署",
+                app_id,
+            )
+            return False
+
         constraints = app.guidance_file.constraints
         interval = constraints.get("schedule_interval_seconds")
         if not interval or int(interval) < 1:
@@ -386,8 +400,11 @@ class AppManager:
         )
         if success:
             schedule_status = scheduler.get_schedule_status(app_id) or {}
-            app.workflow_handle = schedule_status.get("schedule_workflow_handle")
-            app.update_status("scheduled")
+            if not deploy_only:
+                app.workflow_handle = schedule_status.get("schedule_workflow_handle")
+                app.update_status("scheduled")
+            else:
+                app.update_status("running")
             self._save_to_disk()
             logger.info(
                 f"[APPM] 周期调度已启动: app_id={app_id}, "
@@ -413,18 +430,28 @@ class AppManager:
             logger.warning(f"[APPM] stop_schedule: app_id={app_id} 未找到")
             return False
 
-        if app.status != "scheduled":
+        scheduler = self._get_scheduler()
+        deploy_only = bool(
+            app.guidance_file
+            and app.guidance_file.metadata.get("deploy_only")
+        )
+        deploy_only_scheduled = bool(
+            deploy_only and scheduler.get_schedule_status(app_id)
+        )
+        if app.status != "scheduled" and not deploy_only_scheduled:
             logger.warning(
                 f"[APPM] stop_schedule: app_id={app_id} "
                 f"当前状态 {app.status}，非 scheduled"
             )
             return False
 
-        scheduler = self._get_scheduler()
         success = await scheduler.stop_schedule(app_id)
         if success:
-            app.workflow_handle = None
-            app.update_status("stopped")
+            if deploy_only and self._get_engine().is_deployed(app_id):
+                app.update_status("running")
+            else:
+                app.workflow_handle = None
+                app.update_status("stopped")
             self._save_to_disk()
             logger.info(f"[APPM] 周期调度已停止: app_id={app_id}")
         return success
@@ -444,6 +471,10 @@ class AppManager:
             auto_restart = constraints.get("schedule_auto_restart", False)
             interval = constraints.get("schedule_interval_seconds")
             if auto_restart and interval and int(interval) >= 1:
+                if app.guidance_file.metadata.get("deploy_only"):
+                    # Deployment state is process-local and must be recreated
+                    # explicitly before scheduled execution can resume.
+                    continue
                 success = await self.start_schedule(app.app_id)
                 if success:
                     restored += 1

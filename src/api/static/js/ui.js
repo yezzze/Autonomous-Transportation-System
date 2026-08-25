@@ -256,6 +256,9 @@ function renderApps(apps) {
   tbody.innerHTML = apps.map(a => {
     const hasSched = _hasScheduleConfig(a);
     const schedInterval = hasSched ? a.guidance_file.constraints.schedule_interval_seconds : 0;
+    const deployOnly = !!(a.guidance_file && a.guidance_file.metadata && a.guidance_file.metadata.deploy_only);
+    const deployed = !!a.deployed;
+    const scheduleActive = !!a.schedule_active;
     return `
     <tr id="app-row-${a.app_id}">
       <td><strong>${escHtml(a.name)}</strong></td>
@@ -264,22 +267,29 @@ function renderApps(apps) {
       <td style="font-family:monospace;font-size:12px;color:#aaa">${a.workflow_handle||'—'}</td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${a.status==='idle'||a.status==='stopped'
-            ? `<button class="btn btn-success btn-sm" onclick="toggleStart('${a.app_id}')">▶ 启动</button>`
+          ${(deployOnly && !deployed) || (!deployOnly && (a.status==='idle'||a.status==='stopped'||a.status==='error'))
+            ? `<button class="btn btn-success btn-sm" onclick="toggleStart('${a.app_id}')">▶ ${deployOnly ? '部署' : '启动'}</button>`
             // ? `<button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">▶ 启动</button>`
             : ''}
-          ${ (a.status==='idle'||a.status==='stopped') && hasSched
+          ${ (a.status==='idle'||a.status==='stopped') && hasSched && !deployOnly
             ? `<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="toggleScheduleStart('${a.app_id}')">⏱ 定时启动</button>`
             : ''}
-          ${a.status==='scheduled'
+          ${!deployOnly && a.status==='scheduled'
             ? `<button class="btn btn-danger btn-sm" onclick="stopSchedule('${a.app_id}')">⏹ 停止调度</button>
                <button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>`
             : ''}
-          ${a.status==='running'
+          ${deployOnly && deployed
+            ? `<button id="exec-${a.app_id}" class="btn btn-primary btn-sm" onclick="executeDeployedApp('${a.app_id}')">▶ 执行</button>
+               ${hasSched && !scheduleActive ? `<button id="period-${a.app_id}" class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="startSchedule('${a.app_id}')">⏱ 周期执行</button>` : ''}
+               ${scheduleActive ? `<button id="period-stop-${a.app_id}" class="btn btn-danger btn-sm" onclick="stopSchedule('${a.app_id}')">⏹ 停止周期执行</button>` : ''}
+               ${hasSched ? `<button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>` : ''}
+               <button class="btn btn-danger btn-sm" onclick="stopApp('${a.app_id}')">⏹ 停止</button>`
+            : ''}
+          ${a.status==='running' && !deployOnly
             ? `<button class="btn btn-warning btn-sm" onclick="toggleQuery('${a.app_id}')">💬 查询</button>
                <button class="btn btn-danger btn-sm" onclick="stopApp('${a.app_id}')">⏹ 停止</button>`
             : ''}
-          ${hasSched && (a.status==='idle'||a.status==='stopped')
+          ${hasSched && (a.status==='idle'||a.status==='stopped') && !deployOnly
             ? `<button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>`
             : ''}
           <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${a.app_id}')">✏️</button>
@@ -313,12 +323,12 @@ function renderApps(apps) {
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end">
               <button class="btn btn-ghost btn-sm" onclick="toggleStart('${a.app_id}')">取消</button>
-              <button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">确认启动</button>
+              <button id="start-confirm-${a.app_id}" class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">确认${deployOnly ? '部署' : '启动'}</button>
             </div>
           </div>
         </div>
-        <!-- 定时启动面板（资源配置） -->
-        <div class="query-panel" id="ssp-${a.app_id}">
+        <!-- 定时启动面板（资源配置，仅普通应用） -->
+        <div class="query-panel" id="ssp-${a.app_id}" ${deployOnly ? 'style="display:none"' : ''}>
           <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#445">
               <input id="ssa-${a.app_id}" type="checkbox" checked>
@@ -448,6 +458,8 @@ async function installApp() {
 }
 
 async function startApp(appId) {
+  const btn = document.getElementById(`start-confirm-${appId}`);
+  if (btn) btn.disabled = true;
   try {
     const auto = document.getElementById(`sa-${appId}`)?.checked ?? true;
     let body = {};
@@ -470,12 +482,14 @@ async function startApp(appId) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail||JSON.stringify(data));
-    showAlert('apps-alert','success',`▶ 启动成功：${data.workflow_handle}`);
+    showAlert('apps-alert','success',`▶ ${data.message || '启动成功'}：${data.workflow_handle}`);
     document.getElementById(`sp-${appId}`)?.classList.remove('open');
     _openStartPanels.delete(appId);
     loadApps();
   } catch(e) {
     showAlert('apps-alert','error',`❌ 启动失败：${e.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -645,6 +659,27 @@ async function sendQuery(appId) {
   }
 }
 
+async function executeDeployedApp(appId) {
+  const btn = document.getElementById(`exec-${appId}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> 执行中';
+  }
+  try {
+    const res = await fetch(`${API}/api/apps/${appId}/execute`, {method:'POST'});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    showAlert('apps-alert','success','✅ 任务执行完成');
+  } catch(e) {
+    showAlert('apps-alert','error',`❌ 执行失败：${e.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '▶ 执行';
+    }
+  }
+}
+
 // 打开应用详情页（前端路由到服务器渲染的详情模板）
 function openAppDetails(appId) {
   // 使用 ui 的模板路由，后端路由在 src/api/app.py 已添加
@@ -655,6 +690,8 @@ function openAppDetails(appId) {
 // Schedule controls
 // ====================================================================
 async function startSchedule(appId) {
+  const btn = document.getElementById(`period-${appId}`);
+  if (btn) btn.disabled = true;
   try {
     const res = await fetch(`${API}/api/apps/${appId}/schedule/start`, {method:'POST'});
     const data = await res.json();
@@ -663,10 +700,14 @@ async function startSchedule(appId) {
     loadApps();
   } catch(e) {
     showAlert('apps-alert','error',`❌ 启动调度失败：${e.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
 async function stopSchedule(appId) {
+  const btn = document.getElementById(`period-stop-${appId}`);
+  if (btn) btn.disabled = true;
   try {
     const res = await fetch(`${API}/api/apps/${appId}/schedule/stop`, {method:'POST'});
     const data = await res.json();
@@ -675,6 +716,8 @@ async function stopSchedule(appId) {
     loadApps();
   } catch(e) {
     showAlert('apps-alert','error',`❌ 停止调度失败：${e.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 

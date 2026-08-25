@@ -13,6 +13,22 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _with_runtime_state(app, data: Dict) -> Dict:
+    """Add non-persistent deployment and scheduling state for UI controls."""
+    from src.app.app_logic_engine import get_app_logic_engine
+    from src.service.workflow_scheduler import get_workflow_scheduler
+
+    schedule = get_workflow_scheduler().get_schedule_status(app.app_id)
+    return {
+        **data,
+        "deployed": get_app_logic_engine().is_deployed(app.app_id),
+        "schedule_active": schedule is not None,
+        "schedule_workflow_handle": (
+            schedule.get("schedule_workflow_handle") if schedule else None
+        ),
+    }
+
+
 def _dedupe_apps(apps: List[Dict]) -> List[Dict]:
     """按 name 去重，同名应用优先保留运行中的，否则保留更新时间最新的。"""
     best_by_name: Dict[str, Dict] = {}
@@ -81,7 +97,9 @@ def get_all_app_list() -> List[Dict]:
 
     manager = get_app_manager()
     all_apps = manager.list_apps()
-    return _dedupe_apps([app.to_dict() for app in all_apps])
+    return _dedupe_apps([
+        _with_runtime_state(app, app.to_dict()) for app in all_apps
+    ])
 
 
 def get_app_interface(app_id: str) -> Optional[Dict]:
@@ -112,7 +130,7 @@ def get_app_interface(app_id: str) -> Optional[Dict]:
         logger.warning(f"[DISP] get_app_interface: app_id={app_id} 未找到")
         return None
 
-    return {
+    return _with_runtime_state(app, {
         "app_id": app.app_id,
         "name": app.name,
         "status": app.status,
@@ -126,4 +144,5 @@ def get_app_interface(app_id: str) -> Optional[Dict]:
             },
             "required": ["user_input"],
         },
-    }
+        "guidance_file": app.guidance_file.to_dict() if app.guidance_file else None,
+    })
