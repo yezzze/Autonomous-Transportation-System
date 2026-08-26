@@ -1152,12 +1152,13 @@ class AgentScheduler:
                     proc.wait()
                 self._agent_ports.pop(record.agent_id, None)
 
-        remaining = any(
-            rec.status == "running" and rec.agent_id == record.agent_id
-            for rec in self._deployments.values()
-        )
-        if not remaining:
-            self._deregister_from_ardc(record.agent_id)
+        # 即使同一逻辑 Agent 已没有其他运行实例，也保留其注册表 online 状态。
+        # remaining = any(
+        #     rec.status == "running" and rec.agent_id == record.agent_id
+        #     for rec in self._deployments.values()
+        # )
+        # if not remaining:
+        #     self._deregister_from_ardc(record.agent_id)
         logger.info(
             "[ASD] ✅ 实例关闭成功: instance_id=%s, deployment_id=%s",
             instance_id,
