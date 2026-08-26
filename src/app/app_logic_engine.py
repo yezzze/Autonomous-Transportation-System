@@ -14,6 +14,7 @@
 import asyncio
 import copy
 import logging
+import os
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -209,6 +210,8 @@ class AppLogicEngine:
                     frozen_signature=frozen_signature,
                     remote_sessions=remote_sessions,
                 )
+            if not guidance.metadata.get("deploy_only"):
+                await self._wait_for_deployed_agents_to_settle()
         except Exception:
             if remote_sessions:
                 await _cleanup_registered_remote_workflows(remote_sessions, timeout)
@@ -235,6 +238,17 @@ class AppLogicEngine:
         )
         logger.info(f"[ALRE] ✅ 工作流已启动: {workflow_handle}")
         return workflow_handle
+
+    async def _wait_for_deployed_agents_to_settle(self) -> None:
+        """给 Agent 的 NATS Stream 等业务初始化保留短暂稳定窗口。"""
+        try:
+            seconds = max(0.0, float(os.getenv("AGENT_DEPLOY_SETTLE_SECONDS", "3")))
+        except ValueError:
+            seconds = 3.0
+        if seconds <= 0:
+            return
+        logger.info("[ALRE] 等待智能体业务初始化完成: %.1fs", seconds)
+        await asyncio.sleep(seconds)
 
     async def stop_app(self, app_id: str) -> bool:
         """
