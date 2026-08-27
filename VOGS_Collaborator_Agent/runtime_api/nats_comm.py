@@ -669,13 +669,8 @@ class NatsComm:
 
     def _jetstream(self):
         """
-        获取 JetStream 上下文对象。
-
-        根据 jetstream_domain 选择是否带域参数创建。
-        域（Domain）是 NATS 超级集群（Super-Cluster）中的逻辑分区。
+        本地测试：忽略 jetstream_domain，直接使用默认域。
         """
-        if self.jetstream_domain:
-            return self._nc.jetstream(domain=self.jetstream_domain)
         return self._nc.jetstream()
 
     @staticmethod

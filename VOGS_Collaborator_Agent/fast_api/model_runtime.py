@@ -48,16 +48,26 @@ def tensor_to_numpy(obj):
 class CollaboratorRuntime:
     def __init__(self):
         self.model = None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.opt = Opts()
         self.hypes = None
         self.full_dataset = None
         self.data_loader = None
         self.subset_dataset = None
 
+    def _ensure_cuda_context(self):
+        if self.device.type != "cuda":
+            return
+        torch.cuda.set_device(self.device)
+        # Force lazy CUDA context creation in the serving process before custom ops run.
+        _ = torch.empty(1, device=self.device)
+        torch.cuda.synchronize()
+
     def load_model(self, model_dir):
         if self.model is not None:
             return
+
+        self._ensure_cuda_context()
         
         # 绝对路径
         model_dir = os.path.join(current_dir, model_dir)
@@ -103,6 +113,9 @@ class CollaboratorRuntime:
 
     def update_dataloader_frames(self):
         total_dataset_len = len(self.full_dataset)
+        env_num_frames = os.getenv("NUM_FRAMES")
+        if env_num_frames is not None:
+            self.opt.num_frames = int(env_num_frames)
         num_frames = self.opt.num_frames if self.opt.num_frames > 0 else total_dataset_len
         num_frames = min(num_frames, total_dataset_len)
         print(f"Total dataset: {total_dataset_len}, frames to run: {num_frames}, warmup: {self.opt.warmup_frames}")
@@ -124,6 +137,7 @@ class CollaboratorRuntime:
         )
 
     async def run_benchmark(self, send_func):
+        self._ensure_cuda_context()
         self.update_dataloader_frames()
         print("Priming DataLoader and CUDA (1 batch)...")
         _prime_iter = iter(self.data_loader)
@@ -196,6 +210,7 @@ class CollaboratorRuntime:
         }
 
     def run_benchmark_sync(self, send_func):
+        self._ensure_cuda_context()
         self.update_dataloader_frames()
         print("Priming DataLoader and CUDA (1 batch)...")
         _prime_iter = iter(self.data_loader)
@@ -223,40 +238,46 @@ class CollaboratorRuntime:
             drop_last=False,
         )
         print("Priming done.\n")
-        
+
         frame_times = []
         pbar = tqdm(enumerate(self.data_loader))
-        
+
         for i, batch_data in pbar:
             if batch_data is None:
                 continue
-                
+
             with torch.no_grad():
                 batch_data = train_utils.to_device(batch_data, self.device)
                 batch_data["ego"]["benchmarking"] = True
-                
+
                 is_warmup = (i < self.opt.warmup_frames)
                 if not is_warmup:
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
                     t_start = time.perf_counter()
-                
+
                 infer_result = self.model(batch_data["ego"])
-                
+
+                # 把模型前向产出的 comm_stats 连同 payload 一起传给 send_func，
+                # 这样发送端（例如 local_test.py 的 mock_send）可以在真正"发送"的位置
+                # 基于真实 payload 本身来做通信量统计，口径最准确、无歧义。
                 payload = {
                     "frame_id": i,
                     "collaborator_gaussian": tensor_to_numpy(infer_result['collaborator_gaussian']),
                     "collaborator_GsSCE": tensor_to_numpy(infer_result.get('collaborator_GsSCE', None)),
-                    "record_len": tensor_to_numpy(batch_data['ego']['record_len'])
+                    "record_len": tensor_to_numpy(batch_data['ego']['record_len']),
+                    "comm_stats": infer_result.get("comm_stats"),  # 发送端直接读此 dict 做过滤后计数
                 }
-                
+
                 send_func(payload)
-                
+
                 if not is_warmup:
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
                     frame_times.append(time.perf_counter() - t_start)
-                    
+
+        # 注意：通信量的汇总统计在 send_func 调用点（mock_send 闭包内）完成并返回，
+        # model_runtime 这里只保留发送帧数与状态，避免两处重复统计造成口径不一致。
         return {"status": "success", "sent_frames": len(frame_times)}
 
 model_runtime = CollaboratorRuntime()

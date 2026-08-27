@@ -46,6 +46,7 @@ import json
 import os
 import random
 import time
+import urllib.request
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -84,6 +85,41 @@ from utils.prometheus_metrics import (
 
 
 logger = get_logger(__name__)
+
+
+def _dbg(hypothesis_id: str, location: str, msg: str, data: dict | None = None) -> None:
+    try:
+        event_url = "http://127.0.0.1:7777/event"
+        session_id = "a2a-broken-pipe"
+        env_path = "/home/sxy/Autonomous-Transportation-System/.dbg/a2a-broken-pipe.env"
+        with open(env_path, "r", encoding="utf-8") as env_file:
+            for line in env_file:
+                if line.startswith("DEBUG_SERVER_URL="):
+                    event_url = line.split("=", 1)[1].strip()
+                elif line.startswith("DEBUG_SESSION_ID="):
+                    session_id = line.split("=", 1)[1].strip()
+    except Exception:
+        event_url = "http://127.0.0.1:7777/event"
+        session_id = "a2a-broken-pipe"
+
+    payload = {
+        "sessionId": session_id,
+        "runId": "pre-fix",
+        "hypothesisId": hypothesis_id,
+        "location": location,
+        "msg": msg,
+        "data": data or {},
+        "ts": int(time.time() * 1000),
+    }
+    try:
+        request = urllib.request.Request(
+            event_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(request, timeout=2).read()
+    except Exception:
+        pass
 
 # ──────────────────────────────────────────────────────────────────────
 # A2A 与 NATS 连接配置（可通过环境变量覆盖）
@@ -426,6 +462,17 @@ async def agent_function(
     """
     parameters = parameters or {}
     metadata = metadata or {}
+    # #region debug-point D:agent-function-entry
+    _dbg(
+        "D",
+        "VOGS_Ego_Agent/fast_api/app.py:465",
+        "[DEBUG] ego agent_function entered",
+        {
+            "parameter_keys": sorted(parameters.keys()),
+            "metadata_keys": sorted(metadata.keys()),
+        },
+    )
+    # #endregion
     input_requested, output_requested = _requested_nats_flows(parameters)
     if input_requested:
         _require_call_parameters(
@@ -455,10 +502,31 @@ async def agent_function(
         stage_started = time.monotonic()
         if input_requested:
             try:
+                # #region debug-point C:before-nats-receive
+                _dbg(
+                    "C",
+                    "VOGS_Ego_Agent/fast_api/app.py:491",
+                    "[DEBUG] ego waiting for workflow payload",
+                    {
+                        "source_cluster": parameters["source_cluster"].strip(),
+                        "operation": parameters.get("operation", "in"),
+                    },
+                )
+                # #endregion
                 data = await _receive_data_from_nats(
                     source_cluster=parameters["source_cluster"].strip(),
                     operation=parameters.get("operation", "in"),
                 )
+                # #region debug-point C:after-nats-receive
+                _dbg(
+                    "C",
+                    "VOGS_Ego_Agent/fast_api/app.py:503",
+                    "[DEBUG] ego received workflow payload",
+                    {
+                        "payload_keys": sorted(data.keys()) if isinstance(data, dict) else [],
+                    },
+                )
+                # #endregion
                 return decode_structured_numpy(data)
             finally:
                 if timing:
@@ -470,6 +538,17 @@ async def agent_function(
     stage_started = time.monotonic()
     try:
         result = await model_runtime.run_benchmark(_receive_wrapper)
+        # #region debug-point D:agent-function-result
+        _dbg(
+            "D",
+            "VOGS_Ego_Agent/fast_api/app.py:521",
+            "[DEBUG] ego run_benchmark returned",
+            {
+                "result_type": type(result).__name__,
+                "result_keys": sorted(result.keys()) if isinstance(result, dict) else [],
+            },
+        )
+        # #endregion
     finally:
         if timing:
             timing.execution_ms = (time.monotonic() - stage_started) * 1000
@@ -534,11 +613,34 @@ class AgentTemplateExecutor(AgentExecutor):
             acquired_slot = True
             timing.queue_wait_ms = (time.monotonic() - request_received) * 1000
             timing_token = set_current_timing(timing)
+            # #region debug-point A:execute-entry
+            _dbg(
+                "A",
+                "VOGS_Ego_Agent/fast_api/app.py:582",
+                "[DEBUG] ego execute entered",
+                {
+                    "has_current_task": bool(context.current_task),
+                    "task_id": task.id,
+                },
+            )
+            # #endregion
 
             # 标准路径使用 data Part；迁移期仍兼容旧 text Part 调用方。
             task_description, metadata, parameters = _parse_a2a_message_payload(
                 context.message
             )
+            # #region debug-point A:after-parse
+            _dbg(
+                "A",
+                "VOGS_Ego_Agent/fast_api/app.py:596",
+                "[DEBUG] ego parsed A2A payload",
+                {
+                    "task_description": task_description,
+                    "parameter_keys": sorted(parameters.keys()),
+                    "metadata_keys": sorted(metadata.keys()),
+                },
+            )
+            # #endregion
 
             logger.info(
                 "Processing A2A task: description=%s, parameters=%s, metadata=%s",
@@ -554,14 +656,39 @@ class AgentTemplateExecutor(AgentExecutor):
                 parameters=parameters,
                 metadata=metadata,
             )
+            # #region debug-point A:after-agent-function
+            _dbg(
+                "A",
+                "VOGS_Ego_Agent/fast_api/app.py:616",
+                "[DEBUG] ego execute received agent result",
+                {
+                    "result_type": type(result).__name__,
+                    "result_keys": sorted(result.keys()) if isinstance(result, dict) else [],
+                },
+            )
+            # #endregion
             result_status = result.get("status", "error") if isinstance(result, dict) else "error"
             status = result_status if result_status in {"success", "error", "timeout", "cancelled"} else "error"
         except asyncio.CancelledError:
             status = "cancelled"
             raise
         except Exception as exc:
+            # #region debug-point B:execute-exception
+            _dbg(
+                "B",
+                "VOGS_Ego_Agent/fast_api/app.py:631",
+                "[DEBUG] ego execute raised exception",
+                {
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                },
+            )
+            # #endregion
             error_message = str(exc)
             logger.exception("Agent execution failed")
+            import traceback
+            with open("error_traceback.txt", "w") as f:
+                traceback.print_exc(file=f)
         finally:
             timing.server_total_ms = (time.monotonic() - request_received) * 1000
             observe_call(timing, status)

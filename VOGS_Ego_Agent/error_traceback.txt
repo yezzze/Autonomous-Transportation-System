@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/app.py", line 654, in execute
+    result = await agent_function(
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/app.py", line 540, in agent_function
+    result = await model_runtime.run_benchmark(_receive_wrapper)
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/model_runtime.py", line 146, in run_benchmark
+    _ = self.model(_prime_batch["ego"])
+  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_collab_sce.py", line 206, in forward
+    outs = eval(f"self.encoder_{modality_name}")(**results)
+  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_modules/encoder_AHR.py", line 135, in forward
+    return self._forward_single(
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_modules/encoder_AHR.py", line 259, in _forward_single
+    instance_feature = self.layers[i](
+  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_modules/encoder_AHR.py", line 823, in forward
+    temp_features_next = DAF.apply(
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_modules/ops/deformable_aggregation.py", line 23, in forward
+    output = deformable_aggregation_ext.deformable_aggregation_forward(
+RuntimeError: t == DeviceType::CUDA INTERNAL ASSERT FAILED at "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/torch/include/c10/cuda/impl/CUDAGuardImpl.h":24, please report a bug to PyTorch. 

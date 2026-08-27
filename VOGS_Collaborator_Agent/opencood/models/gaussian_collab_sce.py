@@ -213,8 +213,16 @@ class GaussianCollabSce(nn.Module):
         num_of_gaussian_list = []
         comm_stats = {"baseline_num": 0, "actual_num": 0}
 
-        # 在 Collaborator 端，我们不需要融合。只需要提取 Collaborator (index 1) 的高斯特征
-        collaborator_idx = 1 if record_len[0] > 1 else 0
+        # 在 Collaborator 端，我们不需要融合（生成最终检测占用的那一步）。
+        # 只需要做两件事：
+        #   A) 提取 Collaborator (index 1) 的高斯特征，通过 payload 发出去；
+        #   B) 用与 Ego 融合时完全相同的 transform_neighbor_gaussians 流程，计算原生 comm_stats，
+        #      确保 baseline_num = ROI+opacity 过滤后个数；actual_num = 再经过 zbuffer /
+        #      bandwidth-aware (Gumbel-TopK, target_ratio=0.7) 过滤后的最终实际传输个数。
+        #   这样 Baseline Gaussians 与 Actual Transmitted 的比值，天然与 ours 配置下
+        #   enable_bandwidth_aware + target_bandwidth_ratio 保持一致，不会产生统计口径漂移。
+        has_real_collab = record_len[0] > 1
+        collaborator_idx = 1 if has_real_collab else 0
         collaborator_gaussian = results['representation'][-1]['gaussian']
         # gaussian_pred is a NamedTuple. We need to extract the index.
         from opencood.models.gaussian_modules.gaussian_utils import GaussianPrediction
@@ -225,12 +233,65 @@ class GaussianCollabSce(nn.Module):
             opacities=collaborator_gaussian.opacities[collaborator_idx].unsqueeze(0),
             semantics=collaborator_gaussian.semantics[collaborator_idx].unsqueeze(0),
         )
-        
+
         collab_GsSCE = results.get('GsSCE', None)
         if collab_GsSCE is not None:
             collab_GsSCE = collab_GsSCE[collaborator_idx].unsqueeze(0)
 
+        # ========== 关键：调用 transform_neighbor_gaussians 获取原生的两步过滤后的 comm_stats ==========
+        # 对于 Collaborator 端，我们只关心它产出的 comm_stats（第 3 个返回值）；
+        # fused_gaussian / fused_GsSCE / collab_dict / num_of_gaussian_list 在这里不需要使用。
+        # 过滤链路（与 Ego 完全一致）：
+        #   1) ROI (pc_range) + opacity >= 0.01   → baseline_num
+        #   2) use_zbuffer_blind (可选)            → 继续过滤
+        #   3) enable_bandwidth_aware (Gumbel TopK, target_ratio=0.7，来自 config.yaml fusion_args)
+        #                                         → actual_num
+        if has_real_collab:
+            fusion_args = getattr(self, "fusion_args", {})
+            gaussian_pred = results['representation'][-1]['gaussian']
+            try:
+                _, _, _comm, _, _ = transform_neighbor_gaussians(
+                    gaussian_pred=gaussian_pred,
+                    record_len=record_len,
+                    pairwise_t_matrix=data_dict['pairwise_t_matrix'],
+                    roi_bounds=self.pc_range,
+                    GsSCE=results.get('GsSCE', None),
+                    fusion_args=fusion_args,
+                    metas=results.get('metas', None)
+                )
+                comm_stats["baseline_num"] = int(_comm.get("baseline_num", 0))
+                comm_stats["actual_num"] = int(_comm.get("actual_num", 0))
+            except Exception as e:
+                # 任何异常情况下都回退到 baseline=actual，不影响程序正常跑完
+                print(f"[Collaborator Warning] transform_neighbor_gaussians failed: {e}; "
+                      f"fallback to baseline == actual (no bandwidth-aware filter in stats).")
+                from opencood.models.gaussian_modules.gaussian_utils import GaussianPrediction as _GP
+                pairwise_t_matrix = data_dict['pairwise_t_matrix']
+                dev = gaussian_pred.means.device
+                j = 1
+                mean = gaussian_pred.means[j]
+                opa = gaussian_pred.opacities[j]
+                t = pairwise_t_matrix[0, j, 0].to(torch.float32).to(dev)
+                ones = torch.ones(mean.shape[0], 1, device=dev)
+                mean_ego = (t @ torch.cat([mean, ones], dim=-1).T).T[:, :3]
+                x_min, y_min, z_min, x_max, y_max, z_max = self.pc_range
+                inside_roi = (
+                    (mean_ego[:, 0] > x_min) & (mean_ego[:, 0] < x_max - 1e-4) &
+                    (mean_ego[:, 1] > y_min) & (mean_ego[:, 1] < y_max - 1e-4) &
+                    (mean_ego[:, 2] > z_min) & (mean_ego[:, 2] < z_max - 1e-4)
+                )
+                opa_flat = opa if opa.ndim == 2 else opa.unsqueeze(-1)
+                mask_opa = opa_flat[:, 0] >= 0.01
+                _n = int((inside_roi & mask_opa).sum().item())
+                comm_stats["baseline_num"] = _n
+                comm_stats["actual_num"] = _n
+        else:
+            # 没有真正的协同车（record_len == 1），把发送个数明确记为 0
+            comm_stats["baseline_num"] = 0
+            comm_stats["actual_num"] = 0
+
         output_dict['collaborator_gaussian'] = collab_gs
         output_dict['collaborator_GsSCE'] = collab_GsSCE
-        
+        output_dict['comm_stats'] = comm_stats
+
         return output_dict

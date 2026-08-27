@@ -41,18 +41,29 @@ class Opts:
 class EgoRuntime:
     def __init__(self):
         self.model = None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.opt = Opts()
         self.hypes = None
         self.full_dataset = None
         self.data_loader = None
         self.subset_dataset = None
 
+    def _ensure_cuda_context(self):
+        if self.device.type != "cuda":
+            return
+        torch.cuda.set_device(self.device)
+        # Force lazy CUDA context creation in the serving process before custom ops run.
+        _ = torch.empty(1, device=self.device)
+        torch.cuda.synchronize()
+
     def load_model(self, model_dir):
         if self.model is not None:
             return
+
+        self._ensure_cuda_context()
         
         model_dir = os.path.join(current_dir, model_dir)
+        self.opt.model_dir = model_dir
         self.opt.model_dir = model_dir
         config_path = os.path.join(model_dir, "config.yaml")
         self.hypes = yaml_utils.load_yaml(config_path, self.opt)
@@ -95,6 +106,9 @@ class EgoRuntime:
 
     def update_dataloader_frames(self):
         total_dataset_len = len(self.full_dataset)
+        env_num_frames = os.getenv("NUM_FRAMES")
+        if env_num_frames is not None:
+            self.opt.num_frames = int(env_num_frames)
         num_frames = self.opt.num_frames if self.opt.num_frames > 0 else total_dataset_len
         num_frames = min(num_frames, total_dataset_len)
         print(f"Total dataset: {total_dataset_len}, frames to run: {num_frames}, warmup: {self.opt.warmup_frames}")
@@ -116,6 +130,7 @@ class EgoRuntime:
         )
 
     async def run_benchmark(self, receive_func):
+        self._ensure_cuda_context()
         self.update_dataloader_frames()
         print("Priming DataLoader and CUDA (1 batch)...")
         _prime_iter = iter(self.data_loader)
@@ -236,17 +251,20 @@ class EgoRuntime:
             "other_ave_iou": other_ave_iou
         }
         
-        if valid_comm_frames > 0:
-            avg_baseline = total_baseline_num / valid_comm_frames
-            avg_actual = total_actual_num / valid_comm_frames
-            ratio = (avg_actual / avg_baseline * 100) if avg_baseline > 0 else 0.0
-            output_dict["Baseline Gaussians"] = float(f"{avg_baseline:.1f}")
-            output_dict["Actual Transmitted"] = float(f"{avg_actual:.1f}")
-            output_dict["Ratio"] = f"{ratio:.2f}%"
+        # ========== 取消 ego 端通信量打印，避免干扰；内部统计变量保持不变 ==========
+        # if valid_comm_frames > 0:
+        #     avg_baseline = total_baseline_num / valid_comm_frames
+        #     avg_actual = total_actual_num / valid_comm_frames
+        #     ratio = (avg_actual / avg_baseline * 100) if avg_baseline > 0 else 0.0
+        #     output_dict["Baseline Gaussians"] = float(f"{avg_baseline:.1f}")
+        #     output_dict["Actual Transmitted"] = float(f"{avg_actual:.1f}")
+        #     output_dict["Ratio"] = f"{ratio:.2f}%"
+        # =====================================================================
             
         return output_dict
 
     def run_benchmark_sync(self, receive_func):
+        self._ensure_cuda_context()
         self.update_dataloader_frames()
         print("Priming DataLoader and CUDA (1 batch)...")
         _prime_iter = iter(self.data_loader)
@@ -367,13 +385,15 @@ class EgoRuntime:
             "other_ave_iou": other_ave_iou
         }
         
-        if valid_comm_frames > 0:
-            avg_baseline = total_baseline_num / valid_comm_frames
-            avg_actual = total_actual_num / valid_comm_frames
-            ratio = (avg_actual / avg_baseline * 100) if avg_baseline > 0 else 0.0
-            output_dict["Baseline Gaussians"] = float(f"{avg_baseline:.1f}")
-            output_dict["Actual Transmitted"] = float(f"{avg_actual:.1f}")
-            output_dict["Ratio"] = f"{ratio:.2f}%"
+        # ========== 取消 ego 端通信量打印，避免干扰；内部统计变量保持不变 ==========
+        # if valid_comm_frames > 0:
+        #     avg_baseline = total_baseline_num / valid_comm_frames
+        #     avg_actual = total_actual_num / valid_comm_frames
+        #     ratio = (avg_actual / avg_baseline * 100) if avg_baseline > 0 else 0.0
+        #     output_dict["Baseline Gaussians"] = float(f"{avg_baseline:.1f}")
+        #     output_dict["Actual Transmitted"] = float(f"{avg_actual:.1f}")
+        #     output_dict["Ratio"] = f"{ratio:.2f}%"
+        # =====================================================================
             
         return output_dict
 
