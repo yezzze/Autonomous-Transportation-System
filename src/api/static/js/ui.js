@@ -802,7 +802,7 @@ async function loadWarehouse() {
     const tbody = document.getElementById('warehouse-tbody');
     document.getElementById('warehouse-refresh-hint').textContent = `上次更新 ${fmtTime()}`;
     if (!rows.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">智能体仓库为空</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="7">智能体仓库为空</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map(r => `
@@ -811,13 +811,14 @@ async function loadWarehouse() {
         <td class="mono-cell">${escHtml(r.image_id || '—')}</td>
         <td>${escHtml(r.version || '—')}</td>
         <td>${escHtml(r.capability || '—')}</td>
+        <td>${r.type === 'resource' ? '资源智能体' : '业务智能体'}</td>
         <td>${statusBadge(r.registered ? 'registered' : 'unregistered')}</td>
         <td class="muted-cell">${escHtml(r.description || '—')}</td>
       </tr>
     `).join('');
   } catch(e) {
     document.getElementById('warehouse-tbody').innerHTML =
-      `<tr class="empty-row"><td colspan="6">❌ ${e.message}</td></tr>`;
+      `<tr class="empty-row"><td colspan="7">❌ ${e.message}</td></tr>`;
   }
 }
 
@@ -834,11 +835,12 @@ function renderDiscoveryCluster(cluster) {
     <tr>
       <td class="mono-cell">${escHtml(agent.id || '—')}</td>
       <td>${escHtml(agent.capability || '—')}</td>
+      <td>${agent.type === 'resource' ? '资源智能体' : '业务智能体'}</td>
       <td>${statusBadge(agent.status || 'unknown')}</td>
       <td class="mono-cell">${escHtml(agent.ip || '—')}:${escHtml(agent.port ?? '—')}</td>
       <td>${agent.is_local ? '本地' : '远端'}</td>
     </tr>
-  `).join('') : '<tr class="empty-row"><td colspan="5">该集群暂无已注册智能体</td></tr>';
+  `).join('') : '<tr class="empty-row"><td colspan="6">该集群暂无已注册智能体</td></tr>';
   return `
     <section class="cluster-section">
       <div class="cluster-heading">
@@ -846,7 +848,7 @@ function renderDiscoveryCluster(cluster) {
         <span class="cluster-meta">${cluster.is_local ? '本集群' : escHtml(cluster.url || 'peer')} · ${agents.length} 个</span>
       </div>
       <div class="table-scroll"><table>
-        <thead><tr><th>智能体 ID</th><th>能力</th><th>状态</th><th>地址</th><th>来源</th></tr></thead>
+        <thead><tr><th>智能体 ID</th><th>能力</th><th>智能体类型</th><th>状态</th><th>地址</th><th>来源</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
     </section>`;

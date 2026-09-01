@@ -5,6 +5,10 @@
     completed: {bg: '#dcfce7', border: '#16a34a'},
     failed: {bg: '#fee2e2', border: '#dc2626'},
   };
+  const AGENT_TYPE_COLORS = {
+    business: '#dbeafe',
+    resource: '#fef3c7',
+  };
 
   function list(value) {
     return Array.isArray(value) ? value : [];
@@ -111,7 +115,7 @@
           id: node.id,
           parent: platforms.some(platform => platform.key === key) ? `platform_${key}` : undefined,
           label: `${node.title || node.id}\n[${node.agent_id || '-'}]`,
-          bgcolor: color.bg,
+          bgcolor: AGENT_TYPE_COLORS[node.agent_type] || AGENT_TYPE_COLORS.business,
           bordercolor: color.border,
         },
         classes: node.is_current ? 'current' : '',

@@ -264,6 +264,7 @@ class AgentWarehouse:
                 "ip": "localhost",
                 "port": 8080,
                 "capability": image.capability,
+                "type": image.type,
                 "status": "offline",  # 尚未部署，初始为 offline
                 "description": (
                     f"{image.name} v{image.version} — {image.description}"
@@ -305,6 +306,9 @@ class AgentWarehouse:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             for item in data.get("images", []):
+                item = dict(item)
+                if item.get("type") not in {"business", "resource"}:
+                    item["type"] = "business"
                 img = AgentImage(**item)
                 self._images[img.image_id] = img
             logger.debug(f"[AW] 从文件加载 {len(self._images)} 个镜像: {path}")
@@ -408,6 +412,7 @@ class AgentWarehouse:
                 name=defaults.get("name") or inferred["name"],
                 version=defaults.get("version") or inferred["version"],
                 capability=capability or defaults.get("capability") or inferred["capability"],
+                type="business",
                 description=defaults.get("description") or inferred["description"],
                 metadata=merged_metadata,
                 registered=registered,

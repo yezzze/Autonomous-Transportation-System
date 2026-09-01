@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Literal, Optional
 # ======================================================================
 
 AppStatus = Literal["idle", "starting", "running", "stopping", "stopped", "error", "scheduled"]
+AgentType = Literal["business", "resource"]
 
 
 # ======================================================================
@@ -38,11 +39,16 @@ class AgentImage:
     name: str
     version: str
     capability: str              # 能力类型，与 AgentRegistryClient 中的 capability 对应
+    type: AgentType = "business"  # business=业务智能体，resource=资源智能体
     description: str = ""
     exposed_external: bool = False  # 是否允许外部主体使用
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     registered: bool = False     # 是否已注册到 ARDC
+
+    def __post_init__(self):
+        if self.type not in {"business", "resource"}:
+            raise ValueError("AgentImage.type must be 'business' or 'resource'")
 
     @classmethod
     def create(
@@ -53,6 +59,7 @@ class AgentImage:
         description: str = "",
         exposed_external: bool = False,
         metadata: Optional[Dict] = None,
+        type: AgentType = "business",
     ) -> "AgentImage":
         image_id = f"img_{capability}_{uuid.uuid4().hex[:8]}"
         return cls(
@@ -60,6 +67,7 @@ class AgentImage:
             name=name,
             version=version,
             capability=capability,
+            type=type,
             description=description,
             exposed_external=exposed_external,
             metadata=metadata or {},

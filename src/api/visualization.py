@@ -40,12 +40,20 @@ def extract_orchestration_data(state: Dict[str, Any]) -> Dict[str, Any]:
       - platform_groups       : dict       按平台(IP:port)分组的 Agent
     """
     # 延迟 import,允许 mock 模式下不依赖完整后端
+    cached_agents = state.get("agent_registry_cache", []) or []
     try:
         from src.service.agent_registry import get_registry_client
         registry = get_registry_client()
-        all_agents = registry.get_all_agents() or []
+        live_agents = registry.get_all_agents() or []
+        agents_by_id = {
+            a.get("id", ""): a for a in cached_agents if a.get("id")
+        }
+        agents_by_id.update({
+            a.get("id", ""): a for a in live_agents if a.get("id")
+        })
+        all_agents = list(agents_by_id.values())
     except Exception:
-        all_agents = state.get("agent_registry_cache", []) or []
+        all_agents = cached_agents
 
     execution_plan = state.get("execution_plan", []) or []
     selected = list({t.get("assigned_agent_id", "") for t in execution_plan if t.get("assigned_agent_id")})
@@ -121,12 +129,20 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
     failed_remote = state.get("failed_remote_aoe_urls", {}) or {}
     current_index = state.get("current_task_index", 0)
 
+    cached_agents = state.get("agent_registry_cache", []) or []
     try:
         from src.service.agent_registry import get_registry_client
         registry = get_registry_client()
-        all_agents = registry.get_all_agents() or []
+        live_agents = registry.get_all_agents() or []
+        agents_by_id = {
+            a.get("id", ""): a for a in cached_agents if a.get("id")
+        }
+        agents_by_id.update({
+            a.get("id", ""): a for a in live_agents if a.get("id")
+        })
+        all_agents = list(agents_by_id.values())
     except Exception:
-        all_agents = state.get("agent_registry_cache", []) or []
+        all_agents = cached_agents
     agent_map = {a.get("id", ""): a for a in all_agents if a.get("id")}
 
     def _remote_url(value: Any) -> str:
@@ -162,6 +178,11 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
         result = t.get("result", "") or ""
         agent_id = t.get("assigned_agent_id", "")
         agent_info = agent_map.get(agent_id)
+        agent_type = (
+            agent_info.get("type", "business")
+            if agent_info and agent_info.get("type") in {"business", "resource"}
+            else "business"
+        )
         is_local = bool(agent_info.get("is_local", False)) if agent_info else False
         if not agent_info and not t.get("sub_workflow_id") and not is_cross:
             is_local = False
@@ -176,6 +197,7 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
             "title": t.get("task_title", task_id),
             "description": t.get("task_description", ""),
             "agent_id": t.get("assigned_agent_id", ""),
+            "agent_type": agent_type,
             "status": t.get("status", "pending"),
             "platform": "remote" if is_cross else ("local" if is_local or t.get("sub_workflow_id") else "remote"),
             # ip/port describe the platform shown in the topology.  Keep the

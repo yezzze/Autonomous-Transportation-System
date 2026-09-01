@@ -1438,6 +1438,7 @@ async def install_app(request: InstallAppRequest):
                     name=item.get("name") or item["image_id"].split(":")[0],
                     version=item.get("version", "latest"),
                     capability=item.get("capability") or item.get("name") or item["image_id"].split(":")[0],
+                    type=item.get("type", "business"),
                     description=item.get("description", ""),
                     exposed_external=item.get("exposed_external", False),
                     metadata=item.get("metadata", {}),

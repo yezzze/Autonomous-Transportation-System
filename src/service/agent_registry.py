@@ -82,8 +82,13 @@ class AgentRegistryClient:
                     
                     # 只返回启用的 Agent
                     enabled_agents = [
-                        agent for agent in agents 
-                        if agent.get('enabled', True)
+                        {
+                            **agent,
+                            "type": agent.get("type")
+                            if agent.get("type") in {"business", "resource"}
+                            else "business",
+                        }
+                        for agent in agents if agent.get('enabled', True)
                     ]
                     
                     logger.info(
@@ -110,6 +115,7 @@ class AgentRegistryClient:
                 "ip": "127.0.0.1",
                 "port": 8080,
                 "capability": "search",
+                "type": "business",
                 "status": "online",
                 "description": "专门用于网络搜索和信息检索的 Agent，支持多引擎搜索",
                 "is_local": True,
@@ -119,6 +125,7 @@ class AgentRegistryClient:
                 "ip": "127.0.0.1",
                 "port": 8081,
                 "capability": "compute",
+                "type": "business",
                 "status": "online",
                 "description": "专门用于数学计算和数据分析的 Agent，支持 Python/NumPy/Pandas",
                 "is_local": True,
@@ -128,6 +135,7 @@ class AgentRegistryClient:
                 "ip": "127.0.0.1",
                 "port": 8082,
                 "capability": "vision",
+                "type": "business",
                 "status": "online",
                 "description": "专门用于图像分析和视觉任务的 Agent，支持 OCR、目标检测等",
                 "is_local": True,
@@ -137,6 +145,7 @@ class AgentRegistryClient:
                 "ip": "127.0.0.1",
                 "port": 8083,
                 "capability": "nlp",
+                "type": "business",
                 "status": "online",
                 "description": "专门用于自然语言处理的 Agent，支持翻译、摘要、情感分析等",
                 "is_local": True,
@@ -146,6 +155,7 @@ class AgentRegistryClient:
                 "ip": "127.0.0.1",
                 "port": 8084,
                 "capability": "code_execution",
+                "type": "business",
                 "status": "online",
                 "description": "专门用于代码执行的 Agent，支持多种编程语言",
                 "is_local": True,
@@ -155,6 +165,7 @@ class AgentRegistryClient:
                 "ip": "127.0.0.1",
                 "port": 8085,
                 "capability": "web_interaction",
+                "type": "business",
                 "status": "online",
                 "description": "专门用于网页交互的 Agent，支持浏览器自动化操作",
                 "is_local": True,
@@ -335,6 +346,9 @@ class AgentRegistryClient:
         agents = [
             {
                 **agent,
+                "type": agent.get("type")
+                if agent.get("type") in {"business", "resource"}
+                else "business",
                 "is_local": False,
             }
             for agent in agents
@@ -520,6 +534,7 @@ class AgentRegistryClient:
         capability: str,
         description: str = "",
         status: str = "online",
+        type: Optional[str] = None,
     ):
         """
         注册或更新一个 Agent 条目（由 ASD subprocess 部署后调用）。
@@ -535,11 +550,17 @@ class AgentRegistryClient:
             description: 可选描述
             status:      初始状态，默认 'online'
         """
+        if type is not None and type not in {"business", "resource"}:
+            raise ValueError("Agent type must be 'business' or 'resource'")
         for agent in self._mock_agents:
             if agent["id"] == agent_id:
                 agent["ip"] = ip
                 agent["port"] = port
                 agent["capability"] = capability
+                if type is not None:
+                    agent["type"] = type
+                elif agent.get("type") not in {"business", "resource"}:
+                    agent["type"] = "business"
                 agent["status"] = status
                 agent["is_local"] = True
                 if description:
@@ -554,6 +575,7 @@ class AgentRegistryClient:
             "ip": ip,
             "port": port,
             "capability": capability,
+            "type": type or "business",
             "status": status,
             "description": description or f"subprocess 部署的 {capability} agent",
             "is_local": True,

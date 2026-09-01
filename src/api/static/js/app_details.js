@@ -23,6 +23,10 @@ const STATUS_COLORS = {
   completed: { bg: '#dcfce7', border: '#16a34a' },
   failed: { bg: '#fee2e2', border: '#dc2626' },
 };
+const AGENT_TYPE_COLORS = {
+  business: '#dbeafe',
+  resource: '#fef3c7',
+};
 
 function getQueryParam(name) {
   const params = new URLSearchParams(window.location.search);
@@ -485,7 +489,7 @@ function renderPane2(topology) {
         id: n.id,
         parent: hasPlatform ? `platform_${key}` : undefined,
         label: `${n.title || n.id}\n[${n.agent_id || '-'}]`,
-        bgcolor: color.bg,
+        bgcolor: AGENT_TYPE_COLORS[n.agent_type] || AGENT_TYPE_COLORS.business,
         bordercolor: color.border,
       },
       classes: n.is_current ? 'current' : '',

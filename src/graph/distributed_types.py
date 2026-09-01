@@ -12,6 +12,7 @@ class AgentInfo(TypedDict):
     ip: str  # Agent 的 IP 地址
     port: int  # Agent 的端口号
     capability: str  # Agent 的能力描述（如 "search", "compute", "vision"）
+    type: Literal["business", "resource"]  # 智能体类型
     status: Literal["online", "offline", "busy"]  # Agent 当前状态
     description: str  # Agent 详细描述
 
