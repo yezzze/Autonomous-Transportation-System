@@ -51,8 +51,8 @@ app = FastAPI(
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 app.mount(
-    "/static/Algorithm__Model _Library",
-    StaticFiles(directory=str(_PROJECT_ROOT / "static" / "Algorithm__Model _Library"), html=True),
+    "/static/Algorithm_Model_Library",
+    StaticFiles(directory=str(_PROJECT_ROOT / "static" / "Algorithm_Model_Library"), html=True),
     name="algorithm-model-library",
 )
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
