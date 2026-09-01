@@ -22,9 +22,13 @@ from .distributed_types import DistributedState, TaskAssignment
 
 logger = logging.getLogger(__name__)
 
-# 配置：是否使用 LLM 模拟智能体（默认启用）
-USE_LLM_SIMULATOR = os.getenv("USE_LLM_SIMULATOR", "true").lower() == "true"
+# 配置：USE_LLM_SIMULATOR=true 时启用 LLM 模拟智能体；默认关闭。
 LLM_SIMULATOR_MODEL = os.getenv("LLM_SIMULATOR_MODEL", "basic")  # "basic" or "reasoning"
+
+
+def _llm_simulator_enabled() -> bool:
+    """仅接受显式的 USE_LLM_SIMULATOR=true，避免默认降级。"""
+    return os.getenv("USE_LLM_SIMULATOR", "false").strip().lower() == "true"
 
 def _agent_is_local(agent: dict | None) -> bool:
     """仅根据 agent_registry.json 中的 is_local 字段判断是否本地。"""
@@ -1589,7 +1593,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
             }
     
     # 4. 兼容性处理：如果统一执行层不可用，降级到 LLM 模拟器
-    if task_status == "failed" and USE_LLM_SIMULATOR and not remote_aoe_url:
+    if task_status == "failed" and _llm_simulator_enabled() and not remote_aoe_url:
         logger.info(f"🤖 降级到 LLM 智能体模拟器（模型: {LLM_SIMULATOR_MODEL}）")
         
         try:

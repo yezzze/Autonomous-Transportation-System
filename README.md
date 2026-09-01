@@ -60,7 +60,7 @@ REASONING_API_KEY=sk-your-deepseek-key
 BASIC_MODEL=qwen-flash
 BASIC_API_KEY=sk-your-qwen-key
 
-# 可选：禁用 LLM 模拟器（强制使用 MCP/A2A）
+# 可选：启用 LLM 模拟器（默认 false；失败时强制使用 MCP/A2A）
 USE_LLM_SIMULATOR=true
 LLM_SIMULATOR_MODEL=basic  # basic 或 reasoning
 ```
@@ -766,7 +766,7 @@ MAGENTIC_MAX_ROUND=20                  # Magentic-One 最大轮次
 MAGENTIC_MAX_STALL=3                   # 最大停滞次数
 
 # LLM 模拟器配置（降级策略）
-USE_LLM_SIMULATOR=true                 # 是否启用 LLM 模拟器
+USE_LLM_SIMULATOR=false               # true / false，默认 false
 LLM_SIMULATOR_MODEL=basic              # basic / reasoning
 ```
 
