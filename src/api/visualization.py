@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 
 def _is_local_agent(agent: Dict[str, Any]) -> bool:
@@ -135,10 +136,28 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
             return value
         return ""
 
+    def _platform_endpoint(remote_url: str) -> tuple[str, int]:
+        """Return the remote AOE endpoint used for topology presentation.
+
+        A remote agent's service endpoint belongs to the remote platform's
+        internal data plane.  The local platform talks to the remote AOE, not
+        directly to that agent, so cross-host nodes must be grouped under the
+        AOE endpoint in the topology.
+        """
+        if not remote_url:
+            return "", 0
+        parsed = urlparse(remote_url if "://" in remote_url else f"//{remote_url}")
+        try:
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        except ValueError:
+            return "", 0
+        return parsed.hostname or "", port
+
     nodes: List[Dict[str, Any]] = []
     for i, t in enumerate(plan):
         task_id = t.get("task_id", f"task_{i}")
-        ip = t.get("target_ip", "")
+        service_ip = t.get("target_ip", "")
+        service_port = t.get("target_port", 0)
         is_cross = task_id in cross
         result = t.get("result", "") or ""
         agent_id = t.get("assigned_agent_id", "")
@@ -147,6 +166,10 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
         if not agent_info and not t.get("sub_workflow_id") and not is_cross:
             is_local = False
         remote_info = cross.get(task_id, {})
+        remote_aoe_url = _remote_url(remote_info)
+        platform_ip, platform_port = _platform_endpoint(remote_aoe_url)
+        display_ip = platform_ip if is_cross and platform_ip else service_ip
+        display_port = platform_port if is_cross and platform_ip else service_port
         nodes.append({
             "id": task_id,
             "index": i,
@@ -155,10 +178,14 @@ def extract_topology_data(state: Dict[str, Any]) -> Dict[str, Any]:
             "agent_id": t.get("assigned_agent_id", ""),
             "status": t.get("status", "pending"),
             "platform": "remote" if is_cross else ("local" if is_local or t.get("sub_workflow_id") else "remote"),
-            "ip": ip,
-            "port": t.get("target_port", 0),
+            # ip/port describe the platform shown in the topology.  Keep the
+            # actual Agent service endpoint separate for diagnostics only.
+            "ip": display_ip,
+            "port": display_port,
+            "service_ip": service_ip,
+            "service_port": service_port,
             "parallel_group": t.get("parallel_group", "") or "",
-            "remote_aoe_url": _remote_url(remote_info),
+            "remote_aoe_url": remote_aoe_url,
             "sub_workflow_id": (remote_info.get("sub_workflow_id", "") if isinstance(remote_info, dict) else t.get("sub_workflow_id", "")),
             "is_current": i == current_index and t.get("status") == "running",
             "is_failed": (task_id in failed) or (t.get("status") == "failed"),
