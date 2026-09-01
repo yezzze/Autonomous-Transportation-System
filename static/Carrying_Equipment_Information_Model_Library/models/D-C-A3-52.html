@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A3-14 路网区域识别信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>路网区域识别信息模型</h1>
+    <p>模型编号：D-C-A3-14 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>路网区域识别信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>中心云</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-14</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应等。</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">车辆运行状况</td><td>车辆在行驶过程中一段时间内各种动态特征。</td><td>位置</td><td>车辆的经度，纬度和高度</td><td>车载终端，感应线圈，路侧雷达</td></tr>
+                <tr><td>车辆在行驶过程中一段时间内各种动态特征。</td><td>速度</td><td>车辆位移的快慢程度，单位m/s</td><td>车载终端，感应线圈，路侧雷达</td></tr>
+                <tr><td>车辆在行驶过程中一段时间内各种动态特征。</td><td>航向角</td><td>车辆当前运动方向与正北方向顺时针夹角，单位：1e-4°</td><td>车载终端，感应线圈，路侧雷达</td></tr>
+                <tr><td>车辆在行驶过程中一段时间内各种动态特征。</td><td>运行轨迹</td><td>车辆在一段时间内的行驶路径，也包含车辆在车道上的保持情况。</td><td>车载终端，感应线圈，路侧雷达</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">道路几何属性信息</td><td>当前路网中道路的布局特征</td><td>路段编号</td><td>不同路段特有的编号</td><td>中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>车道数</td><td>道路在一个方向上划分的可供车辆独立行驶的通道数量</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>车道宽度</td><td>车辆正常行驶有效宽度部分，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>转弯半径</td><td>道路弯道处的曲线半径，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>路段长度</td><td>路段从起点到终点的实际距离，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>交叉口间距离</td><td>两个相连的交叉口之间的距离，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">道路设施位置信息</td><td>当前路网中路侧设施的位置信息</td><td>交通信号灯</td><td>路段上交通信号灯位置</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中路侧设施的位置信息</td><td>道路标志标线</td><td>路段上标志标线位置</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中路侧设施的位置信息</td><td>防护设施</td><td>路段上防护设施位置</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">交通场景规则情况</td><td>当前路网中道路的交通规则</td><td>静态交通规则</td><td>所处道路制定好，不易改变的交通规则</td><td>中心云数据库</td></tr>
+                <tr><td>当前路网中道路的交通规则</td><td>动态交通规则</td><td>车辆行驶过程中道路临时改变的交通规则，例如临时交通管制，施工绕行等</td><td>路侧摄像头、中心云通信单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">交通流状况</td><td>一段时间内道路上交通流的动态特征</td><td>交通流量</td><td>单位时间内通过特定路段的车辆数量</td><td>边缘计算单元，中心云通信单元</td></tr>
+                <tr><td>一段时间内道路上交通流的动态特征</td><td>平均车速</td><td>特定交叉口中车辆的平均行驶速度。</td><td>边缘计算单元，中心云通信单元</td></tr>
+                <tr><td>一段时间内道路上交通流的动态特征</td><td>排队长度</td><td>等待通过某个瓶颈点（如收费站或红绿灯）的车辆队伍长度。</td><td>边缘计算单元，中心云计算单元</td></tr>
+                <tr><td>一段时间内道路上交通流的动态特征</td><td>高峰时段</td><td>交通流量在一天当中最大的时刻</td><td>边缘计算单元，中心云计算单元</td></tr>
+                <tr><td>一段时间内道路上交通流的动态特征</td><td>流量密度</td><td>在单位长度路段上，一个车道或一个方向上某一瞬时的车辆数。</td><td>边缘计算单元，中心云计算单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">信号灯状态</td><td>当前路网中所有交叉口的信号灯状态</td><td>周期</td><td>信号灯色按设定的顺序显示一周所需要的时间，单位：t</td><td>路侧通信单元,中心云数据库</td></tr>
+                <tr><td>当前路网中所有交叉口的信号灯状态</td><td>相位方案</td><td>在一个信号周期内，同时获得通行权的一股或多股交通流的信号显示状态</td><td>路侧通信单元,中心云数据库</td></tr>
+                <tr><td>当前路网中所有交叉口的信号灯状态</td><td>绿信比</td><td>一个信号相位的有效绿灯时长与信号周期时长的比值</td><td>路侧通信单元,中心云数据库</td></tr>
+                <tr><td>当前路网中所有交叉口的信号灯状态</td><td>行人信号设置</td><td>行人信号灯的状态</td><td>路侧通信单元,中心云数据库</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">道路环境条件</td><td>当前路网中的道路情况和天气条件</td><td>道路条件</td><td>车辆行驶道路的摩擦系数等参数</td><td>车载终端</td></tr>
+                <tr><td>当前路网中的道路情况和天气条件</td><td>高精度地图</td><td>获取车辆行驶过程中周边道路详细情况</td><td>车载终端</td></tr>
+                <tr><td>当前路网中的道路情况和天气条件</td><td>环境条件</td><td>路网内周边天气条件</td><td>车载终端、边缘计算单元、中心云计算单元</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">历史事故数据</td><td>当前路网中历史事故数据</td><td>事故时间</td><td>交通事故发生时间</td><td>中心云数据库</td></tr>
+                <tr><td>当前路网中历史事故数据</td><td>事故地点</td><td>交通事故发生的位置（经度，纬度，高度）</td><td>中心云数据库</td></tr>
+                <tr><td>当前路网中历史事故数据</td><td>事故原因类型</td><td>交通事故发生原因和类型</td><td>中心云数据库</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">人口和社会经济数据</td><td>当前路网中人口的密度，收入等情况和标志性建筑情况</td><td>标志性建筑</td><td>路网中经济或政治中心建筑</td><td>中心云数据库</td></tr>
+                <tr><td>当前路网中人口的密度，收入等情况和标志性建筑情况</td><td>居民密度</td><td>单位土地面积上的人口数量</td><td>中心云数据库</td></tr>
+                <tr><td>当前路网中人口的密度，收入等情况和标志性建筑情况</td><td>收入水平</td><td>居民年收入情况</td><td>中心云数据库</td></tr>
+                <tr><td>当前路网中人口的密度，收入等情况和标志性建筑情况</td><td>就业情况</td><td>居民就业率</td><td>中心云数据库</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

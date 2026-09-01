@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自主式交通系统载运装备信息模型库 - 门户</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #0d47a1;
+            --bg: #f8f9fa;
+            --a1: #52c41a;
+            --a2: #1890ff;
+            --a3: #722ed1;
+            --a4: #f5222d;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Helvetica Neue', sans-serif; }
+        body { background-color: var(--bg); color: #333; min-height: 100vh; display: flex; flex-direction: column; }
+
+        /* 头部样式 */
+        header {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: white;
+            padding: 50px 20px 80px;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        header h1 { font-size: 2.2rem; margin-bottom: 10px; }
+        header p { opacity: 0.85; font-size: 1rem; }
+
+        /* 搜索和统计栏 */
+        .dashboard-controls {
+            max-width: 1200px; width: 100%; 
+            margin: -40px auto 30px; 
+            padding: 0 20px;
+            display: flex; align-items: center; gap: 15px; flex-wrap: nowrap;
+            position: relative; 
+            z-index: 100;
+        }
+
+        /* 搜索框 */
+        .search-box { flex: 1; min-width: 0; position: relative; }
+        .search-box input {
+            width: 100%; padding: 15px 20px 15px 50px;
+            border-radius: 12px; border: none;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+            font-size: 1rem; outline: none; height: 54px;
+        }
+        .search-box i { position: absolute; left: 20px; top: 18px; color: #999; }
+
+        /* 可视化按钮样式 */
+        .btn-graph {
+            flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 10px;
+            height: 54px; padding: 0 30px;
+            background: #722ed1; color: white; text-decoration: none;
+            border-radius: 12px; font-weight: 600; font-size: 1rem;
+            white-space: nowrap; box-shadow: 0 10px 20px rgba(114, 46, 209, 0.2);
+            transition: all 0.3s ease; border: none;
+        }
+        .btn-graph:hover {
+            background: #531dab; transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(114, 46, 209, 0.35); color: white;
+        }
+		.btn-scenario {
+			background: #13a8a8;
+			box-shadow: 0 10px 20px rgba(19, 168, 168, 0.2);
+		}
+
+		.btn-scenario:hover {
+			background: #0f7f7f;
+			box-shadow: 0 12px 24px rgba(19, 168, 168, 0.35);
+		}
+
+        /* 【修改】数据源状态标签 (现在位于按钮栏中) */
+        .data-source-tag {
+            flex-shrink: 0;
+            height: 54px; /* 与按钮高度一致 */
+            padding: 0 20px;
+            background: white; 
+            color: #999;
+            border-radius: 12px; 
+            font-size: 0.9rem; 
+            font-weight: 600;
+            display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+            white-space: nowrap;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+        }
+        
+        /* 自定义数据状态下的样式 */
+        .data-source-tag.custom { 
+            background: #52c41a; 
+            color: white; 
+            box-shadow: 0 10px 20px rgba(82, 196, 26, 0.3);
+            cursor: pointer;
+        }
+        .data-source-tag.custom:hover {
+            background: #ff4d4f; /* 悬停变红提示重置 */
+            box-shadow: 0 10px 20px rgba(255, 77, 79, 0.3);
+        }
+        .data-source-tag.custom:hover::after {
+            content: " (点击重置)";
+            font-weight: normal;
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        /* 内容区布局 */
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px 50px; width: 100%; }
+        .category-group { margin-bottom: 50px; }
+        .category-title {
+            font-size: 1.4rem; color: #2c3e50; margin-bottom: 20px;
+            display: flex; align-items: center; border-left: 5px solid var(--primary); padding-left: 15px;
+        }
+
+        /* 模型卡片 */
+        .model-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;
+        }
+        .model-card {
+            background: white; border-radius: 12px; padding: 20px;
+            text-decoration: none; color: inherit; border: 1px solid #eee;
+            transition: all 0.3s ease; position: relative;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .model-card:hover { transform: translateY(-5px); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1); border-color: var(--primary); }
+
+        .level-badge {
+            position: absolute; top: 15px; right: 15px;
+            font-size: 0.7rem; padding: 3px 8px; border-radius: 4px;
+            font-weight: bold; color: white; text-transform: uppercase;
+        }
+        .badge-a1 { background: var(--a1); }
+        .badge-a2 { background: var(--a2); }
+        .badge-a3 { background: var(--a3); }
+        .badge-a4 { background: var(--a4); }
+
+        .mid { font-size: 0.8rem; color: #999; font-weight: bold; margin-bottom: 5px; }
+        .mname { font-size: 1rem; font-weight: 600; color: #2c3e50; line-height: 1.4; margin-bottom: 10px; }
+        .mfooter { font-size: 0.8rem; color: var(--primary); display: flex; align-items: center; gap: 5px; }
+        .hidden { display: none; }
+
+        @media (max-width: 900px) {
+            .dashboard-controls { flex-wrap: wrap; margin-top: -60px; }
+            .search-box { width: 100%; order: 1; min-width: 100%; }
+            .btn-graph { order: 2; flex: 1; }
+            .data-source-tag { order: 3; flex: 1; justify-content: center; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>自主式交通系统载运装备信息模型库</h1>
+    </header>
+
+    <div class="dashboard-controls">
+        <!-- 搜索框 -->
+        <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="searchInput" placeholder="搜索模型 ID (如 P-D) 或 名称 (如 信号)...">
+        </div>
+        
+        <!-- 拓扑图按钮 -->
+        <a href="graph.html" class="btn-graph">
+            <i class="fa-solid fa-diagram-project"></i>
+            可视化拓扑视图
+        </a>
+		<a href="scenarios.html" class="btn-graph btn-scenario">
+			<i class="fa-solid fa-route"></i>
+			典型场景 UML
+		</a>
+        <!-- 数据源状态标签 (已移动到此处) -->
+        <div id="sourceTag" class="data-source-tag">
+            <i class="fa-solid fa-database"></i> 默认数据
+        </div>
+    </div>
+
+    <div class="container" id="mainContainer">
+        <!-- JS 将在此处生成分类和卡片 -->
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'graph_data_v6'; // 必须与 graph.html 保持一致
+
+        // 默认数据 (作为兜底)
+        const defaultCsvContent = `Layer,Color,Side,Group,SubGroup,ModelID,Level,RelatedTo
+感知层信息模型,#f6bd16,left,载运装备感知,车辆状态感知,P-D-A1-1,a1,
+感知层信息模型,#f6bd16,left,载运装备感知,车辆状态感知,P-D-A2-1,a2,
+感知层信息模型,#f6bd16,left,载运装备感知,车辆状态感知,P-D-A3-1,a3,
+感知层信息模型,#f6bd16,left,载运装备感知,车辆状态感知,P-D-A4-1,a4,T-D-A4-12
+感知层信息模型,#f6bd16,left,载运装备感知,车辆路况感知,P-D-A2-2,a2,
+感知层信息模型,#f6bd16,left,载运装备感知,车辆路况感知,P-D-A3-2,a3,
+感知层信息模型,#f6bd16,left,载运装备感知,车辆路况感知,P-D-A4-2,a4,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通信号感知,P-E-A1-3,a1,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通信号感知,P-E-A2-3,a2,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通信号感知,P-E-A3-3,a3,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通信号感知,P-E-A4-3,a4,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通流感知,P-E-A2-4,a2,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通流感知,P-E-A3-4,a3,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通流感知,P-E-A4-4,a4,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通参与者感知,P-E-A3-5,a3,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通参与者感知,P-E-A4-5,a4,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通事件感知,P-E-A3-6,a3,
+感知层信息模型,#f6bd16,left,路侧设备感知,交通事件感知,P-E-A4-6,a4,
+感知层信息模型,#f6bd16,left,路侧设备感知,气象条件感知,P-E-A1-7,a1,
+感知层信息模型,#f6bd16,left,路侧设备感知,气象条件感知,P-E-A2-7,a2,
+感知层信息模型,#f6bd16,left,路侧设备感知,气象条件感知,P-E-A3-7,a3,D-C-A3-17
+感知层信息模型,#f6bd16,left,路侧设备感知,气象条件感知,P-E-A4-7,a4,
+感知层信息模型,#f6bd16,left,路侧设备感知,泊位占用感知,P-E-A3-8,a3,D-C-A3-31
+感知层信息模型,#f6bd16,left,路侧设备感知,泊位占用感知,P-E-A4-8,a4,
+认知层信息模型,#722ed1,left,载运装备认知,延误情况检测,R-D-A3-9,a3,
+认知层信息模型,#722ed1,left,载运装备认知,延误情况检测,R-D-A4-9,a4,
+认知层信息模型,#722ed1,left,载运装备认知,冲突情况检测,R-D-A2-10,a2,
+认知层信息模型,#722ed1,left,载运装备认知,冲突情况检测,R-D-A3-10,a3,
+认知层信息模型,#722ed1,left,载运装备认知,冲突情况检测,R-D-A4-10,a4,
+认知层信息模型,#722ed1,left,载运装备认知,驾驶行为识别,R-D-A2-11,a2,
+认知层信息模型,#722ed1,left,载运装备认知,驾驶行为识别,R-D-A3-11,a3,
+认知层信息模型,#722ed1,left,载运装备认知,驾驶员状态监测,R-D-A1-12,a1,
+认知层信息模型,#722ed1,left,载运装备认知,驾驶员状态监测,R-D-A2-12,a2,
+认知层信息模型,#722ed1,left,载运装备认知,驾驶员状态监测,R-D-A3-12,a3,
+认知层信息模型,#722ed1,left,载运装备认知,车道偏离状态认知,R-D-A2-13,a2,
+认知层信息模型,#722ed1,left,载运装备认知,车道偏离状态认知,R-D-A3-13,a3,
+认知层信息模型,#722ed1,left,路侧装备认知,交通流预测,R-E-A2-14,a2,
+认知层信息模型,#722ed1,left,路侧装备认知,交通流预测,R-E-A3-14,a3,
+认知层信息模型,#722ed1,left,路侧装备认知,交通流预测,R-E-A4-14,a4,
+认知层信息模型,#722ed1,left,路侧装备认知,车辆轨迹预测,R-E-A2-15,a2,
+认知层信息模型,#722ed1,left,路侧装备认知,车辆轨迹预测,R-E-A3-15,a3,
+认知层信息模型,#722ed1,left,路侧装备认知,车辆轨迹预测,R-E-A4-15,a4,
+决策层信息模型,#52c41a,left,路侧装备认知,高精度地图要素实时检测与更新,D-C-A3-16,a3,
+决策层信息模型,#52c41a,left,路侧装备认知,高精度地图要素实时检测与更新,D-C-A4-16,a4,
+传输层信息模型,#1890ff,left,信息交互,车车通信V2V,T-D-A4-17,a4,
+传输层信息模型,#1890ff,left,信息交互,车车通信V2V,T-D-A4-17,a4,
+传输层信息模型,#1890ff,left,信息交互,车车通信V2V,T-D-A4-17,a4,
+传输层信息模型,#1890ff,left,信息交互,车路通信V2I,T-D-A3-18,a3,
+传输层信息模型,#1890ff,left,信息交互,车路通信V2I,T-D-A3-18,a3,
+传输层信息模型,#1890ff,left,信息交互,车网通信V2N,T-D-A2-19,a2,
+传输层信息模型,#1890ff,left,信息交互,车网通信V2N,T-D-A3-19,a3,
+传输层信息模型,#1890ff,left,信息交互,车网通信V2N,T-D-A4-19,a4,
+传输层信息模型,#1890ff,left,信息交互,路网通信I2N,T-E-A3-20,a3,
+传输层信息模型,#1890ff,left,信息交互,路网通信I2N,T-E-A4-20,a4,
+传输层信息模型,#1890ff,left,信息交互,车服通信V2S,T-D-A1-21,a1,
+传输层信息模型,#1890ff,left,信息交互,车服通信V2S,T-D-A2-21,a2,
+传输层信息模型,#1890ff,left,信息交互,车服通信V2S,T-D-A3-21,a3,
+传输层信息模型,#1890ff,left,信息交互,车服通信V2S,T-D-A4-21,a4,
+决策层信息模型,#52c41a,left,载运装备自主决策,前向碰撞预警,D-D-A2-22,a2,
+决策层信息模型,#52c41a,left,载运装备自主决策,前向碰撞预警,D-D-A3-22,a3,
+决策层信息模型,#52c41a,left,载运装备自主决策,前向碰撞预警,D-D-A4-22,a4,
+决策层信息模型,#52c41a,left,载运装备自主决策,车辆失控预警,D-D-A2-23,a2,
+决策层信息模型,#52c41a,left,载运装备自主决策,车辆失控预警,D-D-A3-23,a3,
+决策层信息模型,#52c41a,left,载运装备自主决策,车辆跟驰,D-D-A3-24,a3,
+决策层信息模型,#52c41a,left,载运装备自主决策,车辆跟驰,D-D-A4-24,a4,
+决策层信息模型,#52c41a,left,载运装备自主决策,自主泊车,D-D-A3-25,a3,
+决策层信息模型,#52c41a,left,载运装备自主决策,自主泊车,D-D-A4-25,a4,
+决策层信息模型,#52c41a,left,载运装备自主决策,盲区预警,D-D-A2-26,a2,
+决策层信息模型,#52c41a,left,载运装备自主决策,盲区预警,D-D-A3-26,a3,
+决策层信息模型,#52c41a,left,载运装备自主决策,盲区预警,D-D-A4-26,a4,
+决策层信息模型,#52c41a,left,载运装备自主决策,限速预警,D-D-A2-27,a2,
+决策层信息模型,#52c41a,left,载运装备自主决策,限速预警,D-D-A3-27,a3,
+决策层信息模型,#52c41a,left,载运装备自主决策,限速预警,D-D-A4-27,a4,
+决策层信息模型,#52c41a,left,载运装备自主决策,变道预警,D-D-A2-28,a2,
+决策层信息模型,#52c41a,left,载运装备自主决策,变道预警,D-D-A3-28,a3,
+决策层信息模型,#52c41a,left,载运装备自主决策,变道预警,D-D-A4-28,a4,
+决策层信息模型,#52c41a,left,载运装备自主决策,车辆路径规划,D-D-A2-29,a2,
+决策层信息模型,#52c41a,left,载运装备自主决策,人机接管决策,D-D-A2-30,a2,
+决策层信息模型,#52c41a,left,载运装备自主决策,人机接管决策,D-D-A3-30,a3,
+控制层信息模型,#8c8c8c,left,车辆控制,紧急制动,C-D-A2-31,a2,
+控制层信息模型,#8c8c8c,left,车辆控制,紧急制动,C-D-A3-31,a3,
+控制层信息模型,#8c8c8c,left,车辆控制,紧急转向避让,C-D-A2-32,a2,
+控制层信息模型,#8c8c8c,left,车辆控制,紧急转向避让,C-D-A3-32,a3,
+控制层信息模型,#8c8c8c,left,车辆控制,紧急转向避让,C-D-A4-32,a4,
+控制层信息模型,#8c8c8c,left,车辆控制,车速引导,C-D-A2-33,a2,
+控制层信息模型,#8c8c8c,left,车辆控制,车速引导,C-D-A3-33,a3,
+控制层信息模型,#8c8c8c,left,车辆控制,车速引导,C-D-A4-33,a4,
+控制层信息模型,#8c8c8c,left,车辆控制,车辆路径规划,C-D-A3-34,a3,
+控制层信息模型,#8c8c8c,left,车辆控制,车辆路径规划,C-D-A4-34,a4,
+控制层信息模型,#8c8c8c,left,车辆控制,车载信息显示,C-D-A1-35,a1,
+控制层信息模型,#8c8c8c,left,车辆控制,车载信息显示,C-D-A2-35,a2,
+控制层信息模型,#8c8c8c,left,车辆控制,车载信息显示,C-D-A3-35,a3,
+控制层信息模型,#8c8c8c,left,车辆控制,车辆事故紧急呼叫,C-D-A2-36,a2,
+控制层信息模型,#8c8c8c,left,车辆控制,车辆事故紧急呼叫,C-D-A3-36,a3,
+控制层信息模型,#8c8c8c,left,车辆控制,车辆事故紧急呼叫,C-D-A4-36,a4,
+控制层信息模型,#8c8c8c,left,车辆控制,泊车运动控制,C-D-A3-37,a3,
+控制层信息模型,#8c8c8c,left,车辆控制,泊车运动控制,C-D-A4-37,a4,
+决策层信息模型,#52c41a,right,端端协同决策,车辆编队,D-D-A3-38,a3,
+决策层信息模型,#52c41a,right,端端协同决策,车辆编队,D-D-A4-38,a4,
+决策层信息模型,#52c41a,right,端端协同决策,借道会车,D-D-A3-39,a3,
+决策层信息模型,#52c41a,right,端端协同决策,借道会车,D-D-A4-39,a4,
+决策层信息模型,#52c41a,right,端端协同决策,应急车辆优先,D-C-A3-40,a3,
+决策层信息模型,#52c41a,right,端端协同决策,应急车辆优先,D-C-A4-40,a4,
+决策层信息模型,#52c41a,right,端边协同决策,道路危险状况提示,D-D-A2-41,a2,
+决策层信息模型,#52c41a,right,端边协同决策,道路危险状况提示,D-D-A3-41,a3,
+决策层信息模型,#52c41a,right,端边协同决策,拥堵提醒,D-D-A2-42,a2,
+决策层信息模型,#52c41a,right,端边协同决策,拥堵提醒,D-D-A3-42,a3,
+决策层信息模型,#52c41a,right,端边协同决策,拥堵提醒,D-D-A4-42,a4,
+决策层信息模型,#52c41a,right,端边协同决策,异常车辆提醒,D-D-A2-43,a2,
+决策层信息模型,#52c41a,right,端边协同决策,异常车辆提醒,D-D-A3-43,a3,
+决策层信息模型,#52c41a,right,端边协同决策,紧急任务车辆提醒,D-D-A2-44,a2,
+决策层信息模型,#52c41a,right,端边协同决策,紧急任务车辆提醒,D-D-A3-44,a3,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,交叉口车辆通行权决策,D-E-A2-45,a2,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,交叉口车辆通行权决策,D-E-A3-45,a3,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,交叉口车辆通行权决策,D-E-A4-45,a4,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,交叉口排队溢出疏解,D-E-A3-46,a3,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,交叉口排队溢出疏解,D-E-A4-46,a4,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,闯红灯预警,D-C-A3-47,a3,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,闯红灯预警,D-C-A4-47,a4,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,弱势交通参与者碰撞预警,D-D-A2-48,a2,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,弱势交通参与者碰撞预警,D-D-A3-48,a3,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,弱势交通参与者碰撞预警,D-D-A4-48,a4,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,绿波车速引导,D-C-A3-49,a3,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,绿波车速引导,D-C-A4-49,a4,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,车道功能动态调整,D-C-A3-50,a3,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,车道功能动态调整,D-C-A4-50,a4,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,拥堵交通分流服务,D-C-A3-51,a3,
+决策层信息模型,#52c41a,right,交叉口自主通行与冲突避让,拥堵交通分流服务,D-C-A4-51,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网区域识别,D-C-A2-52,a2,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网区域识别,D-C-A3-52,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网区域识别,D-C-A4-52,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网时空信息整合,D-C-A3-53,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网时空信息整合,D-C-A4-53,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,时空协作域划分,D-C-A3-54,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,时空协作域划分,D-C-A4-54,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,时空协作域,D-C-A3-55,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,时空协作域,D-C-A4-55,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,边侧车辆轨迹匹配,D-E-A3-56,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,边侧车辆轨迹匹配,D-E-A4-56,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,边侧路径流量计算,D-E-A3-57,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,边侧路径流量计算,D-E-A4-57,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,云侧路网流量计算,D-C-A2-58,a2,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网信息融合,D-C-A2-59,a2,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网信息融合,D-C-A3-59,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网信息融合,D-C-A4-59,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,OD流量估计,D-C-A2-60,a2,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,OD流量估计,D-C-A3-60,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,OD流量估计,D-C-A4-60,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,关键路径识别,D-C-A2-61,a2,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,关键路径识别,D-C-A3-61,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,关键路径识别,D-C-A4-61,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网动态通行能力评估,D-C-A3-62,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网动态通行能力评估,D-C-A4-62,a4,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网车辆路径负载均衡,D-C-A3-63,a3,
+决策层信息模型,#52c41a,right,城市路网区域协同决策,路网车辆路径负载均衡,D-C-A4-63,a4,
+控制层信息模型,#8c8c8c,right,端端协同控制,协作式变道,C-D-A3-64,a3,
+控制层信息模型,#8c8c8c,right,端端协同控制,协作式变道,C-D-A4-64,a4,
+控制层信息模型,#8c8c8c,right,端端协同控制,协作式车辆汇入,C-D-A3-65,a3,
+控制层信息模型,#8c8c8c,right,端端协同控制,协作式车辆汇入,C-D-A4-65,a4,
+控制层信息模型,#8c8c8c,right,信号控制,关键交叉口信号控制,C-C-A3-66,a3,
+控制层信息模型,#8c8c8c,right,信号控制,关键交叉口信号控制,C-C-A4-66,a4,
+控制层信息模型,#8c8c8c,right,信号控制,干线交叉口信号控制,C-C-A3-67,a3,
+控制层信息模型,#8c8c8c,right,信号控制,干线交叉口信号控制,C-C-A4-67,a4,
+决策层信息模型,#52c41a,right,信号控制,公交信号优先,D-C-A3-68,a3,
+决策层信息模型,#52c41a,right,信号控制,公交信号优先,D-C-A4-68,a4,
+控制层信息模型,#8c8c8c,right,信号控制,公交信号优先自适应补偿,C-C-A3-69,a3,
+控制层信息模型,#8c8c8c,right,信号控制,公交信号优先自适应补偿,C-C-A4-69,a4,
+感知层信息模型,#f6bd16,right,公交协同运行与智能调控,公交车内客流感知,P-D-A3-70,a3,
+感知层信息模型,#f6bd16,right,公交协同运行与智能调控,公交车内客流感知,P-D-A4-70,a4,
+感知层信息模型,#f6bd16,right,公交协同运行与智能调控,站台客流感知,P-E-A3-71,a3,
+感知层信息模型,#f6bd16,right,公交协同运行与智能调控,站台客流感知,P-E-A4-71,a4,
+认知层信息模型,#722ed1,right,公交协同运行与智能调控,公交乘客 OD 与乘降需求推断,R-C-A3-72,a3,
+认知层信息模型,#722ed1,right,公交协同运行与智能调控,公交乘客 OD 与乘降需求推断,R-C-A4-72,a4,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,路径-信息协同优化,D-C-A3-73,a3,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,路径-信息协同优化,D-C-A4-73,a4,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交运力动态调配,D-C-A3-74,a3,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交运力动态调配,D-C-A4-74,a4,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交停站方案优化,D-C-A3-75,a3,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交停站方案优化,D-C-A4-75,a4,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交道路车速引导,D-C-A3-76,a3,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交道路车速引导,D-C-A4-76,a4,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交进站车速引导,D-C-A3-77,a3,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交进站车速引导,D-C-A4-77,a4,
+控制层信息模型,#8c8c8c,right,公交协同运行与智能调控,公交精准停靠控制,C-D-A3-78,a3,
+控制层信息模型,#8c8c8c,right,公交协同运行与智能调控,公交精准停靠控制,C-D-A4-78,a4,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交出站时机优化,D-C-A3-79,a3,
+决策层信息模型,#52c41a,right,公交协同运行与智能调控,公交出站时机优化,D-C-A4-79,a4,
+感知层信息模型,#f6bd16,right,公铁联运运行协同,公铁联运节点运行状态感知,P-E-A3-80,a3,
+传输层信息模型,#1890ff,right,公铁联运运行协同,公铁联运到发状态交互,T-C-A3-81,a3,
+决策层信息模型,#52c41a,right,公铁联运运行协同,公铁联运运力匹配,D-C-A3-82,a3,
+决策层信息模型,#52c41a,right,公铁联运运行协同,公铁联运衔接计划,D-C-A3-83,a3,
+决策层信息模型,#52c41a,right,公铁联运运行协同,公铁联运衔接计划,D-C-A4-83,a4,
+控制层信息模型,#8c8c8c,right,公铁联运运行协同,公铁联运异常协同调整,C-C-A3-84,a3,
+感知层信息模型,#f6bd16,right,港口码头运行协同调度,港口码头运行状态感知,P-E-A3-85,a3,
+传输层信息模型,#1890ff,right,港口码头运行协同调度,船舶到离港状态交互,T-C-A3-86,a3,
+决策层信息模型,#52c41a,right,港口码头运行协同调度,泊位资源动态调度,D-C-A3-87,a3,
+决策层信息模型,#52c41a,right,港口码头运行协同调度,泊位资源动态调度,D-C-A4-87,a4,
+决策层信息模型,#52c41a,right,港口码头运行协同调度,港区车辆进出场协同调度,D-C-A3-88,a3,
+决策层信息模型,#52c41a,right,港口码头运行协同调度,船港集疏运衔接计划,D-C-A3-89,a3,
+决策层信息模型,#52c41a,right,港口码头运行协同调度,船港集疏运衔接计划,D-C-A4-89,a4,
+控制层信息模型,#8c8c8c,right,港口码头运行协同调度,港口运行异常协同调整,C-C-A3-90,a3,`;
+
+        let displayData = []; 
+
+        // 1. 从 CSV 文本解析数据 (适配 index 页面的需求)
+        function parseCsvForIndex(csvText) {
+            const lines = csvText.trim().split(/\r?\n/);
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(s => s.trim());
+                if (cols.length < 7) continue;
+                const [layer, , side, , name, id, lv] = cols;
+                const sideName = side === 'left' ? '通用模型' : side === 'right' ? '专用模型' : '未分类';
+                data.push({ id, name, cat: `${sideName} · ${layer}`, lv });
+            }
+            return data;
+        }
+
+        // 2. 从 localStorage 重建数据 (核心逻辑)
+        function reconstructFromStorage(storedData) {
+            const rawModels = storedData.models || [];
+            const structure = storedData.structure || [];
+            const result = [];
+
+            // graph_data_v6：Side → Layer → Group → SubGroup
+            structure.forEach(sideNode => {
+                const sideName = sideNode.side === 'left' ? '通用模型' : '专用模型';
+                (sideNode.children || []).forEach(layer => {
+                    (layer.children || []).forEach(group => {
+                        (group.children || []).forEach(subGroupName => {
+                            const matches = rawModels.filter(m =>
+                                m.name === subGroupName &&
+                                (!m.side || m.side === sideNode.side) &&
+                                (!m.layer || m.layer === layer.name) &&
+                                (!m.group || m.group === group.name)
+                            );
+                            matches.forEach(m => {
+                                result.push({
+                                    id: m.id,
+                                    name: m.name,
+                                    lv: m.lv,
+                                    cat: `${sideName} · ${layer.name}`
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+            return result;
+        }
+
+        // 3. 恢复默认设置函数
+        function resetToDefault() {
+            if(confirm("确定要清除自定义数据并恢复到默认列表吗？")) {
+                localStorage.removeItem(STORAGE_KEY);
+                location.reload();
+            }
+        }
+
+        // 4. 初始化加载
+        function initData() {
+            const savedJson = localStorage.getItem(STORAGE_KEY);
+            const tag = document.getElementById('sourceTag');
+
+            if (savedJson) {
+                try {
+                    const storedData = JSON.parse(savedJson);
+                    displayData = reconstructFromStorage(storedData);
+                    
+                    // 状态提示：添加 custom 类
+                    tag.innerHTML = '<i class="fa-solid fa-cloud"></i> 自定义数据';
+                    tag.classList.add('custom');
+                    
+                    // 绑定点击事件：点击标签也可重置
+                    tag.onclick = resetToDefault;
+
+                } catch (e) {
+                    console.error("Storage load failed, falling back", e);
+                    displayData = parseCsvForIndex(defaultCsvContent);
+                }
+            } else {
+                displayData = parseCsvForIndex(defaultCsvContent);
+            }
+            
+            renderModels(displayData);
+        }
+
+        // 5. 渲染卡片
+        function renderModels(data) {
+            const container = document.getElementById('mainContainer');
+            container.innerHTML = ''; // 清空
+            
+            const categories = [...new Set(data.map(m => m.cat))];
+
+            categories.forEach(cat => {
+                const section = document.createElement('div');
+                section.className = 'category-group';
+                section.innerHTML = `<h2 class="category-title">${cat}</h2><div class="model-grid"></div>`;
+
+                const grid = section.querySelector('.model-grid');
+                data.filter(m => m.cat === cat).forEach(m => {
+                    const card = document.createElement('a');
+                    card.href = `models/${m.id}.html`;
+                    card.className = 'model-card';
+                    card.dataset.search = (m.id + m.name + m.lv).toLowerCase();
+                    
+                    card.innerHTML = `
+                    <span class="level-badge badge-${m.lv}">${m.lv ? m.lv.toUpperCase() : '?'}</span>
+                    <div>
+                        <div class="mid">${m.id}</div>
+                        <div class="mname">${m.name}</div>
+                    </div>
+                    <div class="mfooter">进入模型详情 <i class="fa-solid fa-chevron-right"></i></div>
+                `;
+                    grid.appendChild(card);
+                });
+                container.appendChild(section);
+            });
+        }
+
+        // 6. 搜索功能
+        document.getElementById('searchInput').addEventListener('input', function (e) {
+            const val = e.target.value.toLowerCase();
+            const cards = document.querySelectorAll('.model-card');
+            cards.forEach(card => {
+                if (card.dataset.search.includes(val)) {
+                    card.classList.remove('hidden');
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+            // 隐藏空的分类
+            document.querySelectorAll('.category-group').forEach(group => {
+                const visibleCards = group.querySelectorAll('.model-card:not(.hidden)');
+                group.style.display = visibleCards.length === 0 ? 'none' : 'block';
+            });
+        });
+
+        // 启动
+        initData();
+    </script>
+</body>
+
+</html>

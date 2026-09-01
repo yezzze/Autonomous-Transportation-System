@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-D-A4-31 盲区预警信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>盲区预警信息模型</h1>
+    <p>模型编号：D-D-A4-31 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>盲区预警信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A4-31</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>城市复杂路口转弯（侧向盲区）、高速公路高密度车流并线、恶劣天气（暴雨/大雾）盲区预警等场景，支持全自动盲区风险规避。</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">本车状态信息</td><td>载运装备自身与盲区预警相关的动态参数</td><td>车速</td><td>当前行驶速度（误差≤±0.01m/s）</td><td>车载单元OBU</td></tr>
+                <tr><td>载运装备自身与盲区预警相关的动态参数</td><td>车身姿态</td><td>横摆角、侧倾角（影响盲区范围判定）</td><td>车载单元OBU</td></tr>
+                <tr><td>载运装备自身与盲区预警相关的动态参数</td><td>规划轨迹</td><td>未来5s内的精确行驶路径（含变道轨迹）</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">盲区目标状态信息</td><td>车载传感器感知的侧后方盲区目标特征</td><td>目标位置</td><td>绝对经纬度（误差≤±0.1m）</td><td>车载GNSS、IMU惯性导航系统</td></tr>
+                <tr><td>车载传感器感知的侧后方盲区目标特征</td><td>目标速度</td><td>绝对速度（误差≤±0.05m/s）</td><td>车载单元OBU</td></tr>
+                <tr><td>车载传感器感知的侧后方盲区目标特征</td><td>目标意图</td><td>变道、加速、减速等行为（未来5s预测）</td><td>中心云</td></tr>
+                <tr><td>车载传感器感知的侧后方盲区目标特征</td><td>目标尺寸</td><td>长度、宽度（判定碰撞范围）</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">路侧V2X信息</td><td>路侧设备通过V2X广播的盲区增强信息</td><td>实时盲区态势</td><td>多车感知的盲区目标列表（含被遮挡目标）</td><td>V2X 通信（PC5 接口）、车载单元OBU</td></tr>
+                <tr><td>路侧设备通过V2X广播的盲区增强信息</td><td>交叉路口盲区预警</td><td>路口转弯时的侧向盲区行人/车辆</td><td>摄像头</td></tr>
+                <tr><td>路侧设备通过V2X广播的盲区增强信息</td><td>固定盲区位置</td><td>桥梁、建筑物形成的永久盲区区域</td><td>车载激光雷达、摄像头</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">风险计算参数信息</td><td>判断盲区风险的基础指标</td><td>动态碰撞风险</td><td>目标与本车规划轨迹的碰撞概率（0-100%，≥30%触发干预）</td><td>中心云</td></tr>
+                <tr><td>判断盲区风险的基础指标</td><td>安全避让空间</td><td>是否存在可用于规避的相邻车道空间</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">预警决策信息</td><td>基于风险计算的辅助提示策略</td><td>预警等级</td><td>低（仅预警）、中（预警+准备制动）、高（预警+强制规避）</td><td>中心云</td></tr>
+                <tr><td>基于风险计算的辅助提示策略</td><td>控制指令</td><td>高风险时触发：制动（减速度≤3m/s²）、转向（角度≤5°）、关闭转向灯</td><td>车辆控制系统</td></tr>
+                <tr><td>基于风险计算的辅助提示策略</td><td>V2X协同预警</td><td>向盲区目标广播“本车正在变道”的警示信息</td><td>车载单元OBU</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

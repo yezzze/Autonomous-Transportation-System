@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>典型场景 UML - 自主式交通系统载运装备信息模型库</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #0d47a1;
+            --scenario: #13a8a8;
+            --bg: #f8f9fa;
+            --text: #2c3e50;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --p: #f6bd16;
+            --r: #722ed1;
+            --t: #1890ff;
+            --d: #52c41a;
+            --c: #8c8c8c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif; }
+        body { background: var(--bg); color: #333; min-height: 100vh; }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: #fff;
+            padding: 44px 20px 74px;
+            text-align: center;
+        }
+
+        header h1 { font-size: 2rem; margin-bottom: 10px; }
+        header p { opacity: 0.88; font-size: 1rem; }
+
+        .topbar {
+            max-width: 1200px;
+            margin: -38px auto 28px;
+            padding: 0 20px;
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 2;
+        }
+
+        .search-box { flex: 1; min-width: 260px; position: relative; }
+        .search-box input {
+            width: 100%;
+            height: 54px;
+            border: none;
+            border-radius: 12px;
+            padding: 0 18px 0 48px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+            outline: none;
+            font-size: 1rem;
+        }
+        .search-box i { position: absolute; left: 19px; top: 19px; color: #9ca3af; }
+
+        .nav-btn {
+            height: 54px;
+            padding: 0 24px;
+            border-radius: 12px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: white;
+            font-weight: 700;
+            white-space: nowrap;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            transition: all .25s ease;
+        }
+        .nav-btn:hover { transform: translateY(-2px); }
+        .nav-home { background: #2c3e50; }
+        .nav-graph { background: #722ed1; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px 56px; }
+
+        .section-title {
+            margin: 20px 0 18px;
+            color: var(--text);
+            font-size: 1.35rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-title::before {
+            content: "";
+            width: 5px;
+            height: 24px;
+            border-radius: 4px;
+            background: var(--scenario);
+            display: inline-block;
+        }
+
+        .scenario-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 20px;
+        }
+
+        .scenario-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 22px;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 282px;
+            transition: all .25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .scenario-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--scenario);
+            box-shadow: 0 14px 28px rgba(0,0,0,0.10);
+        }
+        .scenario-card.pending:hover {
+            border-color: #fa8c16;
+            box-shadow: 0 14px 28px rgba(250,140,22,0.14);
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: flex-start;
+        }
+
+        .scenario-title {
+            color: var(--text);
+            font-size: 1.15rem;
+            line-height: 1.45;
+            font-weight: 800;
+        }
+
+        .status {
+            flex-shrink: 0;
+            font-size: .75rem;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-weight: 800;
+        }
+        .status.ready { background: #e6fffb; color: #08979c; border: 1px solid #87e8de; }
+        .status.todo { background: #fff7e6; color: #d46b08; border: 1px solid #ffd591; }
+
+        .desc { color: var(--muted); line-height: 1.75; font-size: .93rem; }
+
+        .meta-block { display: grid; gap: 10px; color: #4b5563; font-size: .88rem; }
+        .meta-row { display: flex; gap: 8px; align-items: flex-start; }
+        .meta-row i { width: 18px; margin-top: 3px; color: var(--scenario); }
+
+        .stage-tags, .model-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+        .tag { font-size: .76rem; border-radius: 999px; padding: 5px 9px; background: #f3f4f6; color: #4b5563; }
+        .tag.p { background: rgba(246, 189, 22, .14); color: #9a6b00; }
+        .tag.r { background: rgba(114, 46, 209, .12); color: #531dab; }
+        .tag.t { background: rgba(24, 144, 255, .12); color: #096dd9; }
+        .tag.d { background: rgba(82, 196, 26, .13); color: #237804; }
+        .tag.c { background: rgba(140, 140, 140, .15); color: #595959; }
+
+        .enter { margin-top: auto; color: var(--scenario); font-weight: 800; display: flex; align-items: center; gap: 8px; font-size: .92rem; }
+
+        @media (max-width: 720px) {
+            header h1 { font-size: 1.55rem; }
+            .nav-btn { flex: 1; }
+            .scenario-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>典型场景 UML 模型库</h1>
+        <p>面向“感知—认知—传输—决策—控制”链路的异智交通主体协同信息流场景化表达</p>
+    </header>
+
+    <div class="topbar">
+        <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input id="searchInput" type="text" placeholder="搜索场景名称、主体或关联模型，例如 公交 / 交叉口 / V2I / Signal...">
+        </div>
+        <a class="nav-btn nav-home" href="index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
+        <a class="nav-btn nav-graph" href="graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
+    </div>
+
+    <main class="container">
+        <h2 class="section-title">场景列表</h2>
+
+        <div class="scenario-grid" id="scenarioGrid">
+            <a class="scenario-card"
+               href="scenarios/bus-priority.html"
+               data-search="公交优先 交通流 协同调控 connected bus connected vehicle edge rsu signal controller regional cloud v2i v2n 公交路径规划 关键交叉口信号控制">
+                <div class="card-top">
+                    <div class="scenario-title">公交优先与交通流协同调控</div>
+                    <span class="status ready">已嵌入 SVG</span>
+                </div>
+                <p class="desc">面向智能公交、社会车辆、边缘计算单元、信号控制机与区域云平台，表达公交优先请求、云端协同决策、信号控制与车辆诱导反馈的完整信息流。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Bus L4、Connected Vehicle L2、Edge RSU、Signal Controller、Regional Cloud</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">V2I</span><span class="tag">V2N</span><span class="tag">公交路径规划</span><span class="tag">信号控制</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+
+            <a class="scenario-card"
+               href="scenarios/intersection-safety.html"
+               data-search="交叉口 多车 协同 安全通行 cooperative control connected vehicle l4 l3 edge rsu v2v v2i 冲突检测 碰撞预警 紧急制动">
+                <div class="card-top">
+                    <div class="scenario-title">交叉口多车协同安全通行</div>
+                    <span class="status ready">已嵌入 SVG</span>
+                </div>
+                <p class="desc">面向交叉口多智能等级车辆协同避让场景，表达车辆自感知、车车/车路信息共享、边缘端冲突检测与预警指令下发的安全闭环。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle L4、Connected Vehicle L3、Edge RSU</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">V2V</span><span class="tag">V2I</span><span class="tag">冲突检测</span><span class="tag">碰撞预警</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+
+            <!-- 3. 协作式车辆汇入与变道 -->
+            <a class="scenario-card"
+               href="scenarios/cooperative-merge.html"
+               data-search="协作式车辆汇入与变道 高速公路 城市快速路 匝道 主路 车辆状态感知 车辆轨迹预测 v2v v2i 协作式汇入 协作式变道">
+                <div class="card-top">
+                    <div class="scenario-title">协作式车辆汇入与变道</div>
+                    <span class="status ready">已嵌入 SVG</span>
+                </div>
+                <p class="desc">面向主路车辆与匝道汇入车辆，表达车辆状态感知、轨迹预测、V2V/V2I 信息交互、汇入顺序协商以及纵横向控制形成的协同通行闭环。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Mainline Connected Vehicle、Merging Vehicle、Edge RSU</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">车辆状态感知</span><span class="tag">车辆轨迹预测</span><span class="tag">V2V</span><span class="tag">协作式车辆汇入</span><span class="tag">协作式变道</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+
+            <!-- 4. 城市路网拥堵识别与协同分流 -->
+            <a class="scenario-card pending"
+               href="scenarios/network-diversion.html"
+               data-search="城市路网 拥堵识别 协同分流 交通流感知 交通流预测 路网区域识别 关键路径 动态通行能力 车辆路径规划">
+                <div class="card-top">
+                    <div class="scenario-title">城市路网拥堵识别与协同分流</div>
+                    <span class="status todo">待绘制</span>
+                </div>
+                <p class="desc">面向区域路网拥堵传播场景，通过路侧交通状态采集、云端信息融合与预测，识别瓶颈和关键路径，并形成区域交通分流与车辆路径调整方案。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle、Edge RSU、Regional Cloud</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span></div>
+                    <div class="model-tags"><span class="tag">交通流感知</span><span class="tag">交通流预测</span><span class="tag">关键路径识别</span><span class="tag">拥堵交通分流</span><span class="tag">车辆路径规划</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+
+            <!-- 5. 紧急任务车辆优先通行协同 -->
+            <a class="scenario-card pending"
+               href="scenarios/emergency-priority.html"
+               data-search="紧急任务车辆 应急车辆 救护车 消防车 优先通行 v2v v2i 交叉口 通行权 信号控制">
+                <div class="card-top">
+                    <div class="scenario-title">紧急任务车辆优先通行协同</div>
+                    <span class="status todo">待绘制</span>
+                </div>
+                <p class="desc">面向救护、消防等紧急任务车辆通行需求，表达任务车辆状态广播、路侧识别、社会车辆提醒、交叉口优先权决策与信号控制协同过程。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Emergency Vehicle、Connected Vehicle、Edge RSU、Signal Controller</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">紧急任务车辆提醒</span><span class="tag">V2V</span><span class="tag">V2I</span><span class="tag">应急车辆优先</span><span class="tag">信号控制</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+
+            <!-- 6. 道路突发事件协同处置与绕行 -->
+            <a class="scenario-card pending"
+               href="scenarios/incident-response.html"
+               data-search="道路突发事件 交通事故 故障车辆 道路障碍 交通事件感知 道路危险 异常车辆 拥堵提醒 绕行 路径规划 v2i v2n">
+                <div class="card-top">
+                    <div class="scenario-title">道路突发事件协同处置与绕行</div>
+                    <span class="status todo">待绘制</span>
+                </div>
+                <p class="desc">面向交通事故、故障车辆和道路障碍等突发事件，表达事件发现、信息上传、影响范围认知、危险提示以及车辆绕行路径调整的信息流。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle、Edge RSU、Regional Cloud</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span></div>
+                    <div class="model-tags"><span class="tag">交通事件感知</span><span class="tag">道路危险状况提示</span><span class="tag">异常车辆提醒</span><span class="tag">V2N</span><span class="tag">车辆路径规划</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+
+            <!-- 7. 智能泊车与泊位协同引导 -->
+            <a class="scenario-card pending"
+               href="scenarios/smart-parking.html"
+               data-search="智能泊车 自主泊车 泊位 泊位占用 泊位资源调度 停车 v2i 泊车运动控制">
+                <div class="card-top">
+                    <div class="scenario-title">智能泊车与泊位协同引导</div>
+                    <span class="status todo">待绘制</span>
+                </div>
+                <p class="desc">面向车辆进入停车区域后的泊位获取与自主泊车过程，表达泊位状态感知、泊位资源分配、停车引导以及车辆自主泊车控制闭环。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle、Parking Facility、Edge Platform</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">泊位占用感知</span><span class="tag">泊位资源调度</span><span class="tag">自主泊车</span><span class="tag">泊车运动控制</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+
+            <!-- 8. 干线绿波协同通行 -->
+            <a class="scenario-card pending"
+               href="scenarios/green-wave.html"
+               data-search="干线 绿波 车速引导 信号控制 v2i 交通流感知 交通信号感知 信号协调">
+                <div class="card-top">
+                    <div class="scenario-title">干线绿波协同通行</div>
+                    <span class="status todo">待绘制</span>
+                </div>
+                <p class="desc">面向城市连续信号交叉口，通过交通流与信号状态获取、多交叉口协调以及车速引导，实现车辆与信号系统之间的协同通行。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle、Edge RSU、Signal Controller、Regional Platform</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">交通信号感知</span><span class="tag">交通流感知</span><span class="tag">绿波车速引导</span><span class="tag">干线信号控制</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+
+            <!-- 9. 公铁联运节点协同衔接 -->
+            <a class="scenario-card pending"
+               href="scenarios/road-rail.html"
+               data-search="公铁联运 公路 铁路 枢纽 到发状态 运力匹配 衔接计划 异常协同">
+                <div class="card-top">
+                    <div class="scenario-title">公铁联运节点协同衔接</div>
+                    <span class="status todo">待绘制</span>
+                </div>
+                <p class="desc">面向公路运输车辆与铁路运输计划在综合运输节点的衔接过程，表达节点状态获取、到发信息交互、运力匹配、衔接计划与异常调整。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Road Vehicle、Rail System、Intermodal Hub、Coordination Platform</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">节点运行状态感知</span><span class="tag">到发状态交互</span><span class="tag">运力匹配</span><span class="tag">衔接计划</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+
+            <!-- 10. 港口集疏运协同调度 -->
+            <a class="scenario-card pending"
+               href="scenarios/port-intermodal.html"
+               data-search="港口 码头 集疏运 船舶 泊位 港区车辆 进出场 协同调度 船港衔接">
+                <div class="card-top">
+                    <div class="scenario-title">港口集疏运协同调度</div>
+                    <span class="status todo">待绘制</span>
+                </div>
+                <p class="desc">面向船舶、泊位、港区车辆及集疏运系统之间的协同运行，表达船舶到港、泊位资源分配、车辆进出场以及多方式运输衔接过程。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Vessel、Port Terminal、Port Vehicle、Coordination Platform</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">港口运行状态感知</span><span class="tag">船舶到离港交互</span><span class="tag">泊位动态调度</span><span class="tag">港区车辆调度</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+        </div>
+    </main>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const cards = document.querySelectorAll('.scenario-card');
+        searchInput.addEventListener('input', function (e) {
+            const val = e.target.value.trim().toLowerCase();
+            cards.forEach(card => {
+                const searchable = card.dataset.search.toLowerCase();
+                card.style.display = searchable.includes(val) ? 'flex' : 'none';
+            });
+        });
+
+        // 待绘制场景暂不跳转，避免详情页尚未建立时出现 404。
+        // 后续完成对应 UML 页面后，只需删除卡片上的 pending 类，
+        // 并将 status todo 改为 status ready，即可恢复正常跳转。
+        document.querySelectorAll('.scenario-card.pending').forEach(card => {
+            card.addEventListener('click', function (e) {
+                e.preventDefault();
+                const title = card.querySelector('.scenario-title')?.innerText || '该场景';
+                alert(`“${title}” UML 场景正在完善中。`);
+            });
+        });
+    </script>
+</body>
+</html>

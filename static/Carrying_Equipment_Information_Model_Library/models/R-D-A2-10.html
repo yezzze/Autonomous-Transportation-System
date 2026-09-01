@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R-D-A2-5 冲突情况检测信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>冲突情况检测信息模型</h1>
+    <p>模型编号：R-D-A2-5 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A2</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>冲突情况检测信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">R-D-A2-5</span></td></tr>
+            <tr><th>信息模型描述</th><td>自主化等级为A2时，车辆自动化等级包含L1、L2、L3。在冲突情况检测中，车辆通过自身的感知设备，获取基本的运行状态和周边环境情况，为提取运行过程中的冲突情况检测提供数据支撑</td></tr>
+            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、城市路网车辆路径-信号协同控制，应急疏散的自主协同交通管控等</td></tr>
+            <tr><th>上游接口模型编号</th><td></td></tr>
+            <tr><th>下游接口模型编号</th><td></td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="5" class="text-center highlight">车辆运行状况</td><td>车辆在行驶过程中各种动态特征。</td><td>位置</td><td>车辆的经度，纬度和高度</td><td>车载终端、地感线圈</td></tr>
+                <tr><td>车辆在行驶过程中各种动态特征。</td><td>速度</td><td>车辆位移的快慢程度，单位m/s</td><td>车载终端、地感线圈</td></tr>
+                <tr><td>车辆在行驶过程中各种动态特征。</td><td>加速度</td><td>车辆速度变化快慢，单位m/s2</td><td>车载终端、地感线圈</td></tr>
+                <tr><td>车辆在行驶过程中各种动态特征。</td><td>航向角</td><td>车辆当前运动方向与正北方向顺时针夹角，单位：1e-4°</td><td>车载终端</td></tr>
+                <tr><td>车辆在行驶过程中各种动态特征。</td><td>运行轨迹</td><td>本车在当前检测时间窗口内的位置序列及运动方向变化</td><td>摄像头、车载终端</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">周边交通参与者信息</td><td>本车感知范围内车辆、行人、非机动车等交通参与者的实时运动状态。</td><td>位置</td><td>周边交通参与者当前空间位置</td><td>摄像头</td></tr>
+                <tr><td>本车感知范围内车辆、行人、非机动车等交通参与者的实时运动状态。</td><td>速度</td><td>周边交通参与者当前运动速度</td><td>摄像头、地感线圈</td></tr>
+                <tr><td>本车感知范围内车辆、行人、非机动车等交通参与者的实时运动状态。</td><td>加速度</td><td>周边交通参与者当前速度变化速率</td><td>摄像头、地感线圈</td></tr>
+                <tr><td>本车感知范围内车辆、行人、非机动车等交通参与者的实时运动状态。</td><td>类型</td><td>当前交通参与者所属的车辆、行人、非机动车等类别</td><td>摄像头</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">交通信号状态信息</td><td>车辆行驶过程中与交通冲突判断直接相关的实时信号运行状态</td><td>周期</td><td>信号灯色按设定的顺序显示一周所需要的时间，单位：t</td><td>摄像头、车载终端</td></tr>
+                <tr><td>车辆行驶过程中与交通冲突判断直接相关的实时信号运行状态</td><td>相位方案</td><td>在一个信号周期内，同时获得通行权的一股或多股交通流的信号显示状态</td><td>摄像头、车载终端</td></tr>
+                <tr><td>车辆行驶过程中与交通冲突判断直接相关的实时信号运行状态</td><td>绿信比</td><td>一个信号相位的有效绿灯时长与信号周期时长的比值</td><td>摄像头、车载终端</td></tr>
+                <tr><td>车辆行驶过程中与交通冲突判断直接相关的实时信号运行状态</td><td>行人信号设置</td><td>行人信号灯的状态</td><td>摄像头、车载终端</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">冲突检测结果信息</td><td>局部交通冲突检测结果</td><td>冲突对象</td><td>与本车形成潜在冲突的交通参与者标识</td><td>车载单元OBU</td></tr>
+                <tr><td>局部交通冲突检测结果</td><td>冲突类型</td><td>根据交通参与者运动关系识别的追尾、交叉、合流、换道等冲突类型</td><td>车载单元OBU</td></tr>
+                <tr><td>局部交通冲突检测结果</td><td>冲突位置</td><td>交通冲突所在的道路、路段、车道、交叉口或局部空间区域</td><td>车载单元OBU</td></tr>
+                <tr><td>局部交通冲突检测结果</td><td>冲突距离</td><td>本车与冲突对象之间的空间距离</td><td>车载单元OBU</td></tr>
+                <tr><td>局部交通冲突检测结果</td><td>当前相对速度</td><td>当前时刻冲突对象相对于本车的运动速度</td><td>车载单元OBU</td></tr>
+                <tr><td>局部交通冲突检测结果</td><td>冲突风险等级</td><td>根据当前冲突距离、相对速度及交通主体运动关系划分的当前冲突严重程度</td><td>车载单元OBU</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODEL-011 泊位占用感知信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>泊位占用感知信息模型</h1>
+    <p>模型编号：MODEL-011 | 逻辑阶段：感知 | 自主化等级：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>泊位占用感知信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>感知</td></tr>
+            <tr><th>实体类别</th><td>路侧设备</td></tr>
+            <tr><th>自主化等级</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-011</span></td></tr>
+            <tr><th>信息模型描述</th><td>在自主化等级为A4的场景中，路侧设备形成完善的感知与信息发布网络，边缘计算设备可高效处理数据并快速响应车辆实时需求。泊位占用感知信息模型运行于边缘计算单元，接收路侧/场端视频摄像头、地磁车位检测器与雷达/激光等设备的连续采集数据，并融合车辆经车网通信V2N上传的泊入/泊出状态信息，实现全场区、全路段泊位的高精度实时状态感知与短时可用性预测，识别在位车辆的厘米级位置与停放姿态，输出泊位占用状态信息，供泊位资源调度与自主泊车模型自主使用。</td></tr>
+            <tr><th>模型服务场景</th><td>自主泊车、泊位资源调度、公交进站精准停靠</td></tr>
+            <tr><th>上游接口模型编号</th><td>无</td></tr>
+            <tr><th>下游接口模型编号</th><td>泊位资源调度信息模型、自主泊车信息模型、公交进站车速引导信息模型、车路通信V2I信息模型、路网通信I2N信息模型、公交停站方案优化信息模型</td></tr>
+            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">泊位区域视频感知信息</td><td>路侧/场端摄像头连续采集的泊位区域图像与识别特征</td><td>泊位区域图像特征</td><td>泊位框内有无车辆、车身覆盖比例等视觉特征</td><td>泊位区视频摄像头</td></tr>
+                <tr><td>路侧/场端摄像头连续采集的泊位区域图像与识别特征</td><td>车辆识别信息</td><td>在位车辆的车型、车牌等识别结果</td><td>泊位区视频摄像头</td></tr>
+                <tr><td>路侧/场端摄像头连续采集的泊位区域图像与识别特征</td><td>车辆停放姿态</td><td>车辆相对泊位框的偏移与停放是否规范</td><td>泊位区视频摄像头</td></tr>
+                <tr><td>路侧/场端摄像头连续采集的泊位区域图像与识别特征</td><td>泊位周边障碍信息</td><td>泊位周边的临时障碍物与遮挡情况</td><td>泊位区视频摄像头</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">泊位检测器感知信息</td><td>地磁、雷达/激光等检测设备连续采集的泊位占用检测量</td><td>地磁检测状态</td><td>单个泊位有无金属车体的检测状态</td><td>地磁车位检测器</td></tr>
+                <tr><td>地磁、雷达/激光等检测设备连续采集的泊位占用检测量</td><td>距离与轮廓</td><td>泊位区目标的距离、尺寸与轮廓量测值</td><td>毫米波雷达、激光雷达</td></tr>
+                <tr><td>地磁、雷达/激光等检测设备连续采集的泊位占用检测量</td><td>设备工作状态</td><td>检测设备在线、故障与标定状态</td><td>地磁车位检测器、毫米波雷达、激光雷达</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">泊位静态属性信息</td><td>泊位自身的静态属性与空间位置信息</td><td>泊位编号与类型</td><td>泊位唯一编号及路内/路外/公交停靠泊位类型</td><td>边缘计算单元（泊位基础信息库）</td></tr>
+                <tr><td>泊位自身的静态属性与空间位置信息</td><td>泊位空间位置</td><td>泊位的车道级空间位置与几何边界</td><td>边缘计算单元（泊位基础信息库）</td></tr>
+                <tr><td>泊位自身的静态属性与空间位置信息</td><td>泊位使用限制</td><td>泊位的专用属性、限时与收费等使用限制</td><td>边缘计算单元（泊位基础信息库）</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">泊位占用状态信息</td><td>融合多源感知得到的逐泊位实时状态结果与短时预测得到的泊位供给态势</td><td>泊位占用状态</td><td>各泊位的空闲/占用/不可用状态及状态置信度</td><td>边缘计算单元</td></tr>
+                <tr><td>融合多源感知得到的逐泊位实时状态结果与短时预测得到的泊位供给态势</td><td>在位车辆信息</td><td>在位车辆的身份标识与实时位置</td><td>边缘计算单元</td></tr>
+                <tr><td>融合多源感知得到的逐泊位实时状态结果与短时预测得到的泊位供给态势</td><td>占用状态变化时刻</td><td>泊位状态发生变化的起止时刻</td><td>边缘计算单元</td></tr>
+                <tr><td>融合多源感知得到的逐泊位实时状态结果与短时预测得到的泊位供给态势</td><td>泊位可用性预测</td><td>未来时段各泊位释放时刻与可用泊位数预测</td><td>边缘计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

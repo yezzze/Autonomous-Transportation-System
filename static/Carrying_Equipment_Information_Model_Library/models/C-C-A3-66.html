@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C-C-A3-27 关键交叉口信号控制信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>关键交叉口信号控制信息模型</h1>
+    <p>模型编号：C-C-A3-27 | 逻辑阶段：控制 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>关键交叉口信号控制信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>控制</td></tr>
+            <tr><th>实体类别</th><td>中心云</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">C-C-A3-27</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、交通拥堵溯源、交通流量监测与优化、交叉口粒流协同控制等</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="11" class="text-center highlight">交叉口运行状态信息</td><td>指路网内各交叉口的运行状态信息</td><td>车辆到达率</td><td>单位时间内到达交叉口的车辆数量</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>当前信号相位</td><td>指示当前交叉口信号灯所处的相位</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>信号相位历史状态</td><td>记录交叉口信号灯过去各个时刻的相位状态</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>车辆排队长度</td><td>交叉口内车辆排队长度，单位m</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>车辆排队消散时间</td><td>车辆排队从交叉口完全消散所需的时间，单位s</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>车辆消散率</td><td>指绿灯期间排队车辆逐渐通过交叉口并消散的速率</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>交叉口限速</td><td>指车辆在该路段允许的最高速度</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>信号周期时长的最小值和最大值</td><td>限制信号配时的调整范围</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>上下行的带宽需求比例</td><td>上下行总流量之比</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>信号频率</td><td>等于周期时长的倒数</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内各交叉口的运行状态信息</td><td>绿波带宽</td><td>绿灯时间内车辆通过交叉口的最大时间，单位s</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">交叉口物理信息</td><td>指路网内交叉口的物理特征</td><td>编号</td><td>交叉口编号</td><td>中心云</td></tr>
+                <tr><td>指路网内交叉口的物理特征</td><td>上下游交叉口ID</td><td>标识与当前交叉口相邻的上下游交叉口的编号</td><td>中心云</td></tr>
+                <tr><td>指路网内交叉口的物理特征</td><td>类型</td><td>描述交叉口的类型，如十字路口、T型路口等</td><td>中心云</td></tr>
+                <tr><td>指路网内交叉口的物理特征</td><td>位置</td><td>交叉口的地理位置信息</td><td>中心云</td></tr>
+                <tr><td>指路网内交叉口的物理特征</td><td>间距</td><td>相邻交叉口之间的距离</td><td>中心云</td></tr>
+                <tr><td>指路网内交叉口的物理特征</td><td>车道数</td><td>交叉口处的道路车道数量</td><td>中心云</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">关键交叉口信息</td><td>指关键交叉口的物理信息及运行状态信息</td><td>交叉口 ID</td><td>用于唯一标识每个关键交叉口的编号</td><td>边缘计算单元</td></tr>
+                <tr><td>指关键交叉口的物理信息及运行状态信息</td><td>各进口道流量</td><td>指车辆从各个方向进入交叉口的流量数据，单位pcu/h</td><td>边缘计算单元</td></tr>
+                <tr><td>指关键交叉口的物理信息及运行状态信息</td><td>总流量</td><td>指关键交叉口所有进口道流量之和</td><td>边缘计算单元</td></tr>
+                <tr><td>指关键交叉口的物理信息及运行状态信息</td><td>饱和度</td><td>指实际流量与通行能力的比值</td><td>边缘计算单元</td></tr>
+                <tr><td>指关键交叉口的物理信息及运行状态信息</td><td>冲突点数量</td><td>指关键交叉口内不同行驶方向车辆轨迹交叉或交汇的点的数量</td><td>边缘计算单元</td></tr>
+                <tr><td>指关键交叉口的物理信息及运行状态信息</td><td>冲突点位置</td><td>关键交叉口内不同行驶方向车辆轨迹交叉或交汇的点的具体位置</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">关键交叉口信号控制信息</td><td>指关键交叉口的信号控制情况</td><td>周期时长</td><td>指信号灯完成一个完整的相位显示循环所需的时间，单位s</td><td>信号机、边缘计算单元</td></tr>
+                <tr><td>指关键交叉口的信号控制情况</td><td>动态周期时长</td><td>A4 等级下能根据实时交通流量的变化自动优化调整信号灯周期时长</td><td>信号机、边缘计算单元</td></tr>
+                <tr><td>指关键交叉口的信号控制情况</td><td>绿信比</td><td>在一个信号周期内，某一相位的绿灯时间与周期时长的比值</td><td>信号机、边缘计算单元</td></tr>
+                <tr><td>指关键交叉口的信号控制情况</td><td>精细化绿信比</td><td>A4 等级下针对不同车道、不同时段设置更精细的绿信比</td><td>边缘计算单元</td></tr>
+                <tr><td>指关键交叉口的信号控制情况</td><td>平均延误时间</td><td>车辆在每个信号灯相位下由于等待而产生的平均延误时间</td><td>边缘计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

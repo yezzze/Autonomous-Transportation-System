@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODEL-028 车辆跟驰信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>车辆跟驰信息模型</h1>
+    <p>模型编号：MODEL-028 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>车辆跟驰信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>边缘</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-028</span></td></tr>
+            <tr><th>信息模型描述</th><td>车辆跟驰信息模型以多车全局视角接收载运装备经车路通信V2I上传的本车与前车运动状态信息、车车通信V2V共享的周边车辆信息，以及路侧设备提供的交通参与者感知信息，刻画纵向跟驰关系，计算协同跟驰所需的期望加速度与安全跟驰间距，并经V2I将协同跟驰建议下发车辆执行。</td></tr>
+            <tr><th>模型服务场景</th><td>多车运动控制、交叉口粒流协同控制、协同自适应巡航等</td></tr>
+            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型、车车通信V2V信息模型、交通参与者感知信息模型</td></tr>
+            <tr><th>下游接口模型编号</th><td>前向碰撞预警信息模型、车速引导信息模型、车辆编队信息模型、车载信息显示信息模型</td></tr>
+            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="2" class="text-center highlight">本车运动状态信息</td><td>由车辆状态感知信息模型输出、经V2I上传的本车运动状况信息</td><td>位置与轨迹</td><td>本车实时位置与历史行驶轨迹序列</td><td>载运装备（车载单元OBU，经车路通信V2I）</td></tr>
+                <tr><td>由车辆状态感知信息模型输出、经V2I上传的本车运动状况信息</td><td>车辆运动状态</td><td>车辆的速度、加速度、航向角序列</td><td>载运装备（车载单元OBU，经车路通信V2I）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">前车及周边车辆运动状态信息</td><td>经V2V共享与路侧交通参与者感知获取的前车及周边车辆运动信息</td><td>前车位置</td><td>前车位置及与本车的相对距离</td><td>载运装备（车载单元OBU，经车车通信V2V）/路侧设备（交通参与者感知设备）</td></tr>
+                <tr><td>经V2V共享与路侧交通参与者感知获取的前车及周边车辆运动信息</td><td>前车速度</td><td>前车速度及与本车的相对速度</td><td>载运装备（车载单元OBU，经车车通信V2V）路侧设备（交通参与者感知设备）</td></tr>
+                <tr><td>经V2V共享与路侧交通参与者感知获取的前车及周边车辆运动信息</td><td>前车加速度</td><td>前车速度变化的速率</td><td>载运装备（车载单元OBU，经车车通信V2V）路侧设备（交通参与者感知设备）</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">协同跟驰决策信息</td><td>边缘以多车全局视角计算、经V2I下发车辆执行的纵向跟驰决策</td><td>期望加速度</td><td>维持安全、平稳协同跟驰所需的纵向期望加速度</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘以多车全局视角计算、经V2I下发车辆执行的纵向跟驰决策</td><td>建议速度</td><td>协同跟驰状态下建议保持的行驶速度</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘以多车全局视角计算、经V2I下发车辆执行的纵向跟驰决策</td><td>安全跟驰间距</td><td>当前工况下应保持的最小安全车间距</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘以多车全局视角计算、经V2I下发车辆执行的纵向跟驰决策</td><td>跟驰状态预测</td><td>对短时协同跟驰状态（接近、稳定、制动等）的推演</td><td>边缘计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

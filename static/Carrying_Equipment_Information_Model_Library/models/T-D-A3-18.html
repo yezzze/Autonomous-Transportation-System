@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>T-DE-A3-12 车路通信V2I信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>车路通信V2I信息模型</h1>
+    <p>模型编号：T-DE-A3-12 | 逻辑阶段：传输 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>车路通信V2I信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>传输</td></tr>
+            <tr><th>实体类别</th><td>载运装备-路侧设备</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">T-DE-A3-12</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应、交叉口粒流协同控制、多车运动控制等。</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="7" class="text-center highlight">车辆实时状态信息</td><td>车辆行驶过程中各种动态特征</td><td>位置</td><td>车辆不同时刻的经纬度坐标</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆行驶过程中各种动态特征</td><td>速度</td><td>车辆单位时间内的位移量</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆行驶过程中各种动态特征</td><td>加速度</td><td>车辆速度变化的速率</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆行驶过程中各种动态特征</td><td>航向角</td><td>运动方向与正北方向顺时针夹角</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆行驶过程中各种动态特征</td><td>能源与消耗状态</td><td>电池电量、燃油水平</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆行驶过程中各种动态特征</td><td>车辆指示灯状态</td><td>车辆转向指示灯、故障灯状态</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆行驶过程中各种动态特征</td><td>车辆运行模式</td><td>车辆运行操作者，人工接管、单车自控或云端辅助等</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">车辆操作信息</td><td>对车辆的实时控制信息</td><td>方向盘夹角</td><td>左正右负，单位：°</td><td>车载单元OBU</td></tr>
+                <tr><td>对车辆的实时控制信息</td><td>油门踏板开度</td><td>单位：%（°）</td><td>车载单元OBU</td></tr>
+                <tr><td>对车辆的实时控制信息</td><td>制动踏板开度</td><td>单位：N</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">车辆特征信息</td><td>当前车辆特征</td><td>车牌号</td><td>车辆的唯一标识符</td><td>车载单元OBU</td></tr>
+                <tr><td>当前车辆特征</td><td>车辆类型</td><td>按动力类型、车身结构、尺寸、车辆颜色、车牌颜色等进行分类</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">车辆行驶意图</td><td>车辆在特定时间和环境下的计划行驶行为</td><td>计划行驶路线</td><td>从起点到终点的预期行驶路径</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆在特定时间和环境下的计划行驶行为</td><td>计划行驶车道</td><td>车辆在当前路线中选择的具体车道</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆在特定时间和环境下的计划行驶行为</td><td>计划行驶速度</td><td>车辆在特定路段或情境下，下一步达到的目标速度</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆在特定时间和环境下的计划行驶行为</td><td>计划行驶角度</td><td>车辆前进方向与当前参照线（如正北方向或车道中心线）的夹角</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆在特定时间和环境下的计划行驶行为</td><td>计划行驶位置</td><td>车辆在未来某个时刻根据行驶路径预计达到的地理位置</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">车道信息</td><td>将车载感知设备感知到的与车道有关的信息进行整合，输出到云端</td><td>偏移量</td><td>车辆与当前车道中心线的偏移量</td><td>车载单元OBU</td></tr>
+                <tr><td>将车载感知设备感知到的与车道有关的信息进行整合，输出到云端</td><td>道路几何特征</td><td>车道数、车道宽度、平整度、标线类型</td><td>车载单元OBU</td></tr>
+                <tr><td>将车载感知设备感知到的与车道有关的信息进行整合，输出到云端</td><td>车道的精确位置</td><td>该车道在整个城市路网中的位置</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">交通标志</td><td>在道路沿线或其上方，用于传递警告、指示或提示信息的视觉标识。</td><td>路口信号灯状态</td><td>在线、离线、故障、运行的相位</td><td>车载单元OBU</td></tr>
+                <tr><td>在道路沿线或其上方，用于传递警告、指示或提示信息的视觉标识。</td><td>指示类标志</td><td>指示车辆的行驶轨迹，如，直行、左转、右转、调头</td><td>车载单元OBU</td></tr>
+                <tr><td>在道路沿线或其上方，用于传递警告、指示或提示信息的视觉标识。</td><td>警告类标志</td><td>使车辆速度减慢的标志，如，停车让行标志、人行横道标志、学校区域标志等</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">突发事件</td><td>突然发生的、出乎预料的特殊状况或紧急情况</td><td>时间戳</td><td>事件发生的时间</td><td>车载单元OBU</td></tr>
+                <tr><td>突然发生的、出乎预料的特殊状况或紧急情况</td><td>交通事故</td><td>碰撞、翻车、追尾等事故、故障车辆</td><td>车载单元OBU</td></tr>
+                <tr><td>突然发生的、出乎预料的特殊状况或紧急情况</td><td>道路障碍</td><td>路上有障碍物、树木倒塌</td><td>车载单元OBU</td></tr>
+                <tr><td>突然发生的、出乎预料的特殊状况或紧急情况</td><td>交通管制</td><td>道路封闭、警戒区域</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">环境</td><td>影响驾驶员视距、传感器性能、刹车距离和车辆稳定性的环境信息</td><td>天气状况</td><td>降雨、降雪、雾霾、风速等，天气对视距、道路抓地力等</td><td>车载单元OBU</td></tr>
+                <tr><td>影响驾驶员视距、传感器性能、刹车距离和车辆稳定性的环境信息</td><td>光照条件</td><td>日间或夜间、强烈的阳光或其他环境光源可能影响传感器的性能与驾驶员的视线</td><td>车载单元OBU</td></tr>
+                <tr><td>影响驾驶员视距、传感器性能、刹车距离和车辆稳定性的环境信息</td><td>温度和湿度</td><td>道路温度、湿滑状况等，可能影响刹车距离和车辆稳定性</td><td>车载单元OBU</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

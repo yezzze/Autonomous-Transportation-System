@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A4-48 拥堵交通分流信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>拥堵交通分流信息模型</h1>
+    <p>模型编号：D-C-A4-48 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>拥堵交通分流信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>中心云</td></tr>
+            <tr><th>自主化等级</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-48</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>区域路网拥堵动态分流、快速路与地面道路协同分流、重大交通事件交通疏导、多通道交通流协调分配等</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="9" class="text-center highlight">区域交通运行与预测信息</td><td>目标及关联路段当前和短时交通需求及拥堵变化</td><td>路段标识</td><td>当前进行车道功能调整判断的目标路段唯一标识</td><td>路侧设备RSU</td></tr>
+                <tr><td>目标及关联路段当前和短时交通需求及拥堵变化</td><td>交通流量</td><td>当前时间窗口内通过目标路段或车道的车辆数量</td><td>路侧设备RSU</td></tr>
+                <tr><td>目标及关联路段当前和短时交通需求及拥堵变化</td><td>平均速度</td><td>当前目标路段或车道内车辆的平均运行速度</td><td>路侧设备RSU</td></tr>
+                <tr><td>目标及关联路段当前和短时交通需求及拥堵变化</td><td>车道占有率</td><td>当前时间窗口内各车道被车辆占用的程度</td><td>路侧设备RSU</td></tr>
+                <tr><td>目标及关联路段当前和短时交通需求及拥堵变化</td><td>拥堵程度</td><td>当前目标路段的畅通、缓行或拥堵状态</td><td>路侧设备RSU</td></tr>
+                <tr><td>目标及关联路段当前和短时交通需求及拥堵变化</td><td>方向交通需求</td><td>不同行驶方向当前交通需求及其差异情况</td><td>路侧设备RSU</td></tr>
+                <tr><td>目标及关联路段当前和短时交通需求及拥堵变化</td><td>预测交通需求</td><td>未来短时范围内各主要运行方向预计交通需求</td><td>边缘计算单元MEC</td></tr>
+                <tr><td>目标及关联路段当前和短时交通需求及拥堵变化</td><td>预测拥堵状态</td><td>未来短时范围内目标及关联路段预计拥堵程度</td><td>边缘计算单元MEC</td></tr>
+                <tr><td>目标及关联路段当前和短时交通需求及拥堵变化</td><td>拥堵变化趋势</td><td>目标路段拥堵预计处于加剧、稳定或缓解状态</td><td>边缘计算单元MEC</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">可分流道路信息</td><td>区域路网内可承接分流交通的候选道路当前及预测通行条件</td><td>道路拓扑关系</td><td>目标路段与周边道路之间的连接、转向及通行关系</td><td>中心云</td></tr>
+                <tr><td>区域路网内可承接分流交通的候选道路当前及预测通行条件</td><td>候选道路集合</td><td>当前具备交通分流条件的一条或多条候选道路、路段集合</td><td>中心云</td></tr>
+                <tr><td>区域路网内可承接分流交通的候选道路当前及预测通行条件</td><td>候选道路实时交通状态</td><td>各候选道路当前流量、速度及拥堵状态</td><td>路侧设备RSU</td></tr>
+                <tr><td>区域路网内可承接分流交通的候选道路当前及预测通行条件</td><td>候选道路预测交通状态</td><td>各候选道路未来短时范围内预计流量、速度及拥堵状态</td><td>边缘计算单元MEC</td></tr>
+                <tr><td>区域路网内可承接分流交通的候选道路当前及预测通行条件</td><td>剩余通行能力</td><td>当前候选道路在现有交通状态下可继续承接交通流的能力</td><td>路侧设备RSU</td></tr>
+                <tr><td>区域路网内可承接分流交通的候选道路当前及预测通行条件</td><td>道路通行限制</td><td>候选道路的限行、禁行、车辆类型和方向等通行约束</td><td>路侧设备RSU</td></tr>
+                <tr><td rowspan="9" class="text-center highlight">拥堵交通分流结果信息</td><td>中心云根据拥堵状态及候选道路承载能力形成的交通流重新分配决策结果</td><td>是否分流</td><td>根据目标路段拥堵程度和候选道路通行条件判断是否启动交通分流</td><td>中心云</td></tr>
+                <tr><td>中心云根据拥堵状态及候选道路承载能力形成的交通流重新分配决策结果</td><td>分流目标路段</td><td>当前需要降低交通负荷的拥堵道路或路段</td><td>中心云</td></tr>
+                <tr><td>中心云根据拥堵状态及候选道路承载能力形成的交通流重新分配决策结果</td><td>分流节点</td><td>交通流改变原有行驶方向并进入替代道路的交叉口、互通或道路节点</td><td>中心云</td></tr>
+                <tr><td>中心云根据拥堵状态及候选道路承载能力形成的交通流重新分配决策结果</td><td>承接道路集合</td><td>用于承接分流交通的道路或路段</td><td>中心云</td></tr>
+                <tr><td>中心云根据拥堵状态及候选道路承载能力形成的交通流重新分配决策结果</td><td>分流方向</td><td>交通流由原拥堵路段转移至承接道路的目标方向</td><td>中心云</td></tr>
+                <tr><td>中心云根据拥堵状态及候选道路承载能力形成的交通流重新分配决策结果</td><td>目标分流量</td><td>计划由目标拥堵路段转移至承接道路的交通流规模</td><td>中心云</td></tr>
+                <tr><td>中心云根据拥堵状态及候选道路承载能力形成的交通流重新分配决策结果</td><td>分流比例</td><td>计划分流交通量占目标方向当前交通需求的比例</td><td>中心云</td></tr>
+                <tr><td>中心云根据拥堵状态及候选道路承载能力形成的交通流重新分配决策结果</td><td>适用车辆类型</td><td>当前分流措施适用的小型车、大型车、公交车等车辆类别</td><td>中心云</td></tr>
+                <tr><td>中心云根据拥堵状态及候选道路承载能力形成的交通流重新分配决策结果</td><td>调整时效</td><td>当前分流方案开始执行与预计结束时间</td><td>中心云</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

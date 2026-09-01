@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A2-26 关键路径识别信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>关键路径识别信息模型</h1>
+    <p>模型编号：D-C-A2-26 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A2</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>关键路径识别信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>中心云</td></tr>
+            <tr><th>自主化等级</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A2-26</span></td></tr>
+            <tr><th>信息模型描述</th><td>在自主化等级为A2的场景中，云端接受信息融合后的交通参与者的运行信息及路网基础信息，识别出包含路径编号、路径包含路段序列、路径起讫点等信息的关键路径，并计算交通流量、平均行程时间、路径延误等相关指标，以辅助交通分析和管理</td></tr>
+            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、交通流量监测与优化、交叉口粒流协同控制等</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="6" class="text-center highlight">时空信息</td><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>时间区间（起始时间、结束时间）</td><td>明确交通信息统计的时间段</td><td>中心云</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>各时间段交通流量</td><td>按设定时间段（如每5分钟、每10分钟等）统计的交通流量</td><td>中心云</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>路段ID</td><td>为路网中的每个路段赋予的唯一编号</td><td>中心云</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>路段长度</td><td>路段的实际长度</td><td>中心云</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>路段所属区域</td><td>路段所在的行政区域、商圈等</td><td>中心云</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>路段上下游路口信息</td><td>路段两端连接的路口信息，用于分析交通流向和路口关联</td><td>中心云</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">拓扑信息</td><td>指空间对象之间的位置关系和连接关系的信息</td><td>位置</td><td>车辆相对于路段起点的距离，确定车辆在路段中的具体位置</td><td>中心云</td></tr>
+                <tr><td>指空间对象之间的位置关系和连接关系的信息</td><td>拥堵点位置（经度、纬度）</td><td>拥堵发生的具体地理位置</td><td>中心云</td></tr>
+                <tr><td>指空间对象之间的位置关系和连接关系的信息</td><td>路网节点（路口）ID</td><td>为路网中的每个路口赋予的编号</td><td>中心云</td></tr>
+                <tr><td>指空间对象之间的位置关系和连接关系的信息</td><td>路段信息</td><td>每个路口连接的路段列表，构建路网的拓扑关系</td><td>中心云</td></tr>
+                <tr><td>指空间对象之间的位置关系和连接关系的信息</td><td>路网连通性矩阵</td><td>用矩阵形式表示路网中各节点之间的连通性</td><td>中心云</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">轨迹信息</td><td>指车辆在路网中的移动路径信息</td><td>轨迹ID</td><td>为每辆车的行驶轨迹赋予的编号</td><td>中心云</td></tr>
+                <tr><td>指车辆在路网中的移动路径信息</td><td>轨迹路段序列</td><td>车辆行驶轨迹所经过的路段顺序</td><td>中心云</td></tr>
+                <tr><td>指车辆在路网中的移动路径信息</td><td>起始时间</td><td>车辆轨迹的开始时间</td><td>中心云</td></tr>
+                <tr><td>指车辆在路网中的移动路径信息</td><td>轨迹结束时间</td><td>车辆轨迹的结束时间</td><td>中心云</td></tr>
+                <tr><td>指车辆在路网中的移动路径信息</td><td>轨迹平均速度</td><td>车辆在整个行驶轨迹中的平均速度，单位km/h</td><td>中心云</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">速度信息</td><td>指路网内的速度相关信息，可帮助判断道路拥堵状况</td><td>路段平均速度</td><td>路段上车辆的平均行驶速度，单位km/h</td><td>中心云</td></tr>
+                <tr><td>指路网内的速度相关信息，可帮助判断道路拥堵状况</td><td>速度变化曲线</td><td>展示路段速度随时间变化的趋势</td><td>中心云</td></tr>
+                <tr><td>指路网内的速度相关信息，可帮助判断道路拥堵状况</td><td>车辆速度分布</td><td>不同速度区间的车辆数量占比</td><td>中心云</td></tr>
+                <tr><td rowspan="11" class="text-center highlight">关键路径信息</td><td>指识别后的关键路径序列信息</td><td>路径ID</td><td>指为识别出的关键路径赋予的唯一编号</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>路段序列ID</td><td>指构成关键路径的路段按顺序排列的列表</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>路径起讫点（OD）</td><td>指关键路径的起始点和终点位置，用经纬度表示</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>路径流量</td><td>指在一定时间段内，通过关键路径的车辆总数，</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>车型流量占比</td><td>各类车型（如小汽车、货车、公交车等）在关键路径总流量中所占的比例</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>平均行程时间</td><td>车辆在关键路径上行驶的平均时间</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>路径延误</td><td>车辆在关键路径上实际行驶时间与正常行驶时间的差值</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>路径平均占有率</td><td>车辆在关键路径上占用道路的时间或空间比例</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>路径拥堵程度</td><td>对关键路径拥堵状况的评估</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>关键路径可靠性</td><td>关键路径在一定时间内保持稳定通行状态的能力，反映路径受交通波动等因素的影响程度</td><td>中心云</td></tr>
+                <tr><td>指识别后的关键路径序列信息</td><td>转向流量分布</td><td>指关键路径涉及的节点内，不同转向（左转、右转、直行）车辆流量的分布情况</td><td>中心云</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

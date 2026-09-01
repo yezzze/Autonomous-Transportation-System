@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C-D-A2-27 车辆路径规划信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>车辆路径规划信息模型</h1>
+    <p>模型编号：C-D-A2-27 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A2</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>车辆路径规划信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">C-D-A2-27</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、交通拥堵溯源、交通流量监测与优化、交叉口粒流协同控制等。</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="7" class="text-center highlight">道路基础信息</td><td>车辆路径规划所需的道路空间结构、连接关系及基本通行条件</td><td>道路名称或编号</td><td>不同道路（或路段）的唯一标识</td><td>车载地图</td></tr>
+                <tr><td>车辆路径规划所需的道路空间结构、连接关系及基本通行条件</td><td>上下游连接路段</td><td>当前路段与相邻上下游路段之间的连接关系</td><td>车载地图</td></tr>
+                <tr><td>车辆路径规划所需的道路空间结构、连接关系及基本通行条件</td><td>道路等级</td><td>区分主干道、次干道、支路等</td><td>摄像头、雷达</td></tr>
+                <tr><td>车辆路径规划所需的道路空间结构、连接关系及基本通行条件</td><td>道路长度</td><td>道路的实际长度</td><td>摄像头、雷达</td></tr>
+                <tr><td>车辆路径规划所需的道路空间结构、连接关系及基本通行条件</td><td>道路限速</td><td>当前道路规定的最高或最低行驶速度</td><td>车载地图、交通标志识别</td></tr>
+                <tr><td>车辆路径规划所需的道路空间结构、连接关系及基本通行条件</td><td>车道数</td><td>各个道路的车道数</td><td>摄像头、雷达</td></tr>
+                <tr><td>车辆路径规划所需的道路空间结构、连接关系及基本通行条件</td><td>通行方向</td><td>当前道路或车道允许车辆行驶的方向</td><td>车载地图、交通标志识别</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">车辆出行需求信息</td><td>本车当前出行任务及路径规划所需的车辆侧基础信息</td><td>当前车辆位置</td><td>车辆当前所在道路、路段及空间位置</td><td>车载单元OBU、GNSS</td></tr>
+                <tr><td>本车当前出行任务及路径规划所需的车辆侧基础信息</td><td>目标位置</td><td>驾驶员设定的本次出行目的地或目标道路、路段</td><td>车载导航系统、车载单元OBU</td></tr>
+                <tr><td>本车当前出行任务及路径规划所需的车辆侧基础信息</td><td>车辆类型</td><td>本车所属的小型车、大型车、公交车等车辆类别</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">车辆路径规划结果信息</td><td>根据当前位置、目标位置及道路通行条件形成的基础推荐路径结果</td><td>推荐路径</td><td>从车辆当前位置至目标位置形成的推荐行驶路径</td><td>车载单元OBU</td></tr>
+                <tr><td>根据当前位置、目标位置及道路通行条件形成的基础推荐路径结果</td><td>路径路段序列</td><td>推荐路径依次经过的道路、路段或节点序列</td><td>车载单元OBU</td></tr>
+                <tr><td>根据当前位置、目标位置及道路通行条件形成的基础推荐路径结果</td><td>路径可行状态</td><td>判断推荐路径是否满足道路连通性、车辆类型及道路通行限制等条件</td><td>车载单元OBU</td></tr>
+                <tr><td>根据当前位置、目标位置及道路通行条件形成的基础推荐路径结果</td><td>预计行程时间</td><td>根据道路长度、限速及基础道路条件估算的推荐路径行驶时间</td><td>车载单元OBU</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-D-A3-35 道路危险状况提示信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>道路危险状况提示信息模型</h1>
+    <p>模型编号：D-D-A3-35 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>道路危险状况提示信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-35</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>高速公路、城市快速路等多车道场景，针对远距离（≤1000m）桥梁结冰、大范围施工、大面积积水等危险状况的协同预警与自主避险辅助。</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">道路危险类型信息</td><td>危险状况的具体类别及判定标准</td><td>积水</td><td>路面水层厚度≥5cm，可能导致打滑</td><td>摄像头、激光雷达</td></tr>
+                <tr><td>危险状况的具体类别及判定标准</td><td>结冰</td><td>路面温度≤0℃且存在冰层，摩擦系数≤0.2</td><td>温度传感器、摄像头</td></tr>
+                <tr><td>危险状况的具体类别及判定标准</td><td>障碍物</td><td>掉落物（如石块、轮胎）、遗撒物（如沙土），尺寸≥30cm</td><td>毫米波雷达、摄像头</td></tr>
+                <tr><td>危险状况的具体类别及判定标准</td><td>施工区域</td><td>道路施工占用1条及以上车道，存在围挡或锥桶</td><td>摄像头、高精地图</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">路侧协同信息</td><td>路侧设备扩展的危险数据</td><td>远距离危险位置</td><td>1000m内危险点的经纬度坐标（如前方桥梁结冰）</td><td>路侧单元RSU、激光雷达</td></tr>
+                <tr><td>路侧设备扩展的危险数据</td><td>危险扩散预测范围</td><td>路侧计算的危险影响范围（如积水可能蔓延至相邻车道）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">V2X交互信息</td><td>多车协同的危险信息共享</td><td>危险广播状态</td><td>路侧或其他车辆通过V2X广播的危险类型、位置（实时更新）</td><td>C-V2X通信（PC5接口）</td></tr>
+                <tr><td>多车协同的危险信息共享</td><td>周边车辆响应</td><td>其他车辆收到提示后的减速、变道状态</td><td>V2V通信</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">自主避险指令信息</td><td>系统自主执行的避险操作</td><td>建议安全车速</td><td>基于危险类型的推荐速度（如结冰路段建议40km/h）</td><td>车载单元OBU、边缘计算单元MEC</td></tr>
+                <tr><td>系统自主执行的避险操作</td><td>车道优先级</td><td>推荐的安全车道（如远离施工区域的车道）</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">干预反馈信息</td><td>自主操作后的状态反馈</td><td>实际执行车速</td><td>调速后的瞬时速度，单位：km/h，精度±0.05km/h</td><td>毫米波雷达</td></tr>
+                <tr><td>自主操作后的状态反馈</td><td>危险规避成功率</td><td>本车成功避开危险的判定结果（是/否），结合车道位置与危险范围校验</td><td>车载单元OBU</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

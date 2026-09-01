@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-D-A3-37 闯红灯预警信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>闯红灯预警信息模型</h1>
+    <p>模型编号：D-D-A3-37 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>闯红灯预警信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-37</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>城市主干道交叉口（高峰时段车流量≥150辆/km）、学校/医院周边路口（信号灯配时动态调整）、复杂多相位交叉口。</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">车-路协同信号灯信息</td><td>路侧设备提供的精准信号配时</td><td>实时灯色</td><td>红灯/黄灯/绿灯（同步路侧信号机，误差≤0.1s）</td><td>路侧单元RSU、信号机</td></tr>
+                <tr><td>路侧设备提供的精准信号配时</td><td>相位配时</td><td>各方向信号灯周期（如30s）、红灯/黄灯/绿灯时长（精确到0.1s）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td>路侧设备提供的精准信号配时</td><td>路口盲区提示</td><td>路侧雷达检测到的路口内其他车辆/行人（避免急刹导致追尾）</td><td>路侧单元RSU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">车辆动态参数信息</td><td>更精细的运动状态</td><td>当前速度</td><td>km/h（误差≤±1km/h）</td><td>INS惯性导航系统</td></tr>
+                <tr><td>更精细的运动状态</td><td>制动能力</td><td>当前路面可支持的最大减速度（如雨天0.6g）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td>更精细的运动状态</td><td>距离停止线距离</td><td>精确到0.5m（融合车载雷达与路侧定位）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">MEC风险预测信息</td><td>边缘计算的闯红灯概率及时间窗口</td><td>闯红灯概率</td><td>0-100%（基于速度、距离、信号灯配时）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td>边缘计算的闯红灯概率及时间窗口</td><td>安全停车距离</td><td>基于当前速度和路面条件的最小制动距离（m）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">分级控制策略信息</td><td>按风险等级的预警与控制措施</td><td>一级（概率＜30%）</td><td>语音提示“注意信号灯”</td><td>车载控制单元</td></tr>
+                <tr><td>按风险等级的预警与控制措施</td><td>二级（30%≤概率＜70%）</td><td>预制动（0.3g）+声光预警</td><td>车载控制单元</td></tr>
+                <tr><td>按风险等级的预警与控制措施</td><td>三级（概率≥70%）</td><td>紧急制动（0.8g）+双闪提示周边车辆</td><td>路侧单元RSU</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">复杂路口环境信息</td><td>影响制动的动态因素</td><td>路面状态</td><td>干燥/湿滑/结冰（摩擦系数）</td><td>路侧单元RSU</td></tr>
+                <tr><td>影响制动的动态因素</td><td>交叉方向车流</td><td>交叉方向车辆的当前速度（km/h）、距离停止线距离（m）、通行状态</td><td>路侧激光雷达</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

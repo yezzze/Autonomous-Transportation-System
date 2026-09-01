@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A4-19 时空协作域信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>时空协作域信息模型</h1>
+    <p>模型编号：D-C-A4-19 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>时空协作域信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>中心云</td></tr>
+            <tr><th>自主化等级</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-19</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应等。</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="6" class="text-center highlight">道路几何属性信息</td><td>当前路网中道路的布局特征</td><td>路段编号</td><td>不同路段特有的编号</td><td>中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>车道数</td><td>道路在一个方向上划分的可供车辆独立行驶的通道数量</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>车道宽度</td><td>车辆正常行驶有效宽度部分，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>转弯半径</td><td>道路弯道处的曲线半径，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>路段长度</td><td>路段从起点到终点的实际距离，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>交叉口间距离</td><td>两个相连的交叉口之间的距离，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">时空协作域划分</td><td>将城市路网中较为关键的区域根据时空信息进行精细化划分，得到更小的管理单元</td><td>时空协作域位置</td><td>不同时空协作域实时分布位置</td><td>中心云计算单元、中心云决策单元</td></tr>
+                <tr><td>将城市路网中较为关键的区域根据时空信息进行精细化划分，得到更小的管理单元</td><td>时空协作域形范围</td><td>不同时空协作域实时大小形状</td><td>中心云计算单元、中心云决策单元</td></tr>
+                <tr><td>将城市路网中较为关键的区域根据时空信息进行精细化划分，得到更小的管理单元</td><td>时空协作域信控方案</td><td>不同时空协作域内实时信号控制方案</td><td>中心云计算单元、中心云决策单元</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">时空协作域管理策略</td><td>根据实时监测数据调整交通管理策略的建议</td><td>动态管理建议</td><td>根据实时监测数据和协作域分布情况实时调整交通管理策略的建议</td><td>中心云决策单元</td></tr>
+                <tr><td>根据实时监测数据调整交通管理策略的建议</td><td>安全评估</td><td>基于历史事故数据和当前交通状况对当前协作域划分情况的安全性进行实时性评估。</td><td>中心云决策单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-D-A3-36 限速预警信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>限速预警信息模型</h1>
+    <p>模型编号：D-D-A3-36 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>限速预警信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-36</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>高速公路施工路段、城市快速路临时交通管制、恶劣天气（雨/雪/雾）限速调整场景。</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="2" class="text-center highlight">固定限速信息</td><td>道路永久限速标识</td><td>限速值</td><td>长期生效的最高速度（km/h）</td><td>激光雷达、高精地图</td></tr>
+                <tr><td>道路永久限速标识</td><td>限速区域边界</td><td>精确到车道级的限速起止点（经纬度）</td><td>高精地图、RSU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">临时限速信息</td><td>施工、事故等场景的临时限速通知</td><td>临时限速值</td><td>短期生效的速度限制（如施工路段60→40km/h）</td><td>路侧单元RSU、边缘计算单元MEC</td></tr>
+                <tr><td>施工、事故等场景的临时限速通知</td><td>生效时间</td><td>临时限速的开始/结束时间（精确到分钟）</td><td>路侧单元RSU</td></tr>
+                <tr><td>施工、事故等场景的临时限速通知</td><td>原因标签</td><td>施工、事故、拥堵等导致临时限速的原因</td><td>路侧单元RSU</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">车辆动态速度信息</td><td>车辆实时速度及趋势</td><td>当前速度</td><td>瞬时行驶速度（km/h）</td><td>INS惯性导航系统</td></tr>
+                <tr><td>车辆实时速度及趋势</td><td>加速度</td><td>速度变化率（m/s²），用于预判是否超速</td><td>INS惯性导航系统</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">复杂道路环境信息</td><td>影响限速执行的动态因素</td><td>道路类型</td><td>高速公路、城市主干道、乡村道路等</td><td>基础高精地图</td></tr>
+                <tr><td>影响限速执行的动态因素</td><td>天气简况</td><td>晴天（能见度≥200m）、雨天（能见度100-200m），仅影响限速标志识别精度</td><td>车载视觉传感器</td></tr>
+                <tr><td>影响限速执行的动态因素</td><td>路面状态</td><td>干燥（摩擦系数≥0.6）、湿滑（0.3-0.6）、结冰（≤0.3）</td><td>路侧单元RSU、车载传感器</td></tr>
+                <tr><td>影响限速执行的动态因素</td><td>交通流密度</td><td>单位长度内车辆数量（辆/km），分为稀疏（≤50）、中等（50-150）、密集（≥150）</td><td>路侧雷达</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">MEC优化预警参数</td><td>边缘计算动态调整的预警策略</td><td>动态阈值</td><td>根据路况调整（如雨天限速差值≥3km/h即预警）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td>边缘计算动态调整的预警策略</td><td>自主减速建议</td><td>系统计算的目标减速值（km/h）</td><td>边缘计算单元MEC</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

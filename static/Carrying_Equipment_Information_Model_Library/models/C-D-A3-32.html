@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C-D-A3-32 紧急制动预警信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>紧急制动预警信息模型</h1>
+    <p>模型编号：C-D-A3-32 | 逻辑阶段：控制 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>紧急制动预警信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>控制</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">C-D-A3-32</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>城市快速路、高速公路、复杂交叉口（无信号/多相位）等场景，针对中远距离（50-200m）紧急碰撞风险的协同预警与自动干预。</td></tr>
+            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
+            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">车辆自身状态信息</td><td>车辆实时运行关键参数</td><td>当前速度</td><td>瞬时行驶速度，单位：km/h，（精度±0.05km/h）</td><td>IMU惯性测量单元、车载雷达</td></tr>
+                <tr><td>车辆实时运行关键参数</td><td>加速度</td><td>速度变化率，单位：m/s²，（精度±0.005m/s²）</td><td>IMU惯性测量单元</td></tr>
+                <tr><td>车辆实时运行关键参数</td><td>制动系统状态</td><td>制动踏板开度（0%-100%）、制动压力（0-250bar）</td><td>制动踏板传感器、制动压力传感器</td></tr>
+                <tr><td>车辆实时运行关键参数</td><td>当前位置</td><td>车辆经纬度坐标</td><td>北斗车载定位模块</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">路侧协同信息</td><td>路侧设备扩展的感知数据</td><td>远距离障碍物信息</td><td>50-200m 范围内障碍物状态（位置、速度）</td><td>路侧单元（RSU）、路侧激光雷达</td></tr>
+                <tr><td>路侧设备扩展的感知数据</td><td>邻车制动意图</td><td>前方500m内邻车的制动灯状态（亮/灭）、制动踏板开度（0%-100%）、制动压力（0-250bar）</td><td>车载单元OBU</td></tr>
+                <tr><td>路侧设备扩展的感知数据</td><td>路网拓扑信息</td><td>前方路口、弯道等道路结构</td><td>路侧GPS</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">预警触发条件信息</td><td>预警启动的量化判定标准</td><td>安全距离阈值</td><td>基于车速计算的最小安全距离，单位：m</td><td>车载单元OBU</td></tr>
+                <tr><td>预警启动的量化判定标准</td><td>碰撞时间预测（TTC）</td><td>预计碰撞剩余时间，单位：s</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">制动干预信息</td><td>系统自主执行的制动操作</td><td>制动干预强度</td><td>部分制动（0-30%制动力，适用于TTC=0.8-1.5s）、紧急制动（30%-100%制动力，适用于TTC<0.8s）</td><td>车辆控制单元</td></tr>
+                <tr><td>系统自主执行的制动操作</td><td>干预触发条件</td><td>驾驶员未响应时间≥0.5s，且TTC≤0.8s，同时满足路侧MEC协同验证的风险判定结果</td><td>车载单元OBU、边缘计算单元MEC</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">干预反馈信息</td><td>制动干预后的状态反馈</td><td>实际制动力</td><td>执行的制动力百分比，单位：%</td><td>制动压力传感器</td></tr>
+                <tr><td>制动干预后的状态反馈</td><td>剩余安全距离</td><td>干预后本车与障碍物的实时距离，单位：m</td><td>激光雷达</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

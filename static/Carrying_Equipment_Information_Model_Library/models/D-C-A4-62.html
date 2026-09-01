@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODEL-071 路网动态通行能力评估信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>路网动态通行能力评估信息模型</h1>
+    <p>模型编号：MODEL-071 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>路网动态通行能力评估信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>中心云</td></tr>
+            <tr><th>自主化等级</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-071</span></td></tr>
+            <tr><th>信息模型描述</th><td>自主化等级为A4时，中心云自动以道路基础通行能力为基准，依据已生效的信号、车道及其他通行约束，滚动计算有效通行能力，并与交通流预测模型输出的预测需求相减，自动形成剩余通行能力和过载状态。天气、事件等因素仅通过预测需求或已生效通行约束间接反映，本模型不重复输入原始天气等信息。</td></tr>
+            <tr><th>模型服务场景</th><td>路网路径负载均衡、拥堵交通分流。</td></tr>
+            <tr><th>上游接口模型编号</th><td>交通流预测信息模型、车道功能动态调整信息模型、交通信号感知信息模型、交通流感知信息模型、路网通信I2N信息模型、车网通信V2N信息模型</td></tr>
+            <tr><th>下游接口模型编号</th><td>路网车辆路径负载均衡信息模型、拥堵交通分流服务信息模型</td></tr>
+            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>责任单位</th><td></td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">基础通行能力参数信息</td><td>由中心云基础信息库提供的道路、车道组和转向的基础设施参数，用于确定未受临时约束时的基础通行能力</td><td>计算对象标识</td><td>需要评估的路段、车道组或转向的唯一标识</td><td>中心云基础信息库</td></tr>
+                <tr><td>由中心云基础信息库提供的道路、车道组和转向的基础设施参数，用于确定未受临时约束时的基础通行能力</td><td>基础通行能力</td><td>道路或车道组在基准工况下的单位时间最大服务能力；受信号控制的转向同时保留基准饱和放行能力</td><td>中心云基础信息库</td></tr>
+                <tr><td>由中心云基础信息库提供的道路、车道组和转向的基础设施参数，用于确定未受临时约束时的基础通行能力</td><td>基础结构参数</td><td>基准车道数量、转向关系及是否受信号控制等用于能力修正的静态参数</td><td>中心云基础信息库</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">各车道实时流量信息</td><td>交通流感知信息模型感知的道路通行负荷量</td><td>车流量信息</td><td>单位时间内通过道路某一断面的车辆数</td><td>传感器、摄像头、雷达（经车网通信V2N信息模型）</td></tr>
+                <tr><td>交通流感知信息模型感知的道路通行负荷量</td><td>车辆时空占有率</td><td>反映道路被车辆占用的程度</td><td>传感器、摄像头、雷达（经车网通信V2N信息模型）</td></tr>
+                <tr><td>交通流感知信息模型感知的道路通行负荷量</td><td>车道流向</td><td>车辆的通行趋势</td><td>传感器、摄像头、雷达（经车网通信V2N信息模型）</td></tr>
+                <tr><td>交通流感知信息模型感知的道路通行负荷量</td><td>排队长度</td><td>衡量交通拥堵程度和路口运行效率的关键指标</td><td>传感器、摄像头、雷达（经车网通信V2N信息模型）</td></tr>
+                <tr><td>交通流感知信息模型感知的道路通行负荷量</td><td>溢流信息</td><td>衡量道路或路口正常承载能力</td><td>传感器、摄像头、雷达（经车网通信V2N信息模型）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">已生效交通管控方案信息</td><td>影响道路通行能力的既定约束</td><td>信号配时方案</td><td>相位顺序、有效绿灯时间及周期等已生效或已发布的控制参数</td><td>路侧设备（交通信号感知信息模型，经路网通信I2N信息模型）</td></tr>
+                <tr><td>影响道路通行能力的既定约束</td><td>有效车道配置</td><td>车道数量、行驶方向、允许转向及专用车道调整等已生效配置</td><td>中心云（车道功能动态调整信息模型）</td></tr>
+                <tr><td>影响道路通行能力的既定约束</td><td>其他管控措施</td><td>道路通行管控方案对应的道路禁行时空信息</td><td>交通控制中心</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">交通流需求预测信息</td><td>由交通流预测信息模型提供短时到达需求和状态演化结果（已考虑天气、事件等影响）</td><td>预测流量序列</td><td>未来各预测时段的断面车辆流量</td><td>边缘计算单元（经路网通信I2N信息模型）</td></tr>
+                <tr><td>由交通流预测信息模型提供短时到达需求和状态演化结果（已考虑天气、事件等影响）</td><td>预测交通状态演化</td><td>缓行或拥堵的预计形成时间、持续趋势及空间传播方向</td><td>边缘计算单元（经路网通信I2N信息模型）</td></tr>
+                <tr><td>由交通流预测信息模型提供短时到达需求和状态演化结果（已考虑天气、事件等影响）</td><td>预测可信度</td><td>对各项预测结果可靠程度的量化描述</td><td>边缘计算单元（经路网通信I2N信息模型）</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">动态通行能力评估结果</td><td>中心云在运行需求和既定管控约束下形成的容量评估决策结果。</td><td>有效通行能力</td><td>基础通行能力经车道、信号和其他已生效通行约束修正后的单位时间可服务能力</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云在运行需求和既定管控约束下形成的容量评估决策结果。</td><td>剩余通行能力</td><td>有效通行能力减去预测通行需求后的余量</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云在运行需求和既定管控约束下形成的容量评估决策结果。</td><td>过载状态</td><td>依据剩余通行能力判断的可分配、临界或过载状态</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云在运行需求和既定管控约束下形成的容量评估决策结果。</td><td>结果有效期与版本</td><td>评估对象、时间粒度、结果生效时段及所依据预测和管控方案版本</td><td>中心云计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

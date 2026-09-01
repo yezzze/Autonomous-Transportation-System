@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交叉口多车协同安全通行 - UML 场景详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --scenario: #13a8a8;
+            --bg: #f8f9fa;
+            --text: #2c3e50;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --p: #bf9000;
+            --t: #2e75b6;
+            --d: #548235;
+            --c: #7c7c7c;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif; }
+        body { background: var(--bg); color: #333; min-height: 100vh; }
+        .page-header { background: linear-gradient(135deg, #0f7f7f, var(--scenario)); color: #fff; padding: 32px 24px 86px; }
+        .header-inner { max-width: 1280px; margin: 0 auto; }
+        .breadcrumb { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: .88rem; opacity: .9; margin-bottom: 20px; }
+        .breadcrumb a { color: #fff; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,.55); }
+        .page-header h1 { font-size: 2rem; line-height: 1.35; margin-bottom: 12px; }
+        .page-header p { max-width: 920px; line-height: 1.75; opacity: .92; }
+        .toolbar { max-width: 1280px; margin: -46px auto 22px; padding: 0 24px; display: flex; flex-wrap: wrap; gap: 12px; position: relative; z-index: 3; }
+        .tool-btn { height: 48px; padding: 0 18px; border-radius: 12px; background: #fff; color: var(--text); border: 1px solid var(--border); box-shadow: 0 10px 22px rgba(0,0,0,.08); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 9px; font-weight: 800; cursor: pointer; transition: all .2s ease; }
+        .tool-btn:hover { transform: translateY(-2px); border-color: var(--scenario); color: var(--scenario); }
+        .tool-btn.primary { background: #2c3e50; color: white; border-color: #2c3e50; }
+        .tool-btn.primary:hover { color: white; background: #34495e; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 0 24px 60px; }
+        .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; align-items: start; }
+        .panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 10px 24px rgba(0,0,0,.05); }
+        .side-panel { position: sticky; top: 18px; overflow: hidden; }
+        .panel-title { padding: 18px 20px; border-bottom: 1px solid var(--border); color: var(--text); font-size: 1.05rem; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+        .panel-body { padding: 18px 20px; }
+        .info-list { display: grid; gap: 15px; }
+        .info-item label { display: block; color: var(--muted); font-size: .78rem; font-weight: 800; margin-bottom: 6px; }
+        .info-item div, .info-item p { color: #374151; font-size: .92rem; line-height: 1.75; }
+        .pill-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pill { border-radius: 999px; padding: 6px 10px; font-size: .76rem; background: #f3f4f6; color: #4b5563; font-weight: 700; }
+        .pill.p { background: rgba(191, 144, 0, .14); color: #8a6500; }
+        .pill.t { background: rgba(46, 117, 182, .13); color: #1d5f9e; }
+        .pill.d { background: rgba(84, 130, 53, .15); color: #3f6f24; }
+        .pill.c { background: rgba(124, 124, 124, .15); color: #595959; }
+        .main-content { display: grid; gap: 20px; }
+        .uml-card { overflow: hidden; }
+        .uml-header { padding: 16px 18px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border); }
+        .uml-header h2 { color: var(--text); font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
+        .uml-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+        .small-btn { border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 10px; padding: 8px 10px; cursor: pointer; font-weight: 800; font-size: .82rem; }
+        .small-btn:hover { border-color: var(--scenario); color: var(--scenario); }
+        .uml-viewport {
+            background: #eef2f6;
+            height: calc(100vh - 260px);
+            min-height: 520px;
+            max-height: 820px;
+            overflow: auto;
+            padding: 22px;
+        }
+        .uml-image-wrap {
+            min-width: 100%;
+            min-height: 100%;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+        .uml-image {
+            display: block;
+            width: auto;
+            height: auto;
+            max-width: none;
+            max-height: none;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 8px 18px rgba(0,0,0,.08);
+        }
+        .section { padding: 20px; }
+        .section h2 { color: var(--text); font-size: 1.12rem; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+        .stage-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        .stage-card { border-radius: 14px; border: 1px solid var(--border); padding: 15px; background: #fff; }
+        .stage-card h3 { font-size: .95rem; margin-bottom: 8px; color: var(--text); }
+        .stage-card p { font-size: .85rem; line-height: 1.7; color: var(--muted); }
+        .stage-card.p { border-top: 5px solid var(--p); }
+        .stage-card.t { border-top: 5px solid var(--t); }
+        .stage-card.d { border-top: 5px solid var(--d); }
+        .stage-card.c { border-top: 5px solid var(--c); }
+        .model-table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 760px; font-size: .9rem; }
+        th, td { border-bottom: 1px solid var(--border); padding: 12px 10px; text-align: left; vertical-align: top; line-height: 1.55; }
+        th { color: #4b5563; background: #f9fafb; font-weight: 900; }
+        td a { color: var(--primary); text-decoration: none; font-weight: 800; }
+        td a:hover { text-decoration: underline; }
+        .check-list { display: grid; gap: 12px; }
+        .check-item { display: flex; gap: 10px; align-items: flex-start; color: #374151; line-height: 1.7; font-size: .9rem; }
+        .check-item i { color: #52c41a; margin-top: 4px; }
+        @media (max-width: 980px) {
+            .layout { grid-template-columns: 1fr; }
+            .side-panel { position: static; }
+            .stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 640px) {
+            .page-header h1 { font-size: 1.45rem; }
+            .stage-grid { grid-template-columns: 1fr; }
+            .tool-btn { flex: 1; }
+        }
+</style>
+</head>
+<body>
+    <header class="page-header">
+        <div class="header-inner">
+            <div class="breadcrumb">
+                <a href="../index.html">模型库首页</a>
+                <i class="fa-solid fa-chevron-right"></i>
+                <a href="../scenarios.html">典型场景 UML</a>
+                <i class="fa-solid fa-chevron-right"></i>
+                <span>交叉口多车协同安全通行</span>
+            </div>
+            <h1>交叉口多车协同安全通行 UML 时序图</h1>
+            <p>本页面展示交叉口多智能等级车辆与边缘计算单元之间的协同安全通行信息流，并将车辆感知、V2V/V2I 通信、冲突检测、碰撞预警与控制反馈过程接入模型库。</p>
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <a class="tool-btn primary" href="../scenarios.html"><i class="fa-solid fa-arrow-left"></i> 返回场景列表</a>
+        <a class="tool-btn" href="../index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
+        <a class="tool-btn" href="../graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
+        <a class="tool-btn" href="../assets/uml/intersection-safety.svg" download><i class="fa-solid fa-download"></i> 下载 SVG 图</a>
+    </div>
+
+    <main class="container">
+        <div class="layout">
+            <aside class="panel side-panel">
+                <div class="panel-title"><i class="fa-solid fa-circle-info"></i> 场景信息</div>
+                <div class="panel-body">
+                    <div class="info-list">
+                        <div class="info-item"><label>场景名称</label><div>交叉口多车协同安全通行</div></div>
+                        <div class="info-item"><label>场景目标</label><p>通过车辆间信息共享和边缘计算单元风险识别，实现交叉口冲突检测、碰撞预警、协同避让与执行状态反馈。</p></div>
+                        <div class="info-item"><label>参与主体</label><div class="pill-list"><span class="pill">Connected Vehicle, L4</span><span class="pill">Connected Vehicle, L3</span><span class="pill">Edge RSU</span></div></div>
+                        <div class="info-item"><label>信息流阶段</label><div class="pill-list"><span class="pill p">感知阶段</span><span class="pill t">传输阶段</span><span class="pill d">决策阶段</span><span class="pill c">控制阶段</span></div></div>
+                        <div class="info-item"><label>页面说明</label><p>当前版本采用 SVG 嵌入方式，支持清晰缩放、横向滚动查看和下载。后续可继续升级为 SVG 热区点击与模型节点联动。</p></div>
+                    </div>
+                </div>
+            </aside>
+
+            <section class="main-content">
+                <div class="panel uml-card">
+                    <div class="uml-header">
+                        <h2><i class="fa-solid fa-timeline"></i> UML 时序图</h2>
+                        <div class="uml-tools"><button class="small-btn" onclick="fitToView()">适应窗口</button><button class="small-btn" onclick="zoomOut()">缩小</button><button class="small-btn" onclick="zoomIn()">放大</button><button class="small-btn" onclick="showOriginal()">原始尺寸</button></div>
+                    </div>
+                    <div class="uml-viewport" id="umlViewport">
+                        <div class="uml-image-wrap" id="umlImageWrap">
+                            <img class="uml-image" src="../assets/uml/intersection-safety.svg" alt="交叉口多车协同安全通行 UML 时序图">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel section">
+                    <h2><i class="fa-solid fa-layer-group"></i> 四阶段信息流说明</h2>
+                    <div class="stage-grid"><div class="stage-card p"><h3>感知阶段</h3><p>两辆智能网联车辆分别生成自身状态和周边交通参与者感知信息，形成交叉口冲突识别的基础数据。</p></div><div class="stage-card t"><h3>传输阶段</h3><p>车辆之间通过 V2V 共享感知数据，并通过 V2I 向边缘计算单元上传融合感知信息，形成局部态势汇聚。</p></div><div class="stage-card d"><h3>决策阶段</h3><p>边缘计算单元基于融合数据进行冲突检测和碰撞预警，识别风险等级、冲突点与安全距离。</p></div><div class="stage-card c"><h3>控制阶段</h3><p>边缘计算单元向车辆下发预警或控制建议，车辆执行减速、避让等动作，并通过 V2V/V2I 反馈执行状态。</p></div></div>
+                </div>
+
+                <div class="panel section">
+                    <h2><i class="fa-solid fa-link"></i> 关联模型清单</h2>
+                    <div class="model-table-wrap">
+                        <table>
+                            <thead><tr><th>阶段</th><th>模型名称</th><th>建议链接</th><th>在 UML 中的作用</th></tr></thead>
+                            <tbody><tr><td>感知</td><td>车辆状态感知信息模型</td><td><a href="../models/P-D-A4-1.html">P-D-A4-1</a></td><td>描述 L4 智能网联车辆的位置、速度、加速度与运行状态。</td></tr><tr><td>感知</td><td>车辆状态感知信息模型</td><td><a href="../models/P-D-A3-1.html">P-D-A3-1</a></td><td>描述 L3 智能网联车辆的基础状态信息。</td></tr><tr><td>感知</td><td>交通参与者感知信息模型</td><td><a href="../models/P-E-A4-8.html">P-E-A4-8</a></td><td>用于表征车辆或路端对相邻车辆、行人和非机动车等对象的识别信息。</td></tr><tr><td>感知</td><td>冲突情况检测信息模型</td><td><a href="../models/P-D-A4-5.html">P-D-A4-5</a></td><td>用于识别交叉口冲突点、冲突对象和潜在风险状态。</td></tr><tr><td>传输</td><td>车车通信 V2V 信息模型</td><td><a href="../models/T-D-A4-12.html">T-D-A4-12</a></td><td>当前模型库中可先用高等级车路/车端通信模型承接 V2V 数据共享关系，后续可单独补充 V2V 模型。</td></tr><tr><td>传输</td><td>车路通信 V2I 信息模型</td><td><a href="../models/T-D-A3-12.html">T-D-A3-12</a></td><td>车辆向边缘计算单元上传融合感知数据，或接收边缘端预警指令。</td></tr><tr><td>决策</td><td>交叉口碰撞预警信息模型</td><td><a href="../models/D-C-A4-30.html">D-C-A4-30</a></td><td>边缘计算单元基于融合感知信息生成碰撞风险判断和预警策略。</td></tr><tr><td>决策</td><td>弱势交通参与者避撞信息模型</td><td><a href="../models/D-C-A3-31.html">D-C-A3-31</a></td><td>当交叉口中存在行人或非机动车时，可用于辅助避撞决策。</td></tr><tr><td>控制</td><td>紧急制动信息模型</td><td><a href="../models/C-C-A4-35.html">C-C-A4-35</a></td><td>车辆根据预警指令执行减速或制动控制。</td></tr><tr><td>控制</td><td>紧急转向避让信息模型</td><td><a href="../models/C-C-A4-36.html">C-C-A4-36</a></td><td>车辆根据冲突位置与安全距离执行必要的转向避让。</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="panel section">
+                    <h2><i class="fa-solid fa-clipboard-check"></i> 规范性校验说明</h2>
+                    <div class="check-list"><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>参与主体采用 Connected Vehicle L4、Connected Vehicle L3 与 Edge RSU，能够体现不同智能等级车辆的协同差异。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>场景链路包含车辆自感知、V2V/V2I 数据共享、边缘端风险决策和车辆执行反馈，形成完整安全闭环。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>当前模型库如尚未设置独立 V2V 模型，可先以通信类模型临时代替；后续建议新增“车车通信 V2V 信息模型”节点。</span></div></div>
+                </div>
+            </section>
+        </div>
+    </main>
+    <script>
+        let zoom = 1;
+        let fitZoom = 1;
+        let naturalSize = { width: 0, height: 0 };
+
+        const viewport = document.getElementById('umlViewport');
+        const wrap = document.getElementById('umlImageWrap');
+        const img = document.querySelector('.uml-image');
+
+        function readNaturalSize() {
+            const rect = img.getBoundingClientRect();
+
+            naturalSize.width = img.naturalWidth || rect.width || 1200;
+            naturalSize.height = img.naturalHeight || rect.height || 700;
+
+            return naturalSize;
+        }
+
+        function updateAlignment() {
+            const availableWidth = viewport.clientWidth - 44;
+            const availableHeight = viewport.clientHeight - 44;
+            const scaledWidth = naturalSize.width * zoom;
+            const scaledHeight = naturalSize.height * zoom;
+
+            wrap.style.justifyContent = scaledWidth <= availableWidth ? 'center' : 'flex-start';
+            wrap.style.alignItems = scaledHeight <= availableHeight ? 'center' : 'flex-start';
+        }
+
+        function applyZoom(centerAfterZoom = false) {
+            if (!naturalSize.width || !naturalSize.height) {
+                readNaturalSize();
+            }
+
+            img.style.width = `${naturalSize.width * zoom}px`;
+            img.style.height = `${naturalSize.height * zoom}px`;
+            updateAlignment();
+
+            if (centerAfterZoom) {
+                requestAnimationFrame(() => {
+                    viewport.scrollLeft = Math.max((viewport.scrollWidth - viewport.clientWidth) / 2, 0);
+                    viewport.scrollTop = Math.max((viewport.scrollHeight - viewport.clientHeight) / 2, 0);
+                });
+            }
+        }
+
+        function fitToView() {
+            if (!naturalSize.width || !naturalSize.height) {
+                readNaturalSize();
+            }
+
+            const padding = 44;
+            const availableWidth = Math.max(viewport.clientWidth - padding, 1);
+            const availableHeight = Math.max(viewport.clientHeight - padding, 1);
+
+            const scaleX = availableWidth / naturalSize.width;
+            const scaleY = availableHeight / naturalSize.height;
+
+            fitZoom = Math.min(scaleX, scaleY);
+
+            // 默认只缩小以展示全图，不把较小的图强行放大。
+            fitZoom = Math.min(fitZoom, 1);
+
+            zoom = fitZoom;
+            applyZoom(true);
+        }
+
+        function zoomIn() {
+            zoom = Math.min(zoom + 0.1, 2.5);
+            applyZoom(true);
+        }
+
+        function zoomOut() {
+            zoom = Math.max(zoom - 0.1, 0.15);
+            applyZoom(true);
+        }
+
+        function showOriginal() {
+            zoom = 1;
+            applyZoom(true);
+        }
+
+        function initUmlImage() {
+            readNaturalSize();
+            fitToView();
+        }
+
+        if (img.complete) {
+            initUmlImage();
+        } else {
+            img.addEventListener('load', initUmlImage);
+        }
+
+        let resizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(fitToView, 150);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>典型场景 UML - 自主式交通系统载运装备信息模型库</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary:#1a73e8; --primary-dark:#0d47a1; --scenario:#13a8a8; --bg:#f8f9fa; --text:#2c3e50; --muted:#6b7280; --card:#fff; --border:#e5e7eb; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'PingFang SC','Microsoft YaHei','Helvetica Neue',sans-serif; }
+        body { background:var(--bg); color:#333; min-height:100vh; }
+        header { background:linear-gradient(135deg,var(--primary-dark),var(--primary)); color:#fff; padding:44px 20px 74px; text-align:center; }
+        header h1 { font-size:2rem; margin-bottom:10px; }
+        header p { opacity:.88; font-size:1rem; }
+        .topbar { max-width:1200px; margin:-38px auto 28px; padding:0 20px; display:flex; gap:14px; align-items:center; flex-wrap:wrap; position:relative; z-index:2; }
+        .search-box { flex:1; min-width:260px; position:relative; }
+        .search-box input { width:100%; height:54px; border:none; border-radius:12px; padding:0 18px 0 48px; box-shadow:0 10px 20px rgba(0,0,0,.08); outline:none; font-size:1rem; }
+        .search-box i { position:absolute; left:19px; top:19px; color:#9ca3af; }
+        .nav-btn { height:54px; padding:0 24px; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:10px; color:white; font-weight:700; white-space:nowrap; box-shadow:0 10px 20px rgba(0,0,0,.1); transition:all .25s ease; }
+        .nav-btn:hover { transform:translateY(-2px); }
+        .nav-home { background:#2c3e50; } .nav-graph { background:#722ed1; }
+        .container { max-width:1200px; margin:0 auto; padding:0 20px 56px; }
+        .section-title { margin:20px 0 18px; color:var(--text); font-size:1.35rem; display:flex; align-items:center; gap:10px; }
+        .section-title::before { content:""; width:5px; height:24px; border-radius:4px; background:var(--scenario); display:inline-block; }
+        .scenario-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:20px; }
+        .scenario-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px; text-decoration:none; color:inherit; display:flex; flex-direction:column; gap:16px; min-height:260px; transition:all .25s ease; }
+        .scenario-card:hover { transform:translateY(-5px); border-color:var(--scenario); box-shadow:0 14px 28px rgba(0,0,0,.10); }
+        .scenario-card.disabled { opacity:.58; cursor:not-allowed; pointer-events:none; }
+        .card-top { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; }
+        .scenario-title { color:var(--text); font-size:1.15rem; line-height:1.45; font-weight:800; }
+        .status { flex-shrink:0; font-size:.75rem; border-radius:999px; padding:5px 10px; font-weight:800; }
+        .status.ready { background:#e6fffb; color:#08979c; border:1px solid #87e8de; } .status.todo { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; }
+        .desc { color:var(--muted); line-height:1.75; font-size:.93rem; }
+        .meta-block { display:grid; gap:10px; color:#4b5563; font-size:.88rem; }
+        .meta-row { display:flex; gap:8px; align-items:flex-start; } .meta-row i { width:18px; margin-top:3px; color:var(--scenario); }
+        .stage-tags,.model-tags { display:flex; flex-wrap:wrap; gap:8px; }
+        .tag { font-size:.76rem; border-radius:999px; padding:5px 9px; background:#f3f4f6; color:#4b5563; }
+        .tag.p { background:rgba(246,189,22,.14); color:#9a6b00; } .tag.t { background:rgba(24,144,255,.12); color:#096dd9; } .tag.d { background:rgba(82,196,26,.13); color:#237804; } .tag.c { background:rgba(140,140,140,.15); color:#595959; }
+        .enter { margin-top:auto; color:var(--scenario); font-weight:800; display:flex; align-items:center; gap:8px; font-size:.92rem; }
+        @media(max-width:720px){ header h1{font-size:1.55rem;} .nav-btn{flex:1;} .scenario-grid{grid-template-columns:1fr;} }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>典型场景 UML 模型库</h1>
+        <p>面向“感知—传输—决策—控制”链路的异智交通主体协同信息流场景化表达</p>
+    </header>
+    <div class="topbar">
+        <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i><input id="searchInput" type="text" placeholder="搜索场景名称、主体或关联模型，例如 公交 / V2I / Signal..."></div>
+        <a class="nav-btn nav-home" href="index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
+        <a class="nav-btn nav-graph" href="graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
+    </div>
+    <main class="container">
+        <h2 class="section-title">场景列表</h2>
+        <div class="scenario-grid" id="scenarioGrid">
+            <a class="scenario-card" href="scenarios/bus-priority.html" data-search="公交优先 交通流 协同调控 connected bus connected vehicle edge rsu signal controller regional cloud v2i v2n 公交路径规划 关键交叉口信号控制">
+                <div class="card-top"><div class="scenario-title">公交优先与交通流协同调控</div><span class="status ready">已建模</span></div>
+                <p class="desc">面向智能公交、社会车辆、边缘计算单元、信号控制机与区域云平台，表达公交优先请求、云端协同决策、信号控制与车辆诱导反馈的完整信息流。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Bus L4、Connected Vehicle L2、Edge RSU、Signal Controller、Regional Cloud</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">V2I</span><span class="tag">V2N</span><span class="tag">公交路径规划</span><span class="tag">信号控制</span></div>
+                </div>
+                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+            </a>
+            <a class="scenario-card disabled" href="#" data-search="交叉口 多车 协同 安全通行 v2v v2i edge rsu connected vehicle">
+                <div class="card-top"><div class="scenario-title">交叉口多车协同安全通行</div><span class="status todo">待补充</span></div>
+                <p class="desc">后续可用于表达交叉口环境下多智能等级车辆与边缘计算单元之间的冲突检测、碰撞预警、协同避让与执行反馈。</p>
+                <div class="meta-block">
+                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle L4、Connected Vehicle L3、Edge RSU</span></div>
+                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+                    <div class="model-tags"><span class="tag">V2V</span><span class="tag">V2I</span><span class="tag">冲突检测</span><span class="tag">碰撞预警</span></div>
+                </div>
+                <div class="enter">后续添加 UML 图 <i class="fa-solid fa-clock"></i></div>
+            </a>
+        </div>
+    </main>
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const cards = document.querySelectorAll('.scenario-card');
+        searchInput.addEventListener('input', function(e){
+            const val = e.target.value.trim().toLowerCase();
+            cards.forEach(card => { card.style.display = card.dataset.search.toLowerCase().includes(val) ? 'flex' : 'none'; });
+        });
+    </script>
+</body>
+</html>

@@ -55,6 +55,14 @@ app.mount(
     StaticFiles(directory=str(_PROJECT_ROOT / "static" / "Algorithm_Model_Library"), html=True),
     name="algorithm-model-library",
 )
+app.mount(
+    "/static/Carrying_Equipment_Information_Model_Library",
+    StaticFiles(
+        directory=str(_PROJECT_ROOT / "static" / "Carrying_Equipment_Information_Model_Library"),
+        html=True,
+    ),
+    name="carrying-equipment-information-model-library",
+)
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 # Prometheus 通过 ServiceMonitor 定期抓取此端点；实际抓取路径为 /metrics/。
 app.mount("/metrics", make_asgi_app())

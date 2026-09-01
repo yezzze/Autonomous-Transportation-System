@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODEL-053 公交进站车速引导信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>公交进站车速引导信息模型</h1>
+    <p>模型编号：MODEL-053 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>公交进站车速引导信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>中心云</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-053</span></td></tr>
+            <tr><th>信息模型描述</th><td>自主化等级为A3时，道路交通系统包含L3、L4、L5级自动驾驶车辆与人类驾驶车辆，边缘计算与中心云具备一定的决策与控制能力。公交进站车速引导信息模型运行于中心云计算单元，动态评估站点剩余容量与泊位可用状态，分配目标泊位、协调多车进站次序，生成平滑的进站减速引导速度曲线，经车网通信V2N信息模型下发公交车辆执行。</td></tr>
+            <tr><th>模型服务场景</th><td>公交站点容量管理、公交站点联动调度、公交进站精准停靠等</td></tr>
+            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型、公交道路车速引导信息模型、公交停站方案优化信息模型、泊位占用感知信息模型、车网通信V2N信息模型、路网通信I2N信息模型</td></tr>
+            <tr><th>下游接口模型编号</th><td>公交精准停靠控制信息模型、车网通信V2N信息模型、车载信息显示信息模型</td></tr>
+            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>责任单位</th><td></td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="2" class="text-center highlight">公交车辆进站运行信息</td><td>由车辆状态感知信息模型输出的进站运行状态信息</td><td>车辆身份与线路信息</td><td>公交车辆唯一标识、线路编号、行驶方向、车辆类型及车身/车门布置等信息</td><td>载运装备（公交车载单元OBU，经车网通信V2N信息模型）</td></tr>
+                <tr><td>由车辆状态感知信息模型输出的进站运行状态信息</td><td>车辆运动状态信息</td><td>公交车辆当前车道级位置、速度、加速度、航向角及运行模式</td><td>载运装备（公交车载单元OBU，经车网通信V2N信息模型）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">公交道路车速引导信息</td><td>由公交道路车速引导信息模型输出的上游路段车速引导与通行窗口信息</td><td>上游速度引导信息</td><td>上游路段推荐车速、速度引导曲线及其适用范围</td><td>中心云计算单元</td></tr>
+                <tr><td>由公交道路车速引导信息模型输出的上游路段车速引导与通行窗口信息</td><td>前方通行窗口信息</td><td>前方交叉口可通行绿灯窗口及公交预计通过时刻</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">泊位占用与空间信息</td><td>由泊位占用感知信息模型输出的公交停靠泊位空间属性与实时占用状态信息</td><td>泊位静态属性信息</td><td>泊位编号、类型、车道级空间位置、几何边界及停靠方向</td><td>边缘计算单元（泊位占用感知信息模型，经路网通信I2N信息模型）</td></tr>
+                <tr><td>由泊位占用感知信息模型输出的公交停靠泊位空间属性与实时占用状态信息</td><td>泊位实时占用状态信息</td><td>各泊位空闲、占用、不可用状态及状态置信度</td><td>边缘计算单元（泊位占用感知信息模型，经路网通信I2N信息模型）</td></tr>
+                <tr><td>由泊位占用感知信息模型输出的公交停靠泊位空间属性与实时占用状态信息</td><td>在位车辆与周边障碍信息</td><td>在位车辆身份、实时位置、停放姿态及泊位周边临时障碍状态</td><td>边缘计算单元（泊位占用感知信息模型，经路网通信I2N信息模型）</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">公交停站方案信息</td><td>公交停站方案优化信息模型生成的停靠站点、停站时序与方案调整结果</td><td>计划停靠站点序列信息</td><td>本班次沿公交路径规划结果依次计划停靠的站点序列</td><td>中心云计算单元</td></tr>
+                <tr><td>公交停站方案优化信息模型生成的停靠站点、停站时序与方案调整结果</td><td>停站与越站决策信息</td><td>对路径覆盖的各候选站点作出的停靠、越站或条件停靠决策及其原因</td><td>中心云计算单元</td></tr>
+                <tr><td>公交停站方案优化信息模型生成的停靠站点、停站时序与方案调整结果</td><td>计划停站时长信息</td><td>根据乘降需求和运行恢复要求确定的各站目标停站时长</td><td>中心云计算单元</td></tr>
+                <tr><td>公交停站方案优化信息模型生成的停靠站点、停站时序与方案调整结果</td><td>方案有效范围与版本信息</td><td>停站方案适用的车辆、线路、路段/站点范围、生效时刻、有效期限和版本号</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">公交进站车速引导决策信息</td><td>中心云综合站点容量、泊位状态和公交到达关系生成的进站组织与速度引导结果</td><td>站点容量与溢出预警信息</td><td>站点剩余容量评估、站外排队风险及溢出预警等级</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云综合站点容量、泊位状态和公交到达关系生成的进站组织与速度引导结果</td><td>目标泊位分配信息</td><td>为各进站公交分配的目标泊位、目标停靠点及泊位适配状态</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云综合站点容量、泊位状态和公交到达关系生成的进站组织与速度引导结果</td><td>多车进站次序信息</td><td>同一站点多辆公交的进站优先级、先后次序及等待要求</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云综合站点容量、泊位状态和公交到达关系生成的进站组织与速度引导结果</td><td>进站速度引导信息</td><td>满足安全、舒适与泊位可达约束的推荐车速和速度-时间/位置引导曲线</td><td>中心云计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

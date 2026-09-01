@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODEL-078 公铁联运节点运行状态感知信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>公铁联运节点运行状态感知信息模型</h1>
+    <p>模型编号：MODEL-078 | 逻辑阶段：感知 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>公铁联运节点运行状态感知信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>感知</td></tr>
+            <tr><th>实体类别</th><td>边缘</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-078</span></td></tr>
+            <tr><th>信息模型描述</th><td>自主化等级为A3时，节点边缘计算单元接入公铁联运节点内的车辆识别、铁路到发、装卸设备、作业位和堆场感知设备，采集并融合已发生的节点运行状态，形成带时间标识的综合节点状态信息。该模型只负责状态采集、标识关联和质量校验，不进行运力匹配、衔接计划或异常调整决策。</td></tr>
+            <tr><th>模型服务场景</th><td>公铁联运节点实时运行监测</td></tr>
+            <tr><th>上游接口模型编号</th><td>无</td></tr>
+            <tr><th>下游接口模型编号</th><td>公铁联运到发状态交互信息模型、公铁联运运力匹配信息模型、公铁联运衔接计划信息模型、公铁联运异常协同调整信息模型</td></tr>
+            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>责任单位</th><td></td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">节点基础状态信息</td><td>用于标识当前状态所对应的联运节点和可用区域的信息</td><td>联运节点标识</td><td>节点名称、唯一ID</td><td>节点配置库</td></tr>
+                <tr><td>用于标识当前状态所对应的联运节点和可用区域的信息</td><td>作业区域标识</td><td>出入口、铁路装卸线、装卸区、作业位和堆场分区的唯一标识</td><td>节点配置库</td></tr>
+                <tr><td>用于标识当前状态所对应的联运节点和可用区域的信息</td><td>区域开放状态</td><td>各作业区域当前开放、受限、关闭或检修状态及生效时刻</td><td>门禁/区域状态传感器</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">公路车辆到发状态信息</td><td>公路运输车辆在联运节点的实际状态</td><td>车辆与关联运单标识</td><td>车辆唯一标识、关联运单标识</td><td>车牌识别/预约核验终端</td></tr>
+                <tr><td>公路运输车辆在联运节点的实际状态</td><td>实际到离时间</td><td>车辆进场、到达作业区、完成作业和离场的实际时刻</td><td>道闸/门禁识别设备</td></tr>
+                <tr><td>公路运输车辆在联运节点的实际状态</td><td>场内位置与等待状态</td><td>车辆所在区域、排队位置、等待或作业中状态</td><td>场内定位设备/视频感知设备</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">铁路班列到发状态信息</td><td>铁路班列在联运节点的实际状态。</td><td>班列标识</td><td>铁路班列唯一标识、关联运输任务标识</td><td>铁路调度到发系统</td></tr>
+                <tr><td>铁路班列在联运节点的实际状态。</td><td>实际到发时间</td><td>班列到达、进入装卸作业、作业完成和发出的实际时刻</td><td>铁路调度到发系统/轨道检测设备</td></tr>
+                <tr><td>铁路班列在联运节点的实际状态。</td><td>班列当前状态</td><td>在途、到达、待装卸、装卸中、待发或已发等实际运行状态</td><td>铁路站场状态感知设备</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">装卸作业与状态信息</td><td>节点内货物交接和装卸资源的实际状态。</td><td>装卸设备状态</td><td>设备可用、故障、空闲、作业中或维护中的实际状态</td><td>装卸设备控制器/PLC</td></tr>
+                <tr><td>节点内货物交接和装卸资源的实际状态。</td><td>装卸任务进度</td><td>关联任务的待作业、作业中、已完成或中断状态及完成量</td><td>作业管理终端</td></tr>
+                <tr><td>节点内货物交接和装卸资源的实际状态。</td><td>作业位占用状态</td><td>作业位当前占用对象、占用开始时刻和可用状态</td><td>作业位传感器/视频感知设备</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">堆场占用状态信息</td><td>堆场容量占用状态</td><td>堆场占用与剩余容量</td><td>堆场分区当前货物占用量、剩余可用容量</td><td>堆场管理系统/堆位感知设备</td></tr>
+                <tr><td>堆场容量占用状态</td><td>待交接货物状态</td><td>待装、待卸、待换装货物的任务标识、所在区域和等待状态。</td><td>节点作业管理系统</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

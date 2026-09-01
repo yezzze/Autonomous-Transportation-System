@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODEL-004 驾驶员状态监测信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>驾驶员状态监测信息模型</h1>
+    <p>模型编号：MODEL-004 | 逻辑阶段：认知 | 自主化等级：<span class="badge">A2</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>驾驶员状态监测信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>认知</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-004</span></td></tr>
+            <tr><th>信息模型描述</th><td>自主化等级为A2时，道路交通系统包含L1、L2、L3级辅助/自动驾驶车辆与人类驾驶车辆，并出现边缘计算设备与中心云。驾驶员状态监测信息模型运行于车辆端计算单元（车载单元OBU），在舱内红外驾驶员监测摄像头、方向盘握力/触握传感器与座椅压力传感器直接采集的驾驶员生理与行为信号基础上，接收车辆状态感知信息模型输出的车辆运动状态、驾驶员操作信息与车辆运行模式信息。面向L2、L3人机共驾需要，模型在疲劳、分心监测的基础上进一步增加视线注视监测，并评估驾驶员手握方向盘状态与接管准备状态，为人机接管管理提供依据。</td></tr>
+            <tr><th>模型服务场景</th><td>驾驶辅助预警、人机共驾接管管理、疲劳与分心提醒等</td></tr>
+            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型</td></tr>
+            <tr><th>下游接口模型编号</th><td>人机接管决策信息模型、车载信息显示信息模型</td></tr>
+            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">驾驶员生理与行为感知信息</td><td>舱内红外驾驶员监测摄像头与方向盘、座椅传感设备直接采集的驾驶员生理与行为特征</td><td>面部与头部特征</td><td>眼睛闭合度、眨眼频率、打哈欠、头部姿态等</td><td>舱内红外驾驶员监测摄像头</td></tr>
+                <tr><td>舱内红外驾驶员监测摄像头与方向盘、座椅传感设备直接采集的驾驶员生理与行为特征</td><td>视线与注视方向</td><td>驾驶员视线方向与注视区域</td><td>舱内红外驾驶员监测摄像头</td></tr>
+                <tr><td>舱内红外驾驶员监测摄像头与方向盘、座椅传感设备直接采集的驾驶员生理与行为特征</td><td>手部操作状态</td><td>双手是否握持方向盘及握力等</td><td>方向盘触握传感器</td></tr>
+                <tr><td>舱内红外驾驶员监测摄像头与方向盘、座椅传感设备直接采集的驾驶员生理与行为特征</td><td>身体姿态</td><td>驾驶员在位与坐姿状态</td><td>座椅压力传感器</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">车辆运动与操作信息</td><td>由车辆状态感知信息模型输出的车辆运动状态、驾驶员操作信息及运行模式信息</td><td>运动状态</td><td>车辆的速度、加速度、航向角等基本运动量</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>由车辆状态感知信息模型输出的车辆运动状态、驾驶员操作信息及运行模式信息</td><td>驾驶操作</td><td>方向盘转角等横向操控动作，油门踏板开度、制动踏板开度等纵向操控动作</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>由车辆状态感知信息模型输出的车辆运动状态、驾驶员操作信息及运行模式信息</td><td>车辆运行模式</td><td>人工驾驶、辅助驾驶、单车自控等运行模式，用于区分驾驶主体</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">驾驶员状态信息</td><td>基于生理行为特征与车辆运动/操作特征分析得到的驾驶员状态估计结果</td><td>疲劳等级</td><td>基于面部与头部特征判定的疲劳等级</td><td>端计算单元（车载域控制器）</td></tr>
+                <tr><td>基于生理行为特征与车辆运动/操作特征分析得到的驾驶员状态估计结果</td><td>分心等级</td><td>基于驾驶员生理与行为感知信息、车辆运动与操作信息判定的分心等级</td><td>端计算单元（车载域控制器）</td></tr>
+                <tr><td>基于生理行为特征与车辆运动/操作特征分析得到的驾驶员状态估计结果</td><td>接管准备等级</td><td>评估得到的接管就绪程度</td><td>端计算单元（车载域控制器）</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODEL-017 车载信息显示信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>车载信息显示信息模型</h1>
+    <p>模型编号：MODEL-017 | 逻辑阶段：控制 | 自主化等级：<span class="badge">A2</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>车载信息显示信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>控制</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-017</span></td></tr>
+            <tr><th>信息模型描述</th><td>自主化等级为A2时，道路交通系统包含L1、L2、L3级辅助/自动驾驶车辆与人类驾驶车辆，路侧出现信息提示设备，边缘计算设备与中心云可将处理结果反馈给驾驶人员。车载信息显示信息模型运行于车辆端计算单元（车载人机交互单元），在A1的基础上，接收预警提示类信息、协同引导信息，以及接管请求指令，并回采驾驶员的交互确认结果。该阶段最终决策响应仍以人工为主，模型仅承担信息呈现与交互反馈职能。</td></tr>
+            <tr><th>模型服务场景</th><td>人机共驾接管管理、驾驶辅助预警、道路交通信息发布等</td></tr>
+            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型、人机接管决策信息模型、驾驶员状态监测信息模型、各类端侧预警信息模型、绿波车速引导信息模型、拥堵交通分流服务信息模型、车道功能动态调整信息模型、车网通信V2N信息模型</td></tr>
+            <tr><th>下游接口模型编号</th><td>人机接管决策信息模型</td></tr>
+            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">车辆状态信息</td><td>由车辆状态感知信息模型输出的本车运行状态</td><td>运动状态</td><td>车辆的速度、加速度、航向角等基本运动量</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td>由车辆状态感知信息模型输出的本车运行状态</td><td>能源与消耗状态</td><td>燃油水平、电池电量</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td>由车辆状态感知信息模型输出的本车运行状态</td><td>车辆指示灯状态</td><td>车辆转向指示灯状态</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td>由车辆状态感知信息模型输出的本车运行状态</td><td>车辆运行模式</td><td>人工驾驶、辅助驾驶、单车自控等运行模式，用于提示当前控制权归属</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">驾驶员操作信息</td><td>由车辆状态感知信息模型输出的驾驶员对车辆的操作</td><td>转向操作</td><td>方向盘转角等横向操控动作</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td>由车辆状态感知信息模型输出的驾驶员对车辆的操作</td><td>踏板操作</td><td>油门踏板开度、制动踏板开度等纵向操控动作</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">驾驶员状态信息</td><td>基于生理行为特征与车辆运动/操作特征分析得到的驾驶员状态估计结果</td><td>疲劳等级</td><td>基于面部与头部特征判定的疲劳等级</td><td>端计算单元（车载域控制器）</td></tr>
+                <tr><td>基于生理行为特征与车辆运动/操作特征分析得到的驾驶员状态估计结果</td><td>分心等级</td><td>基于驾驶员生理与行为感知信息、车辆运动与操作信息判定的分心等级</td><td>端计算单元（车载域控制器）</td></tr>
+                <tr><td>基于生理行为特征与车辆运动/操作特征分析得到的驾驶员状态估计结果</td><td>接管准备等级</td><td>评估得到的接管就绪程度</td><td>端计算单元（车载域控制器）</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">预警与提示信息</td><td>由各预警提示类信息模型输出的行车风险与道路状况提示</td><td>预警类型</td><td>前向碰撞、变道、限速、拥堵、道路危险状况等预警与提示的类别</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>由各预警提示类信息模型输出的行车风险与道路状况提示</td><td>预警等级</td><td>按风险紧迫程度划分的预警级别</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>由各预警提示类信息模型输出的行车风险与道路状况提示</td><td>预警对象与位置</td><td>引发预警的目标类别及其相对本车的位置与距离</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>由各预警提示类信息模型输出的行车风险与道路状况提示</td><td>提示内容</td><td>限速值、拥堵路段、道路危险状况等需向驾驶员发布的具体提示内容</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">协同引导信息</td><td>由中心云经车网通信V2N信息模型下发的协同引导与发布信息</td><td>推荐车速</td><td>绿波车速引导信息模型输出的推荐车速与速度引导曲线</td><td>中心云计算单元（经车网通信V2N信息模型）</td></tr>
+                <tr><td>由中心云经车网通信V2N信息模型下发的协同引导与发布信息</td><td>路径诱导信息</td><td>拥堵交通分流服务信息模型输出的推荐路径与绕行建议</td><td>中心云计算单元（经车网通信V2N信息模型）</td></tr>
+                <tr><td>由中心云经车网通信V2N信息模型下发的协同引导与发布信息</td><td>车道功能提示</td><td>车道功能动态调整信息模型输出的车道使用权变更提示</td><td>中心云计算单元（经车网通信V2N信息模型）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">人机接管决策信息</td><td>由人机接管决策信息模型输出的接管决策结果</td><td>接管请求指令</td><td>接管请求的发起标识、发起时刻与目标接管对象</td><td>端计算单元（车载域控制器）</td></tr>
+                <tr><td>由人机接管决策信息模型输出的接管决策结果</td><td>接管紧迫等级</td><td>接管请求的紧迫程度分级与预留接管时间</td><td>端计算单元（车载域控制器）</td></tr>
+                <tr><td>由人机接管决策信息模型输出的接管决策结果</td><td>接管触发原因</td><td>引发接管的原因类别，如超出运行边界、系统故障、冲突风险等</td><td>端计算单元（车载域控制器）</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">车载显示信息</td><td>经组织后通过车内显示装置向驾驶员呈现的信息</td><td>车辆状态显示信息</td><td>各上游信息模型输入的车辆内部状态信息</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td>经组织后通过车内显示装置向驾驶员呈现的信息</td><td>驾驶辅助状态显示信息</td><td>已激活的辅助驾驶功能、功能可用性、控制权归属</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td>经组织后通过车内显示装置向驾驶员呈现的信息</td><td>协同引导显示信息</td><td>绿波车速引导、车道级引导、路径诱导</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td>经组织后通过车内显示装置向驾驶员呈现的信息</td><td>安全预警显示信息</td><td>前向碰撞预警、车道偏离预警、盲区预警、冲突风险等级</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td>经组织后通过车内显示装置向驾驶员呈现的信息</td><td>接管请求显示信息</td><td>接管请求标识、紧迫等级、触发原因、预留接管倒计时</td><td>端计算单元（车载控制单元）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">交互确认信息</td><td>驾驶员对显示内容作出的交互响应结果</td><td>确认动作类型</td><td>驾驶员对预警或接管请求的确认、忽略或取消动作</td><td>端计算单元（车载人机交互单元）</td></tr>
+                <tr><td>驾驶员对显示内容作出的交互响应结果</td><td>响应时延</td><td>自信息呈现至驾驶员作出交互动作的时间间隔</td><td>端计算单元（车载人机交互单元）</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

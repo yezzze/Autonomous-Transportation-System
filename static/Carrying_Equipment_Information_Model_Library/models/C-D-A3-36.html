@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODEL-064 车辆事故紧急呼叫信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>车辆事故紧急呼叫信息模型</h1>
+    <p>模型编号：MODEL-064 | 逻辑阶段：控制 | 自主化等级：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>车辆事故紧急呼叫信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>控制</td></tr>
+            <tr><th>实体类别</th><td>载运装备</td></tr>
+            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-064</span></td></tr>
+            <tr><th>信息模型描述</th><td></td></tr>
+            <tr><th>模型服务场景</th><td>驾驶事故或驾驶员主动求救。</td></tr>
+            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型</td></tr>
+            <tr><th>下游接口模型编号</th><td>车服通信V2S信息模型、车载信息显示信息模型</td></tr>
+            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">事故自动识别信息</td><td>由车辆状态感知信息模型输出的碰撞、翻车和车辆状态信息触发系统自动识别</td><td>事故类型</td><td>碰撞、翻车、落水或驾驶员失能等</td><td>安全气囊控制器、车身稳定控制系统</td></tr>
+                <tr><td>由车辆状态感知信息模型输出的碰撞、翻车和车辆状态信息触发系统自动识别</td><td>识别时间</td><td>系统完成事故识别的时间，格式为yyyy-mm-dd hh:mm:ss</td><td>车载单元OBU</td></tr>
+                <tr><td>由车辆状态感知信息模型输出的碰撞、翻车和车辆状态信息触发系统自动识别</td><td>自动触发标识</td><td>自动触发、人工触发或人工确认后触发</td><td>车载紧急呼叫控制单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">车辆类型与位置</td><td>由车辆状态感知信息模型提供事故车辆身份、实时位置和车辆姿态信息</td><td>车辆ID</td><td>经授权使用的车辆唯一编码</td><td>车载单元OBU</td></tr>
+                <tr><td>由车辆状态感知信息模型提供事故车辆身份、实时位置和车辆姿态信息</td><td>车辆类型</td><td>轿车、客车、货车等车辆类别</td><td>车载单元OBU</td></tr>
+                <tr><td>由车辆状态感知信息模型提供事故车辆身份、实时位置和车辆姿态信息</td><td>事故位置</td><td>经纬度坐标</td><td>GNSS定位模块</td></tr>
+                <tr><td>由车辆状态感知信息模型提供事故车辆身份、实时位置和车辆姿态信息</td><td>车辆航向与姿态</td><td>车辆当前航向以及正常、侧翻、倒置等姿态</td><td>惯性测量单元IMU</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">车辆安全状态</td><td>由车辆状态感知信息模型提供碰撞、气囊、车辆姿态等状态信息</td><td>碰撞强度</td><td>纵向、横向或垂向冲击等级</td><td>碰撞传感器、车身控制器</td></tr>
+                <tr><td>由车辆状态感知信息模型提供碰撞、气囊、车辆姿态等状态信息</td><td>气囊状态</td><td>未触发、已触发、故障</td><td>安全气囊控制器</td></tr>
+                <tr><td rowspan="1" class="text-center highlight">乘员信息</td><td>由车辆状态感知信息模型或驾驶员提供的座位占用信息</td><td>座位占用数</td><td>已占用座位数量；可由驾驶员补充</td><td>座椅占用传感器、驾驶员输入</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">紧急呼叫信息</td><td>基于上述感知信息，并结合车载信息显示信息模型获取驾驶员人工输入后形成</td><td>事故等级</td><td>一般、较重或严重</td><td>车载紧急呼叫控制单元</td></tr>
+                <tr><td>基于上述感知信息，并结合车载信息显示信息模型获取驾驶员人工输入后形成</td><td>救援需求</td><td>医疗救援、消防救援、道路救援或待确认</td><td>车载紧急呼叫控制单元</td></tr>
+                <tr><td>基于上述感知信息，并结合车载信息显示信息模型获取驾驶员人工输入后形成</td><td>驾驶员确认状态</td><td>已确认、已取消、无响应</td><td>人机交互模块</td></tr>
+                <tr><td>基于上述感知信息，并结合车载信息显示信息模型获取驾驶员人工输入后形成</td><td>发送结果</td><td>待发送、发送成功、发送失败</td><td>车服通信V2S模块</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

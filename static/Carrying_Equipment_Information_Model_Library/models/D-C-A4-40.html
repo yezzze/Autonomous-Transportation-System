@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODEL-039 应急车辆优先信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>应急车辆优先信息模型</h1>
+    <p>模型编号：MODEL-039 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>应急车辆优先信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体类别</th><td>中心云</td></tr>
+            <tr><th>自主化等级</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-039</span></td></tr>
+            <tr><th>信息模型描述</th><td>自主化等级为A4时，路侧设备形成完善的交通感知与信息发布网络，边缘计算设备能够高效处理交通数据，中心云可对整个路网区域全面管控并实现多车跨区域协同决策。应急车辆优先信息模型对沿线多交叉口实施连续信号抢占，配置路径抢占路段、车道与时间窗，对多应急车辆及相邻区域优先请求进行冲突仲裁，根据应急车辆运行状态、路网态势与信号执行结果滚动校核并动态调整方案，输出区域级连续抢占、配时恢复策略。</td></tr>
+            <tr><th>模型服务场景</th><td>城市路网区域协调控制、多应急车辆疏散的自主协同交通管控等</td></tr>
+            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型、关键路径识别信息模型、路网信息融合信息模型、交通信号感知信息模型、车网通信V2N信息模型、路网通信I2N信息模型</td></tr>
+            <tr><th>下游接口模型编号</th><td>关键交叉口信号控制信息模型、干线交叉口信号控制信息模型、协作式优先车辆通行信息模型</td></tr>
+            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>责任单位</th><td></td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">应急车辆运行与任务信息</td><td>由应急车辆车载单元与中心云应急调度系统提供的高精度运行、动态路线、任务与多车协同需求信息</td><td>应急车辆标识与类型</td><td>应急车辆唯一标识及救护、消防、警务、抢险救援等车辆类型</td><td>载运装备（应急车辆车载单元OBU，经车网通信V2N信息模型）</td></tr>
+                <tr><td>由应急车辆车载单元与中心云应急调度系统提供的高精度运行、动态路线、任务与多车协同需求信息</td><td>高精度位置与运动状态</td><td>应急车辆车道级位置、速度、加速度、航向与实时运行模式</td><td>载运装备（应急车辆车载单元OBU，经车网通信V2N信息模型）</td></tr>
+                <tr><td>由应急车辆车载单元与中心云应急调度系统提供的高精度运行、动态路线、任务与多车协同需求信息</td><td>任务等级与剩余时限</td><td>任务紧急程度、目的地、剩余任务时间及任务状态</td><td>中心云（应急调度系统）</td></tr>
+                <tr><td>由应急车辆车载单元与中心云应急调度系统提供的高精度运行、动态路线、任务与多车协同需求信息</td><td>多应急车辆任务关系</td><td>同一区域内多辆应急车辆的任务等级、到达次序与路径交叠关系</td><td>中心云（应急调度系统）</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">关键路径与路网预测态势信息</td><td>由关键路径识别信息模型与路网信息融合信息模型输出的区域关键路径、预测交通状态和跨区域衔接信息</td><td>关键路径路段序列</td><td>应急路径编号、起讫点、道路/路段序列与交叉口序列</td><td>中心云计算单元</td></tr>
+                <tr><td>由关键路径识别信息模型与路网信息融合信息模型输出的区域关键路径、预测交通状态和跨区域衔接信息</td><td>路径通行能力与可靠性</td><td>关键路径剩余通行能力、拥堵程度与稳定通行可靠性</td><td>中心云计算单元</td></tr>
+                <tr><td>由关键路径识别信息模型与路网信息融合信息模型输出的区域关键路径、预测交通状态和跨区域衔接信息</td><td>预测行程时间与延误</td><td>未来时段关键路径行程时间、交叉口延误与预计到达时间</td><td>中心云计算单元</td></tr>
+                <tr><td>由关键路径识别信息模型与路网信息融合信息模型输出的区域关键路径、预测交通状态和跨区域衔接信息</td><td>拥堵与事件演变趋势</td><td>拥堵传播、事故影响、施工管制及受限路段的短时演变趋势</td><td>中心云计算单元</td></tr>
+                <tr><td>由关键路径识别信息模型与路网信息融合信息模型输出的区域关键路径、预测交通状态和跨区域衔接信息</td><td>跨区域路径衔接关系</td><td>应急路径跨越相邻管理区域时的边界路段、衔接交叉口与接续方向</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">区域信号运行与控制约束信息</td><td>由交通信号感知信息模型与交通信号控制中心提供的区域多交叉口运行状态及协调控制约束</td><td>多交叉口相位状态</td><td>应急路径沿线及相邻交叉口的实时相位与进口道灯色</td><td>路侧设备（交通信号感知设备，经路网通信I2N信息模型）</td></tr>
+                <tr><td>由交通信号感知信息模型与交通信号控制中心提供的区域多交叉口运行状态及协调控制约束</td><td>相位剩余时间与配时</td><td>各交叉口相位剩余时间、周期、绿信比和相位结构</td><td>路侧设备（交通信号控制机，经路网通信I2N信息模型）</td></tr>
+                <tr><td>由交通信号感知信息模型与交通信号控制中心提供的区域多交叉口运行状态及协调控制约束</td><td>干线/区域协调关系</td><td>沿线交叉口公共周期、相位差、协调方向与绿波约束</td><td>中心云（交通信号控制中心）</td></tr>
+                <tr><td>由交通信号感知信息模型与交通信号控制中心提供的区域多交叉口运行状态及协调控制约束</td><td>当前控制方案与可调整范围</td><td>现行控制方案、相位调整边界及不可中断的安全约束</td><td>中心云（交通信号控制中心）</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">区域级应急信号优先与路径抢占决策信息</td><td>中心云在路网区域与跨区域层面生成的连续信号抢占、路径资源配置及冲突仲裁结果</td><td>应急任务优先级与冲突仲裁结果</td><td>多应急任务之间及应急通行与其他控制目标之间的优先次序与仲裁结论</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云在路网区域与跨区域层面生成的连续信号抢占、路径资源配置及冲突仲裁结果</td><td>连续信号抢占序列</td><td>沿应急路径按预计到达时间排列的交叉口连续优先/抢占执行序列</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云在路网区域与跨区域层面生成的连续信号抢占、路径资源配置及冲突仲裁结果</td><td>多交叉口协同抢占方案</td><td>绿灯延长、红灯早断、相位提前切换、专向放行及相位差协同方案</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云在路网区域与跨区域层面生成的连续信号抢占、路径资源配置及冲突仲裁结果</td><td>抢占路段/车道/时间窗</td><td>区域内需要优先清空、限制驶入或临时专用的路段、车道及有效时段</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云在路网区域与跨区域层面生成的连续信号抢占、路径资源配置及冲突仲裁结果</td><td>抢占触发与解除条件</td><td>各交叉口和路段抢占的触发条件、解除条件及异常中止条件</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云在路网区域与跨区域层面生成的连续信号抢占、路径资源配置及冲突仲裁结果</td><td>配时恢复与补偿策略</td><td>应急车辆通过后恢复原信号方案及补偿受影响方向绿灯时间的策略</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">社会车辆协同避让信息</td><td>面向网联社会车辆生成的自动让行、车道清空、绕行与解除控制信息</td><td>协同避让对象与影响范围</td><td>需协同避让的车辆、路段、车道及其影响空间范围</td><td>中心云计算单元</td></tr>
+                <tr><td>面向网联社会车辆生成的自动让行、车道清空、绕行与解除控制信息</td><td>车道清空与让行指令</td><td>减速、靠边、提前变道、禁止驶入或驶离抢占车道等协同指令</td><td>中心云计算单元</td></tr>
+                <tr><td>面向网联社会车辆生成的自动让行、车道清空、绕行与解除控制信息</td><td>避让时序与解除条件</td><td>各车辆避让指令的生效时刻、执行次序、持续时间和解除条件</td><td>中心云计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>
