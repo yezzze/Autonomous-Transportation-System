@@ -4,6 +4,8 @@ const API = '';
 let currentApp = null;
 let wsWorkflow = null;
 let cy = null;
+let runtimeRefreshTimer = null;
+let runtimeRefreshBusy = false;
 
 const vizState = {
   workflowId: '',
@@ -113,12 +115,19 @@ function setLogicForm(app) {
 
 function setRuntimeInfo(app) {
   byId('toolbar-status').textContent = app?.status || '—';
-  byId('toolbar-workflow-handle').textContent = app?.workflow_handle || '—';
+  byId('toolbar-workflow-handle').textContent = preferredWorkflowHandle(app) || '—';
 
   const agentsHost = byId('agents-host');
   if (agentsHost) {
     agentsHost.innerHTML = '<div class="empty-state">正在加载智能体视图...</div>';
   }
+}
+
+function preferredWorkflowHandle(app) {
+  if (app?.schedule_active && app?.schedule_workflow_handle) {
+    return app.schedule_workflow_handle;
+  }
+  return app?.workflow_handle || '';
 }
 
 function renderAgentViews(views) {
@@ -557,7 +566,7 @@ function renderPane3(execution) {
     }).join('');
     li.innerHTML = `
       <div class="ti-title">${escapeHtml(item.title || '-')} <span style="font-size:11px;color:#64748b">[${escapeHtml(item.status || '-')}]</span></div>
-      <div class="ti-meta">🤖 ${escapeHtml(item.agent_id || '-')} · 📡 ${escapeHtml((item.protocol || '?').toUpperCase())} · ⏱ ${item.duration_ms ? `${item.duration_ms}ms` : '-'}</div>
+      <div class="ti-meta">🤖 ${escapeHtml(item.agent_id || '-')} · 📡 ${escapeHtml((item.protocol || '?').toUpperCase())} · ⏱ ${item.duration_ms != null ? `${item.duration_ms}ms` : '-'}</div>
       ${tools ? `<div style="margin-top:4px">${tools}</div>` : ''}
     `;
     timeline.appendChild(li);
@@ -598,8 +607,9 @@ function clearVizPanels(message) {
 }
 
 async function resolveVizWorkflowId(app) {
-  if (app?.workflow_handle) {
-    return app.workflow_handle;
+  const preferred = preferredWorkflowHandle(app);
+  if (preferred) {
+    return preferred;
   }
 
   try {
@@ -693,6 +703,32 @@ async function loadAppDetail(appId) {
   await bindVizForCurrentApp();
 }
 
+async function refreshRuntimeBinding(appId) {
+  if (runtimeRefreshBusy) return;
+  runtimeRefreshBusy = true;
+  try {
+    const response = await fetch(`${API}/api/apps/`);
+    if (!response.ok) return;
+    const data = await response.json();
+    const nextApp = ensureArray(data.apps).find(app => app.app_id === appId) || null;
+    if (!nextApp) return;
+
+    const previousWorkflowId = vizState.workflowId;
+    currentApp = nextApp;
+    byId('toolbar-status').textContent = currentApp.status || '—';
+    byId('toolbar-workflow-handle').textContent = preferredWorkflowHandle(currentApp) || '—';
+
+    const nextWorkflowId = await resolveVizWorkflowId(currentApp);
+    if (nextWorkflowId !== previousWorkflowId) {
+      await bindVizForCurrentApp();
+    }
+  } catch (error) {
+    console.warn('refresh runtime binding failed', error);
+  } finally {
+    runtimeRefreshBusy = false;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.tab-btn').forEach(button => {
     button.addEventListener('click', () => setActiveTab(button.dataset.tab));
@@ -702,7 +738,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const appId = parts[parts.length - 1] || getQueryParam('app_id');
   byId('app-id').textContent = appId;
 
-  loadAppDetail(appId).catch(error => {
+  loadAppDetail(appId).then(() => {
+    runtimeRefreshTimer = window.setInterval(() => {
+      refreshRuntimeBinding(appId);
+    }, 3000);
+  }).catch(error => {
     byId('e-name').value = '';
     byId('e-task').value = '';
     byId('e-mode').value = 'adaptive';
@@ -779,5 +819,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   byId('btn-reload')?.addEventListener('click', async () => {
     await loadAppDetail(appId);
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (runtimeRefreshTimer) {
+      window.clearInterval(runtimeRefreshTimer);
+      runtimeRefreshTimer = null;
+    }
+    closeVizSocket();
   });
 });

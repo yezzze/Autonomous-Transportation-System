@@ -1318,6 +1318,9 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
 
                 _res = await _par_executor.execute_task((task_idx, task)[1] if False else task, on_decision=_on_decision)
                 _latency = (time.monotonic() - _t0) * 1000
+                # 可视化执行时间线从 execution_plan.metadata.duration_ms
+                # 读取耗时，因此需要把本次测量随执行结果带回计划更新阶段。
+                _res["duration_ms"] = round(_latency, 3)
                 try:
                     from src.runtime.prometheus_metrics import observe_orchestration_task
                     observe_orchestration_task(
@@ -1339,7 +1342,13 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                     )
                 except Exception:
                     pass
-                return {"status": "error", "error_message": str(_e), "protocol": "error", "result": ""}
+                return {
+                    "status": "error",
+                    "error_message": str(_e),
+                    "protocol": "error",
+                    "result": "",
+                    "duration_ms": round(_latency, 3),
+                }
 
         par_results = await asyncio.gather(*[_exec_one((i, t)) for (i, t) in group_tasks])
 
@@ -1353,6 +1362,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 {
                     "protocol": par_rd.get("protocol", "unknown"),
                     "executor": par_rd.get("tool_used") or par_rd.get("agent_used", "unknown"),
+                    "duration_ms": par_rd.get("duration_ms"),
                 }
             )
             qos = (par_rd.get("metadata") or {}).get("qos")
@@ -1387,6 +1397,9 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
 
     # 3. 使用统一执行层执行任务（串行）
     executor = UnifiedExecutor()
+    # 串行任务的统一计时起点。该计时覆盖本地 Agent、本地子工作流、
+    # 远端子工作流以及可能发生的降级处理，最终统一写入任务 metadata。
+    _execution_started_at = time.monotonic()
 
     # ─── 跨主体路由检查 ───────────────────────────────────────────────
     cross_host_sessions = dict(state.get("cross_host_sessions", {}))
@@ -1652,14 +1665,25 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     
     # 记录使用的协议信息
     if 'result_data' in locals() and result_data:
-        task_metadata = {
+        task_metadata = dict(updated_plan[current_index].get("metadata") or {})
+        task_metadata.update({
             "protocol": result_data.get("protocol", "unknown"),
             "executor": result_data.get("tool_used") or result_data.get("agent_used", "unknown"),
-        }
+            "duration_ms": round((time.monotonic() - _execution_started_at) * 1000, 3),
+        })
         qos = (result_data.get("metadata") or {}).get("qos")
         if qos:
             task_metadata["qos"] = qos
         updated_plan[current_index]["metadata"] = task_metadata
+        # 一次远端调用可能完成一个连续任务段。当前节点会同步把段内任务
+        # 标为 completed，因此也同步记录这次远端调用的执行信息，避免其
+        # 在执行时间线中仍显示为“-”。
+        if segment_task_ids:
+            for task_index, task in enumerate(updated_plan):
+                if task.get("task_id") in segment_task_ids:
+                    segment_metadata = dict(task.get("metadata") or {})
+                    segment_metadata.update(task_metadata)
+                    updated_plan[task_index]["metadata"] = segment_metadata
     
     # 6. 决定下一步
     failed_tasks = state.get("failed_tasks", [])
