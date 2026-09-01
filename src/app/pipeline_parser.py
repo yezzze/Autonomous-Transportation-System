@@ -7,14 +7,17 @@ Pipeline 拓扑解析器
 语法规范：
     search_agent_001                         # 指定已注册 Agent
     search_agent_001:搜索最新竞品资讯     # agent_id:自定义描述
+    search_agent_001{"limit": 3}:搜索资讯     # JSON 对象作为调用参数
     capability(search):搜索最新资讯          # 仅声明能力，延迟绑定 Agent
+    capability(vision){"target_cluster": "edge-b"}:识别图像
     [search_agent_001, capability(compute):计算指标]
       -> nlp_agent_001:综合分析                 # 并行组 -> 下一步
 
 返回结构：
     PipelineTopology = List[PipelineStep]
     PipelineStep = AgentStep | List[AgentStep]   (列表 = 并行组)
-    AgentStep = {"capability": str, "description": str, "agent_id"?: str}
+    AgentStep = {"capability": str, "description": str,
+                 "agent_id"?: str, "parameters"?: dict}
 
 示例：
     ## Pipeline
@@ -24,13 +27,14 @@ Pipeline 拓扑解析器
 """
 
 import logging
+import json
 import re
 from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
 # 单个 Agent 步骤；capability(...) 节点不含 agent_id
-AgentStep = Dict[str, str]
+AgentStep = Dict[str, Any]
 
 # 单个执行步骤：单 Agent 或并行组
 PipelineStep = Union[AgentStep, List[AgentStep]]
@@ -38,31 +42,106 @@ PipelineStep = Union[AgentStep, List[AgentStep]]
 # 完整拓扑
 PipelineTopology = List[PipelineStep]
 
+
+def _split_top_level(text: str, delimiter: str) -> List[str]:
+    """按顶层分隔符切分，忽略 JSON 对象/数组与并行组内的分隔符。"""
+    parts: List[str] = []
+    start = 0
+    brace_depth = 0
+    bracket_depth = 0
+    in_json_string = False
+    escaped = False
+    index = 0
+
+    while index < len(text):
+        char = text[index]
+        nested = brace_depth > 0 or bracket_depth > 0
+        if in_json_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_json_string = False
+            index += 1
+            continue
+
+        if char == '"' and nested:
+            in_json_string = True
+            index += 1
+            continue
+        if char == "{":
+            brace_depth += 1
+        elif char == "}" and brace_depth:
+            brace_depth -= 1
+        elif char == "[":
+            bracket_depth += 1
+        elif char == "]" and bracket_depth:
+            bracket_depth -= 1
+        elif brace_depth == 0 and bracket_depth == 0 and text.startswith(delimiter, index):
+            parts.append(text[start:index])
+            index += len(delimiter)
+            start = index
+            continue
+        index += 1
+
+    parts.append(text[start:])
+    return parts
+
+
+def _parse_token_parts(token: str) -> tuple[str, str, Optional[Dict[str, Any]]]:
+    """拆分 selector、描述和可选 JSON 参数。"""
+    raw = token.strip()
+    parameters: Optional[Dict[str, Any]] = None
+    json_start = raw.find("{")
+    description_start = raw.find(":")
+
+    # 只有描述分隔冒号之前的花括号才表示 parameters；
+    # 描述文本本身可以包含花括号。
+    if json_start >= 0 and (description_start < 0 or json_start < description_start):
+        selector = raw[:json_start].strip()
+        decoder = json.JSONDecoder()
+        try:
+            decoded, consumed = decoder.raw_decode(raw[json_start:])
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Agent token 中的 parameters 不是合法 JSON 对象: {token}") from exc
+        if not isinstance(decoded, dict):
+            raise ValueError(f"Agent token 中的 parameters 必须是 JSON 对象: {token}")
+        remainder = raw[json_start + consumed:].strip()
+        if remainder and not remainder.startswith(":"):
+            raise ValueError(f"Agent token 的 JSON 参数后存在无效内容: {token}")
+        description = remainder[1:].strip() if remainder else ""
+        parameters = decoded
+    else:
+        selector, separator, description = raw.partition(":")
+        selector = selector.strip()
+        description = description.strip() if separator else ""
+
+    return selector, description, parameters
+
+
 def _parse_agent_step(token: str) -> AgentStep:
     """
     解析单个 Agent token：
       "search_agent_001"         → 查询注册表得到 capability
       "search_agent_001:描述"    → 固定 Agent 及自定义描述
+      'search_agent_001{"limit": 3}:描述' → 附带 parameters
       "capability(search):描述"  → 仅声明 capability，不生成 agent_id
     """
-    token = token.strip()
-    if ":" in token:
-        selector, description = token.split(":", 1)
-        selector = selector.strip()
-        description = description.strip()
-    else:
-        selector = token
-        description = ""
+    selector, description, parameters = _parse_token_parts(token)
 
     capability_match = re.fullmatch(r"capability\(([^()]*)\)", selector)
     if capability_match:
         capability = capability_match.group(1).strip()
         if not capability:
             raise ValueError("capability(...) 中的 capability 不能为空")
-        return {
+        step: AgentStep = {
             "capability": capability,
             "description": description,
         }
+        if parameters is not None:
+            step["parameters"] = parameters
+        return step
 
     if selector.startswith("capability("):
         raise ValueError(f"无效的 capability token: {selector}")
@@ -78,19 +157,22 @@ def _parse_agent_step(token: str) -> AgentStep:
     if not agent_info:
         raise ValueError(f"Agent {agent_id} 未在注册表中找到")
 
-    return {
+    step = {
         "capability": agent_info["capability"],
         "description": description,
         "agent_id": agent_id,
     }
+    if parameters is not None:
+        step["parameters"] = parameters
+    return step
 
 
 def _parse_parallel_group(token: str) -> List[AgentStep]:
     """
     解析并行组 token（已去除括号）：
-      "search:描述, compute:描述" → [AgentStep, AgentStep]
+      "search_agent_001:描述, capability(compute):描述" → [AgentStep, AgentStep]
     """
-    parts = token.split(",")
+    parts = _split_top_level(token, ",")
     return [_parse_agent_step(p) for p in parts if p.strip()]
 
 
@@ -100,14 +182,14 @@ def _parse_pipeline_line(line: str) -> Optional[PipelineTopology]:
 
     支持两种写法：
     1. 多行（每行一步，`->` 开头可选）：
-         search:描述
-         -> nlp:描述
+         search_agent_001:描述
+         -> capability(nlp):描述
     2. 单行：
-         search:描述 -> nlp:描述
+         search_agent_001:描述 -> capability(nlp):描述
     """
     steps: PipelineTopology = []
     # 统一将 -> 作为分隔符，支持行首的额外 ->
-    raw_steps = re.split(r"\s*->\s*", line.strip().lstrip("->").strip())
+    raw_steps = _split_top_level(line.strip().lstrip("->").strip(), "->")
 
     for raw in raw_steps:
         raw = raw.strip()

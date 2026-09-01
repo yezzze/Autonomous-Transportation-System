@@ -710,7 +710,8 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                     agent_info = registry_client.get_agent_by_id(agent_id)
                     desc = sub_step.get("description") or sub_step.get("capability", "")
                     task_desc = f"{desc}\n\n用户请求：{user_request}" if desc else f"用户请求：{user_request}"
-                    execution_plan.append({
+                    task_parameters = dict(sub_step.get("parameters") or {})
+                    task_assignment = {
                         "task_id": sub_step.get("task_id") or f"pipeline_{step_idx}_{len(execution_plan):03d}",
                         "task_title": f"[并行] {sub_step.get('capability', '')}",
                         "task_description": task_desc,
@@ -722,15 +723,19 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                         "retry_count": 0,
                         "parallel_group": group_id,
                         "sub_workflow_id": "",
-                        "parameters": dict(sub_step.get("parameters") or {}),
-                    })
+                        "parameters": task_parameters,
+                    }
+                    if "parameters" in sub_step:
+                        task_assignment["_pipeline_parameters"] = dict(task_parameters)
+                    execution_plan.append(task_assignment)
             else:
                 # 串行步骤
                 agent_id = step.get("agent_id", "")
                 agent_info = registry_client.get_agent_by_id(agent_id)
                 desc = step.get("description") or step.get("capability", "")
                 task_desc = f"{desc}\n\n用户请求：{user_request}" if desc else f"用户请求：{user_request}"
-                execution_plan.append({
+                task_parameters = dict(step.get("parameters") or {})
+                task_assignment = {
                     "task_id": step.get("task_id") or f"pipeline_{step_idx}_{len(execution_plan):03d}",
                     "task_title": step.get("capability", ""),
                     "task_description": task_desc,
@@ -742,8 +747,11 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
                     "retry_count": 0,
                     "parallel_group": "",
                     "sub_workflow_id": "",
-                    "parameters": dict(step.get("parameters") or {}),
-                })
+                    "parameters": task_parameters,
+                }
+                if "parameters" in step:
+                    task_assignment["_pipeline_parameters"] = dict(task_parameters)
+                execution_plan.append(task_assignment)
 
         plan_summary = f"⚡ Pipeline 模式：{len(execution_plan)} 步固定拓扑（无 LLM Planner）"
         # ── §2.2 跨主体识别：根据 Agent IP 预填 cross_host_sessions ────────

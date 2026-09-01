@@ -72,6 +72,7 @@ def bind_linear_workflow(
 
     route_keys = {"source_cluster", "target_cluster", "target_agent_id", "target_instance_id"}
     for index, task in enumerate(normalized_tasks):
+        pipeline_parameters = dict(task.pop("_pipeline_parameters", {}) or {})
         parameters = {
             key: value
             for key, value in dict(task.get("parameters") or {}).items()
@@ -86,6 +87,9 @@ def bind_linear_workflow(
                 "target_agent_id": target["agent_id"],
                 "target_instance_id": target["instance_id"],
             })
+        # Pipeline 是由应用作者明确定义的可信固定拓扑；其参数最后合并，
+        # 因而可以覆盖业务参数及运行层生成的系统路由字段。
+        parameters.update(pipeline_parameters)
         task["parameters"] = parameters
 
     return normalized_tasks, plan_signature(normalized_tasks)

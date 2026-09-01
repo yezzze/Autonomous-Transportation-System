@@ -1,7 +1,7 @@
 """
 分布式 Agent 调度器的 State 定义
 """
-from typing import List, Dict, Any, Literal
+from typing import List, Dict, Any, Literal, NotRequired
 from typing_extensions import TypedDict
 from langgraph.graph import MessagesState
 
@@ -84,6 +84,7 @@ class TaskAssignment(TypedDict):
     parallel_group: str  # 并行组标识（同值=并行，空字符串=串行）
     sub_workflow_id: str  # 非空时表示此任务路由到子工作流（而非单个 agent）
     parameters: Dict[str, Any]  # A2A 业务参数及系统生成的实例路由字段
+    _pipeline_parameters: NotRequired[Dict[str, Any]]  # 绑定时使用并在执行前移除的高优先级参数
 
 
 class DistributedState(MessagesState):
