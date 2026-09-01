@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>模型详情</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/styles.css?v=detail-text-air-20260813">
+  <script defer src="data/default-models.js"></script>
+  <script defer src="data/model-repo-links.js"></script>
+  <script defer src="assets/model.js?v=repo-auto-20260831"></script>
+</head>
+<body class="detail-page">
+  <header class="detail-hero">
+    <div class="detail-hero-inner">
+      <a class="back-link" href="index.html">返回主页</a>
+      <p class="detail-kicker">Model Detail</p>
+      <h1 id="detailTitle">模型详情</h1>
+      <p id="detailSubtitle" class="detail-subtitle"></p>
+    </div>
+  </header>
+
+  <main class="detail-layout">
+    <section id="notFound" class="detail-panel not-found" hidden>
+      <h2>未找到模型</h2>
+      <p>当前模型编号不在已加载的数据中。</p>
+    </section>
+
+    <section id="detailContent" class="detail-workspace" hidden>
+      <article class="detail-panel info-panel">
+        <h2>基础信息</h2>
+        <dl class="meta-list">
+          <div>
+            <dt>模型编号</dt>
+            <dd id="modelId"></dd>
+          </div>
+          <div>
+            <dt>模型名称</dt>
+            <dd id="currentName"></dd>
+          </div>
+          <div>
+            <dt>代码链接</dt>
+            <dd><a id="codeLink" class="code-link" href="#">代码链接待补充</a></dd>
+          </div>
+        </dl>
+      </article>
+
+      <article class="detail-panel scene-panel">
+        <h2>支持场景</h2>
+        <div id="sceneTags" class="tag-list"></div>
+      </article>
+
+      <article class="detail-panel description-panel">
+        <h2>模型功能描述</h2>
+        <p id="description" class="description"></p>
+      </article>
+
+      <article class="detail-panel path-panel">
+        <h2>组织路径</h2>
+        <div id="pathTags" class="path-list"></div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

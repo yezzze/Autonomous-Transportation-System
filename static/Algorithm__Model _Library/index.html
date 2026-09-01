@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>自主式交通系统协同计算基础算法模型库</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script defer src="assets/vendor/xlsx.full.min.js"></script>
+  <script defer src="data/default-models.js"></script>
+  <script defer src="data/model-repo-links.js"></script>
+  <script defer src="assets/app.js?v=repo-auto-20260831"></script>
+</head>
+<body class="app-page">
+  <header class="topbar">
+    <div class="brand-block">
+      <p class="eyebrow">Model Library</p>
+      <h1>自主式交通系统协同计算基础算法模型库</h1>
+    </div>
+  </header>
+
+  <section class="toolbar" aria-label="模型库工具栏">
+    <label class="search-field">
+      <span>搜索</span>
+      <input id="searchInput" type="search" autocomplete="off" placeholder="模型编号、名称或描述">
+    </label>
+
+    <div class="button-row">
+      <input id="excelInput" class="file-input" type="file" accept=".xlsx,.xls">
+      <button id="importBtn" class="tool-btn primary" type="button">导入 Excel</button>
+      <button id="expandBtn" class="tool-btn" type="button">全部展开</button>
+      <button id="collapseBtn" class="tool-btn" type="button">全部收起</button>
+      <button id="fitBtn" class="tool-btn" type="button">居中</button>
+      <button id="resetBtn" class="tool-btn danger" type="button">恢复默认</button>
+    </div>
+  </section>
+
+  <main class="tree-shell">
+    <svg id="treeCanvas" class="tree-canvas" role="img" aria-label="模型组织树">
+      <defs>
+        <filter id="nodeGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#31b7a7" flood-opacity="0.35"></feDropShadow>
+        </filter>
+      </defs>
+      <g id="treeViewport"></g>
+    </svg>
+    <div id="emptyState" class="empty-state" hidden>无匹配模型</div>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

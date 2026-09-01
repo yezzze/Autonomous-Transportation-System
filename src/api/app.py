@@ -49,6 +49,12 @@ app = FastAPI(
     version="0.1.0",
 )
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+app.mount(
+    "/static/Algorithm__Model _Library",
+    StaticFiles(directory=str(_PROJECT_ROOT / "static" / "Algorithm__Model _Library"), html=True),
+    name="algorithm-model-library",
+)
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 # Prometheus 通过 ServiceMonitor 定期抓取此端点；实际抓取路径为 /metrics/。
 app.mount("/metrics", make_asgi_app())
