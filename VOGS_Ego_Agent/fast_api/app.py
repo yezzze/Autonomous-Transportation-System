@@ -81,6 +81,7 @@ from utils.prometheus_metrics import (
     observe_call,
     reset_current_timing,
     set_current_timing,
+    observe_performance_metrics,
 )
 
 
@@ -414,9 +415,13 @@ async def lifespan(_: FastAPI):
         # create() 会建立连接并等待默认 JetStream Stream 就绪。
         _nats_comm = await NatsComm.create(servers=[NATS_SERVER_URL])
 
-        # 加载模型
-        model_runtime.load_model("Latency_Test/ours/collab")
-        logger.info("Model loaded successfully during startup")
+        # 加载模型：从环境变量 LOAD_MODEL 读取模式，默认 ours；仅允许 ours / baseline
+        LOAD_MODEL = os.getenv("LOAD_MODEL", "ours").strip()
+        if LOAD_MODEL in ["ours", "baseline"]:
+            model_runtime.load_model(f"Latency_Test/{LOAD_MODEL}/collab")
+        else:
+            raise ValueError("LOAD_MODEL 仅能为 ours 或 baseline")
+        logger.info("Model loaded successfully during startup (LOAD_MODEL=%s)", LOAD_MODEL)
     except Exception as exc:
         logger.exception("Failed to initialize application resources")
         if _nats_comm is not None:
@@ -538,6 +543,8 @@ async def agent_function(
     stage_started = time.monotonic()
     try:
         result = await model_runtime.run_benchmark(_receive_wrapper)
+        ## !!! New Todo !!!
+            # 示例: observe_performance_metrics(...)
         # #region debug-point D:agent-function-result
         _dbg(
             "D",
@@ -656,6 +663,23 @@ class AgentTemplateExecutor(AgentExecutor):
                 parameters=parameters,
                 metadata=metadata,
             )
+            
+            ## !!! New Todo !!!
+            # 将 Ego 推理输出的 6 个核心指标上报到 Prometheus performance metrics。
+            # observe_performance_metrics 要求 Mapping[str, float]，因此 status 需做数值化：
+            #   success -> 1.0，其他状态 -> 0.0
+            if isinstance(result, dict):
+                status_raw = result.get("status", "error")
+                status_val = 1.0 if status_raw == "success" else 0.0
+                observe_performance_metrics({
+                    "status": status_val,
+                    "mean_latency_ms": float(result.get("mean_latency_ms", 0.0)),
+                    "mIoU": float(result.get("mIoU", 0.0)),
+                    "vehicle_ave_iou": float(result.get("vehicle_ave_iou", 0.0)),
+                    "road_ave_iou": float(result.get("road_ave_iou", 0.0)),
+                    "other_ave_iou": float(result.get("other_ave_iou", 0.0)),
+                })
+            
             # #region debug-point A:after-agent-function
             _dbg(
                 "A",
@@ -695,7 +719,11 @@ class AgentTemplateExecutor(AgentExecutor):
             logger.info(
                 "[Agent QoS] %s",
                 json.dumps(
-                    {**timing.to_dict(), "status": status},
+                    {
+                        **timing.to_dict(),
+                        "status": status,
+                        "performance": dict(timing.performance), # 新增的
+                    },
                     ensure_ascii=False,
                     sort_keys=True,
                 ),
@@ -705,7 +733,10 @@ class AgentTemplateExecutor(AgentExecutor):
             if acquired_slot:
                 _execution_slots.release()
 
-        qos_metadata = {"qos": timing.to_dict()}
+        qos_metadata = {
+            "qos": timing.to_dict(),
+            "performance": dict(timing.performance), #新增的
+        }
         if error_message is not None:
             await updater.update_status(
                 state=TaskState.TASK_STATE_FAILED,
@@ -791,7 +822,7 @@ def _build_agent_card() -> AgentCard:
     return AgentCard(
         name="Agent Template",
         description="FastAPI + NATS Agent Template exposed through a2a-python.",
-        version="0.1.3",
+        version="0.2.1",
         default_input_modes=["application/json", "text/plain"],
         default_output_modes=["text/plain"],
         capabilities=AgentCapabilities(streaming=True),

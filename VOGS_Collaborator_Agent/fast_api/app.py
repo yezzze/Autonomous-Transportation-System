@@ -81,6 +81,7 @@ from utils.prometheus_metrics import (
     observe_call,
     reset_current_timing,
     set_current_timing,
+    observe_performance_metrics,
 )
 
 
@@ -436,9 +437,13 @@ async def lifespan(_: FastAPI):
         # create() 会建立连接并等待默认 JetStream Stream 就绪。
         _nats_comm = await NatsComm.create(servers=[NATS_SERVER_URL])
 
-        # 加载模型
-        model_runtime.load_model("Latency_Test/ours/collab")
-        logger.info("Model loaded successfully during startup")
+        # 加载模型：从环境变量 LOAD_MODEL 读取模式，默认 ours；仅允许 ours / baseline
+        LOAD_MODEL = os.getenv("LOAD_MODEL", "ours").strip()
+        if LOAD_MODEL in ["ours", "baseline"]:
+            model_runtime.load_model(f"Latency_Test/{LOAD_MODEL}/collab")
+        else:
+            raise ValueError("LOAD_MODEL 仅能为 ours 或 baseline")
+        logger.info("Model loaded successfully during startup (LOAD_MODEL=%s)", LOAD_MODEL)
     except Exception as exc:
         logger.exception("Failed to initialize application resources")
         if _nats_comm is not None:
@@ -794,7 +799,7 @@ def _build_agent_card() -> AgentCard:
     return AgentCard(
         name="Agent Template",
         description="FastAPI + NATS Agent Template exposed through a2a-python.",
-        version="0.1.3",
+        version="0.2.1",
         default_input_modes=["application/json", "text/plain"],
         default_output_modes=["text/plain"],
         capabilities=AgentCapabilities(streaming=True),

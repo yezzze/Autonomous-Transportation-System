@@ -486,6 +486,7 @@ async def agent_function(
         await asyncio.sleep(simulated_processing_seconds)
 
         # TODO：得到评估结果后，在此上报自定义性能指标。
+        # !!! New Todo !!!
         # 示例: observe_performance_metrics({"miou": miou, "map_50": map_50})
         observe_performance_metrics({"performance_random_num": random.random()})
     finally:
@@ -618,7 +619,7 @@ class AgentTemplateExecutor(AgentExecutor):
                     {
                         **timing.to_dict(),
                         "status": status,
-                        "performance": dict(timing.performance),
+                        "performance": dict(timing.performance),  # !!! New Todo !!!
                     },
                     ensure_ascii=False,
                     sort_keys=True,
@@ -631,7 +632,7 @@ class AgentTemplateExecutor(AgentExecutor):
 
         qos_metadata = {
             "qos": timing.to_dict(),
-            "performance": dict(timing.performance),
+            "performance": dict(timing.performance), # !!! New Todo !!!
         }
         if error_message is not None:
             await updater.update_status(
