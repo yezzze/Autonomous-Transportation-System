@@ -769,7 +769,8 @@ class NatsComm:
         async with self._routed_stream_lock:
             js = self._routed_js.get(target_cluster)
             if js is None:
-                js = self._nc.jetstream(domain=target_cluster)
+                # 本地测试：忽略 domain，直接使用默认域（与 _jetstream() 保持一致）
+                js = self._nc.jetstream()
                 self._routed_js[target_cluster] = js
             return js, self.workflow_stream_name(instance_id)
 
@@ -779,7 +780,8 @@ class NatsComm:
         async with self._routed_stream_lock:
             js = self._routed_js.get(cluster)
             if js is None:
-                js = self._nc.jetstream(domain=cluster)
+                # 本地测试：忽略 domain，直接使用默认域（与 _jetstream() 保持一致）
+                js = self._nc.jetstream()
                 self._routed_js[cluster] = js
             return js
 
@@ -1285,6 +1287,10 @@ class NatsComm:
         deliver_policy: Optional[DeliverPolicy] = None,
     ):
         context = js or self._js
+        # 本地测试防御性修复：显式传入 stream= 以跳过 find_stream_name_by_subject 调用
+        stream_kwarg = {}
+        if namespace != "legacy":
+            stream_kwarg["stream"] = namespace
         if durable is None:
             config = ConsumerConfig(
                 inactive_threshold=self.ephemeral_consumer_inactive_sec,
@@ -1295,6 +1301,7 @@ class NatsComm:
                     subject,
                     durable=None,
                     config=config,
+                    **stream_kwarg,
                 )
             except BadRequestError as exc:
                 if (
@@ -1319,6 +1326,7 @@ class NatsComm:
                     kwargs["config"] = ConsumerConfig(
                         deliver_policy=deliver_policy,
                     )
+                kwargs.update(stream_kwarg)
                 subscription = await context.pull_subscribe(subject, **kwargs)
                 self._pull_subscriptions[key] = subscription
                 logger.info(
@@ -1698,7 +1706,8 @@ class NatsComm:
         async with self._routed_stream_lock:
             js = self._routed_js.get(cluster)
             if js is None:
-                js = self._nc.jetstream(domain=cluster)
+                # 本地测试：忽略 domain，直接使用默认域（与 _jetstream() 保持一致）
+                js = self._nc.jetstream()
                 self._routed_js[cluster] = js
 
         deadline = time.monotonic() + timeout
@@ -1748,7 +1757,8 @@ class NatsComm:
         async with self._routed_stream_lock:
             js = self._routed_js.get(cluster)
             if js is None:
-                js = self._nc.jetstream(domain=cluster)
+                # 本地测试：忽略 domain，直接使用默认域（与 _jetstream() 保持一致）
+                js = self._nc.jetstream()
                 self._routed_js[cluster] = js
             stream = self.workflow_stream_name(instance)
             try:
@@ -1771,7 +1781,8 @@ class NatsComm:
         async with self._routed_stream_lock:
             js = self._routed_js.get(cluster)
             if js is None:
-                js = self._nc.jetstream(domain=cluster)
+                # 本地测试：忽略 domain，直接使用默认域（与 _jetstream() 保持一致）
+                js = self._nc.jetstream()
                 self._routed_js[cluster] = js
         stream = self.workflow_stream_name(instance)
         try:
@@ -1827,7 +1838,8 @@ class NatsComm:
         async with self._routed_stream_lock:
             js = self._routed_js.get(cluster)
             if js is None:
-                js = self._nc.jetstream(domain=cluster)
+                # 本地测试：忽略 domain，直接使用默认域（与 _jetstream() 保持一致）
+                js = self._nc.jetstream()
                 self._routed_js[cluster] = js
         prefix = f"{self.workflow_stream_prefix}_"
         results = []

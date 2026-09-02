@@ -1,24 +1,40 @@
 Traceback (most recent call last):
+  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/nats/js/manager.py", line 464, in _api_request
+    msg = await self._nc.request(req_subject, req, timeout=timeout)
+  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/nats/aio/client.py", line 1070, in request
+    raise errors.NoRespondersError
+nats.errors.NoRespondersError: nats: no responders available for request
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/app.py", line 260, in _receive_data_from_nats
+    messages = await _get_nats_comm().receive(
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/runtime_api/nats_comm.py", line 1119, in receive
+    raw_messages = await self._fetch_raw_messages(
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/runtime_api/nats_comm.py", line 1253, in _fetch_raw_messages
+    sub = await self._get_pull_subscription(
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/runtime_api/nats_comm.py", line 1322, in _get_pull_subscription
+    subscription = await context.pull_subscribe(subject, **kwargs)
+  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/nats/js/client.py", line 581, in pull_subscribe
+    stream = await self._jsm.find_stream_name_by_subject(subject)
+  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/nats/js/manager.py", line 80, in find_stream_name_by_subject
+    info = await self._api_request(req_sub, req_data.encode(), timeout=self._timeout)
+  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/nats/js/manager.py", line 467, in _api_request
+    raise ServiceUnavailableError
+nats.js.errors.ServiceUnavailableError: nats: ServiceUnavailableError: code=None err_code=None description='None'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
   File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/app.py", line 654, in execute
     result = await agent_function(
   File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/app.py", line 540, in agent_function
     result = await model_runtime.run_benchmark(_receive_wrapper)
-  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/model_runtime.py", line 146, in run_benchmark
-    _ = self.model(_prime_batch["ego"])
-  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
-    return forward_call(*input, **kwargs)
-  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_collab_sce.py", line 206, in forward
-    outs = eval(f"self.encoder_{modality_name}")(**results)
-  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
-    return forward_call(*input, **kwargs)
-  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_modules/encoder_AHR.py", line 135, in forward
-    return self._forward_single(
-  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_modules/encoder_AHR.py", line 259, in _forward_single
-    instance_feature = self.layers[i](
-  File "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
-    return forward_call(*input, **kwargs)
-  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_modules/encoder_AHR.py", line 823, in forward
-    temp_features_next = DAF.apply(
-  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/opencood/models/gaussian_modules/ops/deformable_aggregation.py", line 23, in forward
-    output = deformable_aggregation_ext.deformable_aggregation_forward(
-RuntimeError: t == DeviceType::CUDA INTERNAL ASSERT FAILED at "/home/sxy/miniconda3/envs/vogs_dist/lib/python3.10/site-packages/torch/include/c10/cuda/impl/CUDAGuardImpl.h":24, please report a bug to PyTorch. 
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/model_runtime.py", line 211, in run_benchmark
+    collab_payload = await receive_func()
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/app.py", line 516, in _receive_wrapper
+    data = await _receive_data_from_nats(
+  File "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/fast_api/app.py", line 278, in _receive_data_from_nats
+    raise HTTPException(status_code=500, detail=f"Failed to receive message: {exc}") from exc
+fastapi.exceptions.HTTPException: 500: Failed to receive message: nats: ServiceUnavailableError: code=None err_code=None description='None'

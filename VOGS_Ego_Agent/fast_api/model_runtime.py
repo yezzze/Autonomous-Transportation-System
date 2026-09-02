@@ -60,6 +60,26 @@ class EgoRuntime:
         if self.model is not None:
             return
 
+        # Always refresh device based on CURRENT CUDA availability.
+        # __init__ sets self.device at import time (module-level instantiation);
+        # in uvicorn subprocesses CUDA may not yet be initialized / visible at
+        # import time, but it IS available by the time lifespan triggers
+        # load_model. Without this refresh, self.device could remain "cpu"
+        # while model.cuda() places params on GPU, so to_device() moves batch
+        # data to CPU, and custom CUDA ops crash with:
+        #   RuntimeError: t == DeviceType::CUDA INTERNAL ASSERT FAILED
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
+
+        # Apply NUM_FRAMES env override early so the initial dataloader built
+        # below already uses the requested frame count, instead of the
+        # 100-frame default. This mirrors the handling in
+        # update_dataloader_frames but avoids an unnecessary full-sized build.
+        nf_env = os.getenv("NUM_FRAMES")
+        if nf_env is not None:
+            self.opt.num_frames = int(nf_env)
+
         self._ensure_cuda_context()
         
         model_dir = os.path.join(current_dir, model_dir)
@@ -104,6 +124,28 @@ class EgoRuntime:
             drop_last=False,
         )
 
+    def _save_result_json(self, output_dict):
+        """
+        将 output_dict 保存为 JSON 文件，输出目录由 config.yaml 的 "output_dir" 字段指定。
+        - 目录不存在时自动递归创建
+        - 文件名格式：ego_result_YYYYmmdd_HHMMSS.json（本地时间）
+        - 若配置中未设置 output_dir 则跳过（保持兼容）
+        """
+        if self.hypes is None:
+            return
+        output_dir = self.hypes.get("output_dir")
+        if not output_dir:
+            return
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            ts = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+            output_path = os.path.join(output_dir, f"ego_result_{ts}.json")
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(output_dict, f, ensure_ascii=False, indent=2)
+            print(f"[EgoRuntime] Result JSON saved to: {output_path}")
+        except Exception as exc:
+            print(f"[EgoRuntime] Failed to save result JSON: {exc}")
+
     def update_dataloader_frames(self):
         total_dataset_len = len(self.full_dataset)
         env_num_frames = os.getenv("NUM_FRAMES")
@@ -130,6 +172,10 @@ class EgoRuntime:
         )
 
     async def run_benchmark(self, receive_func):
+        # Re-check CUDA availability right before execution.
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
         self._ensure_cuda_context()
         self.update_dataloader_frames()
         print("Priming DataLoader and CUDA (1 batch)...")
@@ -260,10 +306,17 @@ class EgoRuntime:
         #     output_dict["Actual Transmitted"] = float(f"{avg_actual:.1f}")
         #     output_dict["Ratio"] = f"{ratio:.2f}%"
         # =====================================================================
+
+        # 将最终指标保存为 JSON 文件（真实分布式场景下脱离测试脚本也能拿到结果）
+        self._save_result_json(output_dict)
             
         return output_dict
 
     def run_benchmark_sync(self, receive_func):
+        # Mirror the same device refresh used in load_model / run_benchmark.
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
         self._ensure_cuda_context()
         self.update_dataloader_frames()
         print("Priming DataLoader and CUDA (1 batch)...")
@@ -394,6 +447,9 @@ class EgoRuntime:
         #     output_dict["Actual Transmitted"] = float(f"{avg_actual:.1f}")
         #     output_dict["Ratio"] = f"{ratio:.2f}%"
         # =====================================================================
+
+        # 将最终指标保存为 JSON 文件（真实分布式场景下脱离测试脚本也能拿到结果）
+        self._save_result_json(output_dict)
             
         return output_dict
 

@@ -67,6 +67,27 @@ class CollaboratorRuntime:
         if self.model is not None:
             return
 
+        # Always refresh device based on CURRENT CUDA availability.
+        # __init__ sets self.device at import time (module-level instantiation);
+        # in uvicorn subprocesses CUDA may not yet be initialized / visible at
+        # import time, but it IS available by the time lifespan triggers
+        # load_model. Without this refresh, self.device could remain "cpu"
+        # while model.cuda() places params on GPU, so to_device() moves batch
+        # data to CPU, and custom CUDA ops crash with:
+        #   RuntimeError: t == DeviceType::CUDA INTERNAL ASSERT FAILED
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
+
+        # Apply NUM_FRAMES env override early so that the initial dataloader
+        # (built below) already uses the requested frame count, instead of
+        # the 100-frame default (which is then rebuilt inside
+        # update_dataloader_frames anyway). This shortens startup time and
+        # makes the env var fully honoured at every entry point.
+        nf_env = os.getenv("NUM_FRAMES")
+        if nf_env is not None:
+            self.opt.num_frames = int(nf_env)
+
         self._ensure_cuda_context()
         
         # 绝对路径
@@ -137,6 +158,13 @@ class CollaboratorRuntime:
         )
 
     async def run_benchmark(self, send_func):
+        # Re-check CUDA availability right before execution (same rationale as
+        # in load_model): env / runtime state may have shifted between any
+        # two calls. update_dataloader_frames below relies on opt.num_frames,
+        # which NUM_FRAMES env handling inside that function already applies.
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
         self._ensure_cuda_context()
         self.update_dataloader_frames()
         print("Priming DataLoader and CUDA (1 batch)...")
@@ -184,10 +212,21 @@ class CollaboratorRuntime:
                     t_start = time.perf_counter()
                 
                 # inference logic for collaborator
-                # It only runs feature extraction, filtering, and returns the payload
-                payload = self.model(batch_data["ego"])
-                payload['frame_id'] = i
-                
+                infer_result = self.model(batch_data["ego"])
+
+                # Mirror run_benchmark_sync: convert CUDA Tensors → numpy BEFORE
+                # handing off to the NATS wrapper.  Otherwise the NATS layer's
+                # _encode_control_payload calls json.dumps(payload) on raw
+                # Tensors and raises: "Object of type Tensor is not JSON
+                # serializable".
+                payload = {
+                    "frame_id": i,
+                    "collaborator_gaussian": tensor_to_numpy(infer_result['collaborator_gaussian']),
+                    "collaborator_GsSCE": tensor_to_numpy(infer_result.get('collaborator_GsSCE', None)),
+                    "record_len": tensor_to_numpy(batch_data['ego']['record_len']),
+                    "comm_stats": infer_result.get("comm_stats"),
+                }
+
                 # Send to ego agent asynchronously
                 await send_func(payload)
                 
@@ -210,6 +249,10 @@ class CollaboratorRuntime:
         }
 
     def run_benchmark_sync(self, send_func):
+        # Mirror the same device refresh used in load_model / run_benchmark.
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
         self._ensure_cuda_context()
         self.update_dataloader_frames()
         print("Priming DataLoader and CUDA (1 batch)...")

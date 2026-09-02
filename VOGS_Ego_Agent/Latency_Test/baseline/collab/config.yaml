@@ -1,11 +1,14 @@
 name: m4_collab_12800_0.4
-#root_dir: "/dataset/OPV2V/train"
-#validate_dir: "/dataset/OPV2V/validate"
-#test_dir: "/dataset/OPV2V/validate"
-
 root_dir: "/home/sxy/Autonomous-Transportation-System/test_options"
 validate_dir: "/home/sxy/OPV2V/validate"
+# 上两行不用管
+
+
+# 指定测试集目录（即输入目录）
 test_dir: "/home/sxy/OPV2V/validate"
+
+# 指定输出目录
+output_dir: "/home/sxy/Autonomous-Transportation-System/VOGS_Ego_Agent/output_results/baseline"
 
 yaml_parsers:
   m4:
