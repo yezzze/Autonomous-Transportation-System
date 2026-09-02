@@ -183,6 +183,66 @@ Prometheus 暴露以下低基数指标，标签均为 `agent_id`、`instance_id`
 | `agent_nats_output_publish_seconds` | 发布 NATS 输出数据的时间 |
 | `agent_server_total_seconds` | Agent 服务端总处理时间 |
 
+## 自定义性能指标
+
+业务代码得到模型评估结果后，可通过统一接口上报任意数值型性能指标。例如目标
+检测或分割算法在 `agent_function()` 的开发者替换区计算出 mIoU 后：
+
+```python
+from utils.prometheus_metrics import observe_performance_metric
+
+miou = evaluator.compute_miou(prediction, ground_truth)
+observe_performance_metric("miou", miou)
+```
+
+一次产生多个指标时可批量上报：
+
+```python
+from utils.prometheus_metrics import observe_performance_metrics
+
+observe_performance_metrics({
+    "miou": miou,
+    "map_50": map_50,
+    "pixel_accuracy": pixel_accuracy,
+})
+```
+
+`/metrics/` 将暴露：
+
+| 指标 | 含义 |
+| --- | --- |
+| `agent_performance_count` | 指标累计观测次数 |
+| `agent_performance_sum` | 指标累计值，可用 `sum / count` 计算区间平均值 |
+| `agent_performance_latest` | 当前实例最近一次观测值 |
+
+这些指标的固定标签为 `agent_id`、`instance_id` 和 `metric_name`。例如查询所有
+实例最近 5 分钟的 mIoU 平均值：
+
+```promql
+sum(rate(agent_performance_sum{metric_name="miou"}[5m]))
+/
+sum(rate(agent_performance_count{metric_name="miou"}[5m]))
+```
+
+单次调用上报的值不会写入 artifact 的结果 JSON，而是像 QoS 一样通过 artifact
+和最终 status update 的 metadata 返回：
+
+```json
+{
+  "qos": {
+    "schema_version": "1"
+  },
+  "performance": {
+    "miou": 0.73,
+    "map_50": 0.81
+  }
+}
+```
+
+指标同时写入结构化日志。指标名须匹配
+`[a-zA-Z_][a-zA-Z0-9_]{0,63}`，并应使用稳定名称；不要把 task ID、图片名、
+时间戳等高基数值作为指标名。
+
 `task_id` 只写入 A2A metadata 与结构化日志，不作为 Prometheus 标签，避免高基数时间序列。安装 kube-prometheus-stack 后，清单中附带的 `ServiceMonitor` 会通过 Service 的 `http` 端口抓取 `/metrics/`。
 
 ## 如何定制你的 Agent
@@ -235,14 +295,14 @@ NATS -> dict -> decode_structured_numpy() -> ndarray
 ### Docker
 
 ```bash
-docker build -t agent-template:0.1.3 .
-docker run -p 9001:9001 agent-template:0.1.3
+docker build -t agent-template:0.2.1 .
+docker run -p 9001:9001 agent-template:0.2.1
 ```
 
 ### Kubernetes (Minikube)
 
 ```bash
-minikube image load agent-template:0.1.3
+minikube image load agent-template:0.2.1
 kubectl apply -f k8s/agent-template.yaml
 ```
 

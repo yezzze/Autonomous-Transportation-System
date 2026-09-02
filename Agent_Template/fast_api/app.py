@@ -77,6 +77,7 @@ from utils.prometheus_metrics import (
     AgentCallTiming,
     get_current_timing,
     observe_call,
+    observe_performance_metrics,
     reset_current_timing,
     set_current_timing,
 )
@@ -483,6 +484,10 @@ async def agent_function(
         simulated_processing_seconds = random.uniform(0.1, 8.0)
         logger.info("Simulated processing time: %.3fs", simulated_processing_seconds)
         await asyncio.sleep(simulated_processing_seconds)
+
+        # TODO：得到评估结果后，在此上报自定义性能指标。
+        # 示例: observe_performance_metrics({"miou": miou, "map_50": map_50})
+        observe_performance_metrics({"performance_random_num": random.random()})
     finally:
         if timing:
             timing.execution_ms = (time.monotonic() - stage_started) * 1000
@@ -610,7 +615,11 @@ class AgentTemplateExecutor(AgentExecutor):
             logger.info(
                 "[Agent QoS] %s",
                 json.dumps(
-                    {**timing.to_dict(), "status": status},
+                    {
+                        **timing.to_dict(),
+                        "status": status,
+                        "performance": dict(timing.performance),
+                    },
                     ensure_ascii=False,
                     sort_keys=True,
                 ),
@@ -620,7 +629,10 @@ class AgentTemplateExecutor(AgentExecutor):
             if acquired_slot:
                 _execution_slots.release()
 
-        qos_metadata = {"qos": timing.to_dict()}
+        qos_metadata = {
+            "qos": timing.to_dict(),
+            "performance": dict(timing.performance),
+        }
         if error_message is not None:
             await updater.update_status(
                 state=TaskState.TASK_STATE_FAILED,
@@ -706,7 +718,7 @@ def _build_agent_card() -> AgentCard:
     return AgentCard(
         name="Agent Template",
         description="FastAPI + NATS Agent Template exposed through a2a-python.",
-        version="0.1.3",
+        version="0.2.1",
         default_input_modes=["application/json", "text/plain"],
         default_output_modes=["text/plain"],
         capabilities=AgentCapabilities(streaming=True),
