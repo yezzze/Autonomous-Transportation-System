@@ -179,10 +179,21 @@ async function loadAgentViews(appId) {
     capability: 'cooperativefeaturefusiondetectionviz',
     agent_id: 'cooperativefeaturefusiondetectionviz_agent_001',
     image_id: 'cooperativefeaturefusiondetectionviz',
-    ip: '10.112.221.121',
-    port: 9002,
+    ip: '10.112.93.73',
+    port: 9032,
     status: 'running',
-    frontend_url: 'http://10.112.221.121:9002',
+    frontend_url: 'http://10.112.93.73:9032',
+  };
+
+  const isSimlingoDemo = appId === 'simlingo_demo';
+  const simlingoDemoView = {
+    capability: 'simlingoLLM',
+    agent_id: 'simlingo-llm-agent',
+    image_id: 'simlingo-llm-agent:0.3.1',
+    ip: '10.112.93.73',
+    port: 8899,
+    status: 'running',
+    frontend_url: 'http://10.112.93.73:8899',
   };
 
   const agentsHost = byId('agents-host');
@@ -203,10 +214,20 @@ async function loadAgentViews(appId) {
         views.push(senseDemoView);
       }
     }
+    if (isSimlingoDemo) {
+      const exists = views.some(view => (view.capability || '').toLowerCase() === 'simlingollm');
+      if (!exists) {
+        views.push(simlingoDemoView);
+      }
+    }
     renderAgentViews(views);
   } catch (error) {
     if (isSenseDemo) {
       renderAgentViews([senseDemoView]);
+      return;
+    }
+    if (isSimlingoDemo) {
+      renderAgentViews([simlingoDemoView]);
       return;
     }
     renderAgentViews([]);
