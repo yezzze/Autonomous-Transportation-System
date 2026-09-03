@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>自主式计算系统</title>
+  <title>自主式交通系统计算架构原型系统</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', path='/icon/logo_white.png') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
 </head>
 <body>
 <header>
   <img src="{{ url_for('static', path='/icon/logo_white.png') }}" alt="logo" style="width:36px;height:36px;object-fit:contain">
-  <h1>自主式计算系统</h1>
+  <h1>自主式交通系统计算架构原型系统</h1>
   <span class="badge">应用管理控制台</span>
   <span id="server-status" style="margin-left:auto;font-size:13px;opacity:.8">● 连接中...</span>
 </header>
@@ -45,7 +45,7 @@
         <div class="form-grid">
           <div class="form-group">
             <label>应用名称 *</label>
-            <input id="f-name" type="text" placeholder="如：搜索助手">
+            <input id="f-name" type="text" placeholder="如：车辆路况感知">
           </div>
           <div class="form-group">
             <label>编排模式</label>
@@ -57,11 +57,11 @@
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label>任务描述 *</label>
-            <textarea id="f-task" placeholder="描述该应用要完成的任务，如：搜索并总结用户提供的主题"></textarea>
+            <textarea id="f-task" placeholder="描述该应用要完成的任务，如：车辆通过雷达、传感器等设备监测城市道路信息，并整合至车载终端"></textarea>
           </div>
           <div class="form-group">
             <label>所需 Agent 能力</label>
-            <input id="f-agents" type="text" placeholder="search, nlp, code（逗号分隔）">
+            <input id="f-agents" type="text" placeholder="perception（逗号分隔）">
             <small>留空表示不限制</small>
           </div>
           <div class="form-group">
