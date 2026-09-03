@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A3-41 紧急任务车辆提醒信息模型 - 详情</title>
+    <title>D-D-A3-44 紧急任务车辆提醒信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>紧急任务车辆提醒信息模型</h1>
-    <p>模型编号：D-D-A3-41 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-D-A3-44 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>紧急任务车辆提醒信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-41</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市道路紧急车辆优先通行、高速公路紧急车辆避让、交叉口冲突预警。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-44</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>A3级场景下，车辆通过V2V/V2I获取紧急任务车辆状态信息，结合本车运行状态，判断相对位置、行驶关系及预计相遇情况，识别紧急任务车辆对本车通行的影响，生成分级提醒及避让需求信息，供驾驶员及车辆驾驶决策系统使用。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市道路紧急车辆优先通行、高速公路紧急车辆避让、交叉口冲突预警。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车车通信V2V信息模型（T-D-A3-17）、车路通信V2I信息模型（T-D-A3-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车载信息显示信息模型（C-D-A3-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="6" class="text-center highlight">紧急车辆状态信息</td><td>紧急车辆的身份与实时动态</td><td>车辆类型</td><td>枚举值：救护车、消防车、警车、工程抢险车</td><td>车车通信V2V、车路通信V2IU</td></tr>
@@ -67,11 +67,11 @@
                 <tr><td>本车与紧急车辆的冲突可能性</td><td>冲突点位置</td><td>可能发生相遇的具体地点（如“XX交叉口东进口”）</td><td>路侧单元RSU、车载单元OBU</td></tr>
                 <tr><td rowspan="7" class="text-center highlight">紧急任务车辆提醒信息</td><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td>是否提醒</td><td>根据紧急任务状态、相遇关系及影响等级判断是否需要生成提醒</td><td>路侧单元RSU、车载单元OBU</td></tr>
                 <tr><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td>提醒类型</td><td>根据紧急任务车辆与本车的相对位置和运行关系形成的后方车辆接近、前方车辆通行、交叉方向车辆接近等提醒类别</td><td>路侧单元RSU、车载单元OBU</td></tr>
-                <tr><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td></td><td></td><td></td></tr>
+                <tr><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td>建议目标车速</td><td>为保障紧急任务车辆优先通行而建议本车保持或调整的目标速度</td><td>路侧单元RSU、车载单元OBU</td></tr>
                 <tr><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td>车道避让建议</td><td>推荐的避让车道（如“请向右侧车道避让”）</td><td>路侧单元RSU、车载单元OBU</td></tr>
                 <tr><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td>提醒内容</td><td>向驾驶员及车辆驾驶决策系统提供的紧急任务车辆位置、方向、相遇关系及避让需求等提示信息</td><td>车载人机交互模块、车载单元OBU</td></tr>
-                <tr><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td></td><td></td><td></td></tr>
-                <tr><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td></td><td></td><td></td></tr>
+                <tr><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td>建议开始避让位置</td><td>根据相遇风险和道路条件确定的建议开始实施避让的道路或车道位置</td><td>路侧单元RSU、车载单元OBU</td></tr>
+                <tr><td>根据紧急任务车辆状态及相遇关系形成的基础提醒和避让需求信息</td><td>建议完成避让时间</td><td>为避免影响紧急任务车辆通行而建议完成避让操作的时限</td><td>路侧单元RSU、车载单元OBU</td></tr>
             </tbody>
         </table>
     </div>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MODEL-063 车辆事故紧急呼叫信息模型 - 详情</title>
+    <title>C-D-A2-36 车辆事故紧急呼叫信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>车辆事故紧急呼叫信息模型</h1>
-    <p>模型编号：MODEL-063 | 逻辑阶段：控制 | 自主化等级：<span class="badge">A2</span></p>
+    <p>模型编号：C-D-A2-36 | 逻辑阶段：控制 | 自主化水平：<span class="badge">A2</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,22 +37,22 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>车辆事故紧急呼叫信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>控制</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A2</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-063</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>驾驶事故或驾驶员主动求救。</td></tr>
-            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型</td></tr>
-            <tr><th>下游接口模型编号</th><td>车服通信V2S信息模型、车载信息显示信息模型</td></tr>
-            <tr><th>交付时间</th><td></td></tr>
-            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">C-D-A2-36</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A2下，车辆在发生碰撞、翻车等事故或驾驶员主动求救时，汇集事故触发、车辆位置和安全状态信息，生成紧急呼叫数据包；系统辅助发送，驾驶员可确认、补充或取消非紧急呼叫，不直接调度救援。</td></tr>
+            <tr><th>信息模型服务场景</th><td>驾驶事故或驾驶员主动求救。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A2-1）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车服通信V2S信息模型（T-D-A2-21）、车载信息显示信息模型（C-D-A2-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
         </table>
     </div>
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="2" class="text-center highlight">事故触发信息</td><td>由车辆状态感知信息模型提供或人工SOS触发的事故相关信息</td><td>触发方式</td><td>碰撞自动触发、翻车自动触发或驾驶员手动SOS</td><td>安全气囊控制器、车载紧急呼叫按钮</td></tr>

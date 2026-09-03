@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R-C-A3-16 高精度地图要素实时检测与更新信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>高精度地图要素实时检测与更新信息模型</h1>
+    <p>模型编号：R-C-A3-16 | 逻辑阶段：认知 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>高精度地图要素实时检测与更新信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>认知</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">R-C-A3-16</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，中心云通过车网通信V2N汇集车辆行车环境和路况感知的地图要素变更线索，并结合交通信号感知、交通事件感知和已生效的车道功能动态调整结果进行一致性校验，形成高精度地图增量更新和版本发布信息，经车网通信V2N提供给车辆路径规划使用。对低可信度或相互矛盾的变更，保留人工复核状态。</td></tr>
+            <tr><th>信息模型服务场景</th><td>高精度地图增量更新。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆路况感知信息模型（P-D-A3-2）、交通信号感知信息模型（P-E-A3-3）、交通事件感知信息模型（P-E-A3-6）、车网通信V2N信息模型（T-D-A3-19）、路网通信I2N信息模型（T-E-A3-20）、车道功能动态调整信息模型（D-C-A3-50）</td></tr>
+            <tr><th>下游信息模型编号</th><td>路网车辆路径负载均衡信息模型（D-C-A3-62）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">车辆侧地图要素变更信息</td><td>由车辆路况感知信息模型发现的车道线、道路边界、交通标志等线索</td><td>变更要素类型</td><td>检测到变化的车道线、道路边界、交通标志或其他地图要素类别</td><td>摄像头（经车网通信V2N信息模型）</td></tr>
+                <tr><td>由车辆路况感知信息模型发现的车道线、道路边界、交通标志等线索</td><td>空间位置</td><td>变更要素的经纬度坐标</td><td>GPS、激光雷达（经车网通信V2N信息模型）</td></tr>
+                <tr><td>由车辆路况感知信息模型发现的车道线、道路边界、交通标志等线索</td><td>观测时刻与证据</td><td>观测时间、图像/点云等记录</td><td>摄像头（经车网通信V2N信息模型）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">路侧地图要素变更信息</td><td>由交通信号感知信息模型提供信号设施要素观测结果</td><td>变更要素类型</td><td>信号设施类型、朝向、功能内容等</td><td>边缘（经路网通信I2N信息模型）</td></tr>
+                <tr><td>由交通信号感知信息模型提供信号设施要素观测结果</td><td>观测设备空间位置</td><td>边缘的经纬度坐标</td><td>边缘（经路网通信I2N信息模型）</td></tr>
+                <tr><td>由交通信号感知信息模型提供信号设施要素观测结果</td><td>观测时刻与证据</td><td>观测时间、图像/点云等记录</td><td>边缘（经路网通信I2N信息模型）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">交通事件导致的临时管控措施</td><td>由交通事件感知信息模型提供的交通事件信息</td><td>事件类型</td><td>施工、事故等影响道路正常使用的事件</td><td>摄像头、雷达（经路网通信I2N信息模型）</td></tr>
+                <tr><td>由交通事件感知信息模型提供的交通事件信息</td><td>事件位置或范围</td><td>施工路段的位置、事故发生的地点等管控范围</td><td>摄像头、雷达（经路网通信I2N信息模型）</td></tr>
+                <tr><td>由交通事件感知信息模型提供的交通事件信息</td><td>事件时间或影响范围</td><td>施工工期、事件发生时段等管控时段</td><td>摄像头、雷达（经路网通信I2N信息模型）</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">车道信息属性变更信息</td><td>由车道功能动态调整信息模型提供已经生效或已确定生效时段的车道功能调整决策</td><td>调整路段</td><td>当前需要实施车道功能调整的目标路段</td><td>中心云决策单元</td></tr>
+                <tr><td>由车道功能动态调整信息模型提供已经生效或已确定生效时段的车道功能调整决策</td><td>调整车道</td><td>当前需要进行功能调整的具体车道</td><td>中心云决策单元</td></tr>
+                <tr><td>由车道功能动态调整信息模型提供已经生效或已确定生效时段的车道功能调整决策</td><td>原车道功能</td><td>调整实施前目标车道的功能类型</td><td>中心云决策单元</td></tr>
+                <tr><td>由车道功能动态调整信息模型提供已经生效或已确定生效时段的车道功能调整决策</td><td>目标车道功能</td><td>调整后目标车道对应的潮汐车道、公交专用道、应急车道或普通车道等功能类型</td><td>中心云决策单元</td></tr>
+                <tr><td>由车道功能动态调整信息模型提供已经生效或已确定生效时段的车道功能调整决策</td><td>调整通行方向</td><td>车道功能调整后允许车辆行驶的方向</td><td>中心云决策单元</td></tr>
+                <tr><td>由车道功能动态调整信息模型提供已经生效或已确定生效时段的车道功能调整决策</td><td>调整时效</td><td>当前车道功能调整方案开始执行与预计结束时间</td><td>中心云决策单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">高精度地图增量更新信息</td><td>中心云对多源线索和已生效管控决策完成一致性校验后形成的可发布地图更新结果</td><td>地图要素标识与变更类型</td><td>被更新要素的唯一标识，以及新增、修改、失效或恢复类型</td><td>中心云地图平台</td></tr>
+                <tr><td>中心云对多源线索和已生效管控决策完成一致性校验后形成的可发布地图更新结果</td><td>更新后几何与语义信息属性</td><td>要素的空间几何、车道线/车道信息属性、信号设施信息属性或通行规则更新值</td><td>中心云地图平台</td></tr>
+                <tr><td>中心云对多源线索和已生效管控决策完成一致性校验后形成的可发布地图更新结果</td><td>有效期与校验状态</td><td>更新结果的生效时段、可信度、校验状态及必要的复核状态</td><td>中心云地图平台</td></tr>
+                <tr><td>中心云对多源线索和已生效管控决策完成一致性校验后形成的可发布地图更新结果</td><td>地图版本与增量包</td><td>地图版本号、增量包标识、适用区域和发布时刻</td><td>中心云地图平台</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

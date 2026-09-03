@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R-C-A3-98 航空枢纽综合运行状态认知信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>航空枢纽综合运行状态认知信息模型</h1>
+    <p>模型编号：R-C-A3-98 | 逻辑阶段：认知 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>航空枢纽综合运行状态认知信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>认知</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">R-C-A3-98</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在A3等级下，中心云汇聚航班、铁路、轨道交通、机场巴士、出租车、网约车及枢纽客流等多源运行信息，综合识别航空枢纽整体运行状态、关键衔接环节及异常情况，为旅客换乘、运力匹配和联运衔接决策提供支撑。</td></tr>
+            <tr><th>信息模型服务场景</th><td>航空枢纽空地联运、机场综合交通接驳、旅客换乘组织、地面客运运力协调、大客流疏运及综合交通运行状态评估等场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>无（本模型输入来源为本表所列设备、系统或计算实体，索引范围内无直接上游模型）</td></tr>
+            <tr><th>下游信息模型编号</th><td>航空枢纽旅客换乘需求认知信息模型（R-C-A3-99）、航空枢纽旅客换乘需求认知信息模型（R-C-A4-99）、空地联运运力匹配信息模型（D-C-A3-100）、空地联运衔接计划信息模型（D-C-A3-101）、空地联运运力匹配信息模型（D-C-A4-100）、空地联运衔接计划信息模型（D-C-A4-101）、空地联运异常协同调整信息模型（D-C-A4-102）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="6" class="text-center highlight">航空运输运行状态信息</td><td>航空枢纽当前航班到离港及旅客到达情况</td><td>航班编号</td><td>用于唯一标识航空运输班次</td><td>机场运行信息系统</td></tr>
+                <tr><td>航空枢纽当前航班到离港及旅客到达情况</td><td>航班类型</td><td>航班到达、出发或经停等运行类型</td><td>机场运行信息系统</td></tr>
+                <tr><td>航空枢纽当前航班到离港及旅客到达情况</td><td>计划到发时间</td><td>航班计划到达或起飞时间</td><td>机场运行信息系统</td></tr>
+                <tr><td>航空枢纽当前航班到离港及旅客到达情况</td><td>实际到发时间</td><td>航班实际到达或起飞时间</td><td>机场运行信息系统</td></tr>
+                <tr><td>航空枢纽当前航班到离港及旅客到达情况</td><td>航班运行状态</td><td>航班正常、延误、取消、备降等当前运行状态</td><td>机场运行信息系统</td></tr>
+                <tr><td>航空枢纽当前航班到离港及旅客到达情况</td><td>到达旅客量</td><td>当前航班实际或预计到达旅客数量（人）</td><td>机场运行信息系统</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">地面公共交通运行状态信息</td><td>与航空枢纽衔接的铁路、轨道交通及机场巴士实时运行状态</td><td>交通方式</td><td>高铁、城际铁路、城市轨道交通、机场巴士等交通方式类型</td><td>中心云</td></tr>
+                <tr><td>与航空枢纽衔接的铁路、轨道交通及机场巴士实时运行状态</td><td>班次/车次编号</td><td>对应地面公共交通班次或车次唯一标识</td><td>铁路客运系统、轨道交通运营系统、机场巴士调度系统</td></tr>
+                <tr><td>与航空枢纽衔接的铁路、轨道交通及机场巴士实时运行状态</td><td>计划到发时间</td><td>当前班次计划到达或发车时间</td><td>铁路客运系统、轨道交通运营系统、机场巴士调度系统</td></tr>
+                <tr><td>与航空枢纽衔接的铁路、轨道交通及机场巴士实时运行状态</td><td>实际到发时间</td><td>当前班次预计或实际到达、发车时间</td><td>铁路客运系统、轨道交通运营系统、机场巴士调度系统</td></tr>
+                <tr><td>与航空枢纽衔接的铁路、轨道交通及机场巴士实时运行状态</td><td>运行状态</td><td>当前班次正常、延误、停运等运行状态</td><td>铁路客运系统、轨道交通运营系统、机场巴士调度系统</td></tr>
+                <tr><td>与航空枢纽衔接的铁路、轨道交通及机场巴士实时运行状态</td><td>可用运力</td><td>当前班次剩余或可提供的旅客运输能力</td><td>铁路客运系统、轨道交通运营系统、机场巴士调度系统</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">道路接驳运行状态信息</td><td>机场道路以及出租车、网约车等道路客运接驳方式当前运行状态</td><td>出租车可用车辆数</td><td>当前出租车蓄车区或候客区可提供服务的车辆数量（辆）</td><td>出租车调度系统</td></tr>
+                <tr><td>机场道路以及出租车、网约车等道路客运接驳方式当前运行状态</td><td>网约车可用车辆数</td><td>当前机场周边可接单或候客网约车数量（辆）</td><td>网约车平台</td></tr>
+                <tr><td>机场道路以及出租车、网约车等道路客运接驳方式当前运行状态</td><td>接驳区域排队状态</td><td>出租车、网约车上客区域车辆或旅客当前排队状态</td><td>视频监控设备、客流检测设备、边缘计算单元</td></tr>
+                <tr><td>机场道路以及出租车、网约车等道路客运接驳方式当前运行状态</td><td>机场道路平均速度</td><td>机场主要进出道路当前车辆平均运行速度（km/h）</td><td>路侧单元RSU、交通监测设备</td></tr>
+                <tr><td>机场道路以及出租车、网约车等道路客运接驳方式当前运行状态</td><td>机场道路拥堵状态</td><td>机场主要进出道路当前畅通、缓行或拥堵状态</td><td>路侧单元RSU、边缘计算单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">枢纽客流与换乘设施状态信息</td><td>航站楼、综合交通中心及主要换乘通道的旅客流动与设施运行状态</td><td>区域客流量</td><td>当前航站楼或换乘区域内旅客数量（人）</td><td>客流检测设备</td></tr>
+                <tr><td>航站楼、综合交通中心及主要换乘通道的旅客流动与设施运行状态</td><td>客流密度</td><td>单位区域内旅客密度及拥挤程度</td><td>视频监控设备、客流检测设备</td></tr>
+                <tr><td>航站楼、综合交通中心及主要换乘通道的旅客流动与设施运行状态</td><td>客流方向</td><td>不同功能区域之间旅客主要流动方向</td><td>视频监控设备、客流检测设备</td></tr>
+                <tr><td>航站楼、综合交通中心及主要换乘通道的旅客流动与设施运行状态</td><td>接驳站点状态</td><td>高铁、轨道、巴士、出租车及网约车接驳站点当前运行和占用状态</td><td>视频监控设备、客流检测设备</td></tr>
+                <tr><td rowspan="7" class="text-center highlight">航空枢纽综合运行状态认知信息</td><td>中心云综合航空、地面交通、客流与换乘设施状态后形成的枢纽级运行认知结果</td><td>综合运行状态</td><td>航空枢纽当前整体运行状态，如正常、繁忙、拥挤或异常</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云综合航空、地面交通、客流与换乘设施状态后形成的枢纽级运行认知结果</td><td>交通方式运行状态</td><td>接驳方式整体运行状态</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云综合航空、地面交通、客流与换乘设施状态后形成的枢纽级运行认知结果</td><td>关键衔接环节</td><td>当前影响空地联运效率的重点换乘节点、通道或交通方式</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云综合航空、地面交通、客流与换乘设施状态后形成的枢纽级运行认知结果</td><td>衔接压力状态</td><td>不同空地接驳关系当前的供需压力或运行压力程度</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云综合航空、地面交通、客流与换乘设施状态后形成的枢纽级运行认知结果</td><td>重点拥挤区域</td><td>当前客流集中或交通运行压力较高的枢纽区域</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云综合航空、地面交通、客流与换乘设施状态后形成的枢纽级运行认知结果</td><td>异常运行状态</td><td>航班延误、地面交通异常、道路拥堵、设施故障或大客流等异常状态</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云综合航空、地面交通、客流与换乘设施状态后形成的枢纽级运行认知结果</td><td>状态更新时间</td><td>当前综合运行状态最近一次更新的时间</td><td>中心云计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

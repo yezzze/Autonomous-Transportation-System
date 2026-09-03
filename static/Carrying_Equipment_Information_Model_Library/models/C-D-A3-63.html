@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C-D-A3-63 协作式变道信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>协作式变道信息模型</h1>
+    <p>模型编号：C-D-A3-63 | 逻辑阶段：控制 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>协作式变道信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>控制</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">C-D-A3-63</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，协作式变道信息模型面向限定运行条件下的多车协作变道过程，接收本车状态、目标车道周边车辆状态、V2V/V2I协作信息及变道预警结果，在既定目标车道和安全约束下生成并执行横向变道控制轨迹，协调车辆横向位置、航向及纵向速度变化；当变道条件不再满足或系统能力边界被触发时，中止变道并提示驾驶员接管。</td></tr>
+            <tr><th>信息模型服务场景</th><td>高速公路和城市快速路协作变道、匝道合流、车队编组调整等需要车辆间协同完成横向车道转换的场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车车通信V2V信息模型（T-D-A3-17）、车路通信V2I信息模型（T-D-A3-18）、车辆状态感知信息模型(P-D-A3-1)、车辆路况感知信息模型(P-D-A3-2)</td></tr>
+            <tr><th>下游信息模型编号</th><td>无（本模型为控制执行或信息输出终端模型）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">本车状态与变道目标信息</td><td>车辆执行协作变道所需的本车运动状态和目标约束</td><td>位置与所在车道</td><td>车辆当前空间位置及所在车道编号</td><td>车载单元OBU、定位与车道感知模块</td></tr>
+                <tr><td>车辆执行协作变道所需的本车运动状态和目标约束</td><td>速度与加速度</td><td>车辆当前纵向速度及纵向、横向加速度</td><td>车载单元OBU、IMU</td></tr>
+                <tr><td>车辆执行协作变道所需的本车运动状态和目标约束</td><td>航向与横向位置</td><td>车辆航向角、相对车道中心线的横向位置及横向运动状态</td><td>IMU、车道感知模块</td></tr>
+                <tr><td>车辆执行协作变道所需的本车运动状态和目标约束</td><td>目标车道与目标变道窗口</td><td>已确定的目标车道以及允许执行变道的时间或空间窗口</td><td>车辆决策系统</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">周边车辆与安全约束信息</td><td>目标车道前后车辆状态、协作反馈及变道安全约束</td><td>协作车辆编号</td><td>目标车道前车、后车等协作对象的唯一标识</td><td>车车通信V2V、车载单元OBU</td></tr>
+                <tr><td>目标车道前后车辆状态、协作反馈及变道安全约束</td><td>目标车道前后车状态</td><td>协作车辆的位置、速度、加速度及当前行驶状态</td><td>车车通信V2V、车路通信V2I</td></tr>
+                <tr><td>目标车道前后车辆状态、协作反馈及变道安全约束</td><td>相对距离与相对速度</td><td>本车与目标车道前后车辆之间的纵向距离、横向距离和相对速度</td><td>车载感知模块、车车通信V2V</td></tr>
+                <tr><td>目标车道前后车辆状态、协作反馈及变道安全约束</td><td>协作响应状态</td><td>协作车辆对变道请求的同意、有条件同意、拒绝及响应有效状态</td><td>车车通信V2V</td></tr>
+                <tr><td>目标车道前后车辆状态、协作反馈及变道安全约束</td><td>变道风险与安全约束</td><td>目标车道间隙、预测冲突风险及当前是否满足变道安全条件</td><td>车辆决策系统</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">道路环境约束信息</td><td>影响横向变道执行的道路结构、路面状态及临时交通条件</td><td>车道几何与可通行边界</td><td>目标车道宽度、车道线、道路边界及相邻车道连接关系</td><td>车载感知模块、本地/高精度地图</td></tr>
+                <tr><td>影响横向变道执行的道路结构、路面状态及临时交通条件</td><td>路面状况</td><td>积水、结冰、坑洼等可能影响转向稳定性和安全性的路面状态</td><td>车载感知模块、车路通信V2I</td></tr>
+                <tr><td>影响横向变道执行的道路结构、路面状态及临时交通条件</td><td>交通事件与临时管制</td><td>故障车辆、施工、临时封闭等影响目标车道可用性的事件信息</td><td>车路通信V2I、车辆决策系统</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">变道控制执行信息</td><td>车辆控制系统生成的横向变道控制目标及执行状态</td><td>目标横向轨迹</td><td>车辆由当前车道进入目标车道的短时横向轨迹及关键轨迹点</td><td>自动驾驶控制器</td></tr>
+                <tr><td>车辆控制系统生成的横向变道控制目标及执行状态</td><td>转向与纵横向控制目标</td><td>变道过程中的目标转向、横向位置以及与纵向速度相协调的控制目标</td><td>车辆控制系统</td></tr>
+                <tr><td>车辆控制系统生成的横向变道控制目标及执行状态</td><td>变道执行状态与接管提示</td><td>准备、执行、中止、完成等状态，以及系统能力边界触发时的接管提示</td><td>车辆控制系统</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

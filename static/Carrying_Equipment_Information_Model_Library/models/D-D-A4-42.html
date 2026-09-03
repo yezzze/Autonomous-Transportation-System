@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A4-40 拥堵提醒信息模型 - 详情</title>
+    <title>D-D-A4-42 拥堵提醒信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>拥堵提醒信息模型</h1>
-    <p>模型编号：D-D-A4-40 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+    <p>模型编号：D-D-A4-42 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>拥堵提醒信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A4-40</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市全域拥堵自主避堵、高速路多车道拥堵协同控制、极端天气拥堵全自主应对、突发事故拥堵动态规避。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A4-42</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A4（L4-L5）下，车辆融合车路云多源信息，综合判断前方及关联路段交通状态，识别拥堵并分析短时变化趋势，生成拥堵位置、程度及趋势信息，向自动驾驶系统提供提前提醒与决策依据。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市全域拥堵自主避堵、高速路多车道拥堵协同控制、极端天气拥堵全自主应对、突发事故拥堵动态规避。</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通流感知信息模型（P-E-A4-4）、延误情况检测信息模型（R-D-A4-9）、交通流预测信息模型（R-E-A4-14）、车路通信V2I信息模型（T-D-A4-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>交叉口排队溢出疏解信息模型（D-E-A4-46）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="8" class="text-center highlight">多源道路交通运行信息</td><td>通过车路云协同获取的本车前方及相关道路实时交通运行状态</td><td>本车位置</td><td>本车当前所在道路、路段及空间位置</td><td>车载地图、车载单元OBU</td></tr>

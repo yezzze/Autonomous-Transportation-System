@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MODEL-027 车辆轨迹预测信息模型 - 详情</title>
+    <title>R-E-A4-15 车辆轨迹预测信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>车辆轨迹预测信息模型</h1>
-    <p>模型编号：MODEL-027 | 逻辑阶段：认知 | 自主化等级：<span class="badge">A4</span></p>
+    <p>模型编号：R-E-A4-15 | 逻辑阶段：认知 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,34 +37,34 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>车辆轨迹预测信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>认知</td></tr>
-            <tr><th>实体类别</th><td>边缘</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-027</span></td></tr>
-            <tr><th>信息模型描述</th><td>自主化等级为A4时，载运装备高度智能化（L4、L5），路侧形成完善的交通感知与信息发布网络，边缘计算设备能高效处理交通数据、快速响应实时需求。车辆轨迹预测信息模型运行于边缘计算设备，接收载运装备经V2I上传的车辆历史轨迹与车辆行驶意图信息（此阶段已无驾驶行为识别模型，意图以网联车声明意图为主）、路侧设备提供的全量交通参与者感知信息与信号相位信息、中心云下发的车道级路网信息，进行高精度、长时域的周边车辆轨迹预测，并支撑路网区域级协同。</td></tr>
-            <tr><th>模型服务场景</th><td>交叉口粒流协同控制、多车运动控制等</td></tr>
-            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型、交通信号感知信息模型、交通参与者感知信息模型</td></tr>
-            <tr><th>下游接口模型编号</th><td>交叉路口碰撞预警信息模型、交叉口车辆通行权决策信息模型、车辆编队信息模型</td></tr>
-            <tr><th>交付时间</th><td></td></tr>
-            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+            <tr><th>实体层级</th><td>边缘</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">R-E-A4-15</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A4时，端侧高度智能化（L4、L5），路侧形成完善的交通感知与信息发布网络，边缘计算设备能高效处理交通数据、快速响应实时需求。车辆轨迹预测信息模型运行于边缘计算设备，接收端侧经V2I上传的车辆历史轨迹与车辆行驶意图信息（此阶段已无驾驶行为识别模型，意图以网联车声明意图为主）、边缘提供的全量交通参与者感知信息与信号相位信息、中心云下发的车道级路网信息，进行高精度、长时域的周边车辆轨迹预测，并支撑路网区域级协同。</td></tr>
+            <tr><th>信息模型服务场景</th><td>交叉口粒流协同控制、多车运动控制等。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A4-1）、车辆路况感知信息模型（P-D-A4-2）、交通信号感知信息模型（P-E-A4-3）、交通参与者感知信息模型（P-E-A4-5）、车车通信V2V信息模型（T-D-A4-17）、车路通信V2I信息模型（T-D-A4-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车路通信V2I信息模型（T-D-A4-18）、前向碰撞预警信息模型（D-D-A4-22）、车辆跟驰信息模型（D-D-A4-24）、盲区预警信息模型（D-D-A4-26）、变道预警信息模型（D-D-A4-28）、车辆编队信息模型（D-D-A4-38）、借道会车信息模型（D-D-A4-39）、交叉口车辆通行权决策信息模型（D-E-A4-45）、紧急转向避让信息模型（C-D-A4-32）、协作式变道信息模型（C-D-A4-63）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
         </table>
     </div>
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="2" class="text-center highlight">车辆历史轨迹信息</td><td>由车辆状态感知信息模型输出、经V2I上传的车辆历史轨迹信息</td><td>历史位置序列</td><td>车辆实测的历史位置点序列</td><td>端计算单元（车载单元OBU，经车路通信V2I）</td></tr>
                 <tr><td>由车辆状态感知信息模型输出、经V2I上传的车辆历史轨迹信息</td><td>历史运动状态</td><td>车辆历史的速度、加速度、航向角序列</td><td>端计算单元（车载单元OBU，经车路通信V2I）</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">路侧交通参与者感知信息</td><td>由交通参与者感知信息模型输出、路侧感知到的全量交通参与者信息</td><td>目标对象位置</td><td>各交通参与者的位置</td><td>路侧设备（交通参与者感知设备）</td></tr>
-                <tr><td>由交通参与者感知信息模型输出、路侧感知到的全量交通参与者信息</td><td>目标对象运动状态</td><td>各交通参与者的速度、加速度、航向</td><td>路侧设备（交通参与者感知设备）</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">信号相位信息</td><td>由交通信号感知信息模型输出、所在交叉口信号灯的相位与配时信息</td><td>当前相位状态</td><td>各进口道当前信号灯色与运行相位</td><td>路侧设备（交通参与者感知设备）</td></tr>
-                <tr><td>由交通信号感知信息模型输出、所在交叉口信号灯的相位与配时信息</td><td>相位配时信息</td><td>信号周期、绿信比、当前相位剩余时间</td><td>路侧设备（交通参与者感知设备）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">路侧交通参与者感知信息</td><td>由交通参与者感知信息模型输出、路侧感知到的全量交通参与者信息</td><td>目标对象位置</td><td>各交通参与者的位置</td><td>边缘（交通参与者感知设备）</td></tr>
+                <tr><td>由交通参与者感知信息模型输出、路侧感知到的全量交通参与者信息</td><td>目标对象运动状态</td><td>各交通参与者的速度、加速度、航向</td><td>边缘（交通参与者感知设备）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">信号相位信息</td><td>由交通信号感知信息模型输出、所在交叉口信号灯的相位与配时信息</td><td>当前相位状态</td><td>各进口道当前信号灯色与运行相位</td><td>边缘（交通参与者感知设备）</td></tr>
+                <tr><td>由交通信号感知信息模型输出、所在交叉口信号灯的相位与配时信息</td><td>相位配时信息</td><td>信号周期、绿信比、当前相位剩余时间</td><td>边缘（交通参与者感知设备）</td></tr>
                 <tr><td rowspan="2" class="text-center highlight">车道级路网信息</td><td>来自高精地图/云端数据库的车道级静态道路网络信息</td><td>车道几何与拓扑</td><td>车道数、车道宽度、车道中心线与走向</td><td>中心云（高精地图数据库）</td></tr>
                 <tr><td>来自高精地图/云端数据库的车道级静态道路网络信息</td><td>车道连接与转向关系</td><td>车道间连接关系、允许转向方向及与交叉口的拓扑连接</td><td>中心云（高精地图数据库）</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">车辆行驶意图信息</td><td>由车辆状态感知信息模型输出、网联车辆声明的计划行驶行为信息</td><td>计划行驶轨迹</td><td>计划行驶位置、计划行驶车道、计划行驶路线</td><td>载运装备（车载单元OBU，经车路通信V2I）</td></tr>
-                <tr><td>由车辆状态感知信息模型输出、网联车辆声明的计划行驶行为信息</td><td>计划行驶速度</td><td>车辆下一步计划达到的目标速度</td><td>载运装备（车载单元OBU，经车路通信V2I）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">车辆行驶意图信息</td><td>由车辆状态感知信息模型输出、网联车辆声明的计划行驶行为信息</td><td>计划行驶轨迹</td><td>计划行驶位置、计划行驶车道、计划行驶路线</td><td>端侧（车载单元OBU，经车路通信V2I）</td></tr>
+                <tr><td>由车辆状态感知信息模型输出、网联车辆声明的计划行驶行为信息</td><td>计划行驶速度</td><td>车辆下一步计划达到的目标速度</td><td>端侧（车载单元OBU，经车路通信V2I）</td></tr>
                 <tr><td rowspan="3" class="text-center highlight">车辆预测轨迹信息</td><td>融合多源信息对周边车辆未来运动轨迹进行预测的结果</td><td>预测位置序列</td><td>考虑多种驾驶意图的多模态候选预测轨迹及其位置序列（精度更高、时域更长）</td><td>边缘计算单元</td></tr>
                 <tr><td>融合多源信息对周边车辆未来运动轨迹进行预测的结果</td><td>预测运动状态</td><td>沿预测轨迹的速度、航向等运动状态</td><td>边缘计算单元</td></tr>
                 <tr><td>融合多源信息对周边车辆未来运动轨迹进行预测的结果</td><td>预测时域</td><td>轨迹预测的时间范围与时间步长</td><td>边缘计算单元</td></tr>

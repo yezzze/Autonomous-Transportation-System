@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A3-95 轨道接驳多方式运力一体化配置信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>轨道接驳多方式运力一体化配置信息模型</h1>
+    <p>模型编号：D-C-A3-95 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>轨道接驳多方式运力一体化配置信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-95</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，中心云基于跨域协同交互汇集的轨道接驳需求与道路侧可用运力，识别各车站、出入口与接驳方向的接驳运力供需缺口，在常规公交与出租网约之间协商生成运力分工与投放方案，确定各方式承担的客流量、投放规模与时序及其与列车到站时刻的衔接关系。A3阶段常规接驳运力配置由系统生成并经各调度子系统确认后执行，跨线路、跨场站的大范围运力重配由管理人员确认。</td></tr>
+            <tr><th>信息模型服务场景</th><td>自主响应轨道客流接驳需求的多方式运输运力一体化配置。</td></tr>
+            <tr><th>上游信息模型编号</th><td>轨道站点客流与列车运行状态感知信息模型（P-E-A3-90）、轨道出站接驳需求预测信息模型（R-E-A3-92）、轨道-道路跨域协同交互信息模型（T-E-A3-94）</td></tr>
+            <tr><th>下游信息模型编号</th><td>轨道-道路跨域协同交互信息模型（T-E-A3-94）、轨道激增客流多方式协同调度信息模型（C-C-A3-96）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">轨道接驳需求信息</td><td>由轨道-道路跨域协同交互信息模型汇集、反映各车站出入口接驳需求规模与流向的预测结果</td><td>接驳需求总量预测</td><td>各出入口需换乘道路交通方式的接驳客流量及其到达时间分布</td><td>边缘计算单元</td></tr>
+                <tr><td>由轨道-道路跨域协同交互信息模型汇集、反映各车站出入口接驳需求规模与流向的预测结果</td><td>接驳方向分布预测</td><td>接驳需求在各接驳方向与目的地分区的分布比例</td><td>边缘计算单元</td></tr>
+                <tr><td>由轨道-道路跨域协同交互信息模型汇集、反映各车站出入口接驳需求规模与流向的预测结果</td><td>接驳方式分担预测</td><td>接驳需求在常规公交、出租网约、步行之间的分担客流量</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">道路侧可用运力信息</td><td>由跨域协同交互汇集的公交与出租网约可投入接驳服务的运力状态</td><td>可用公交车资源信息</td><td>场站内可投入车辆、备用车辆、车辆类型、额定容量和可用时间</td><td>公交车管理调度平台、公交车队资源库</td></tr>
+                <tr><td>由跨域协同交互汇集的公交与出租网约可投入接驳服务的运力状态</td><td>可用出租网约资源信息</td><td>接驳区周边空驶车辆数量、可用座位数与预计到达接驳区时刻</td><td>出租网约调度系统</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">接驳区与走廊运行状态信息</td><td>接驳区设施占用与接驳走廊道路运行状态，用于约束运力投放规模与时序</td><td>接驳走廊交通状态信息</td><td>接驳走廊各路段的流量、平均速度与拥堵等级</td><td>边缘传感器、摄像头、雷达</td></tr>
+                <tr><td>接驳区设施占用与接驳走廊道路运行状态，用于约束运力投放规模与时序</td><td>接驳区设施容量信息</td><td>出租网约上落客点、公交泊位的位置与设计容量</td><td>边缘数据库</td></tr>
+                <tr><td>接驳区设施占用与接驳走廊道路运行状态，用于约束运力投放规模与时序</td><td>滞留客流量</td><td>因车辆满载未能上车的滞留乘客数量与线路</td><td>站厅与站台顶置全景摄像机、通道视频摄像头</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">线路运行计划与配置约束信息</td><td>中心云提供的接驳线路计划、服务底线与多方式配置规则</td><td>公交计划班次与发车时刻信息</td><td>各线路当前计划班次、首末班时间和计划发车时刻</td><td>公交运营调度平台</td></tr>
+                <tr><td>中心云提供的接驳线路计划、服务底线与多方式配置规则</td><td>公交基本服务与调配边界信息</td><td>最高发车频率、线路服务覆盖、最大调整幅度和人工确认要求</td><td>公交运营调度平台</td></tr>
+                <tr><td>中心云提供的接驳线路计划、服务底线与多方式配置规则</td><td>多方式配置约束信息</td><td>各方式最小与最大承担比例、出租网约可调用规模上限及接驳区容量约束</td><td>公交运营调度平台、出租网约调度系统</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">轨道接驳多方式运力一体化配置信息</td><td>中心云依据接驳需求与多方式可用运力协商生成的运力分工与投放方案</td><td>接驳运力供需缺口识别信息</td><td>各车站、出入口和接驳方向的接驳运力不足或富余程度及优先级</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云依据接驳需求与多方式可用运力协商生成的运力分工与投放方案</td><td>多方式承担量分配信息</td><td>常规公交、出租网约各自承担的接驳客流量与对应服务时段</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云依据接驳需求与多方式可用运力协商生成的运力分工与投放方案</td><td>公交接驳运力投放信息</td><td>投入接驳服务的车辆数、目标线路或服务区段与投放时序</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云依据接驳需求与多方式可用运力协商生成的运力分工与投放方案</td><td>出租网约运力引导信息</td><td>引导至各接驳区的车辆规模、引导时段与目标上落客点</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云依据接驳需求与多方式可用运力协商生成的运力分工与投放方案</td><td>方式间衔接时刻信息</td><td>各方式车辆到达接驳区的时刻及其与列车到站时刻的衔接关系</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云依据接驳需求与多方式可用运力协商生成的运力分工与投放方案</td><td>配置方案协商状态信息</td><td>方案标识、各调度子系统确认状态与需人工确认的事项</td><td>中心云计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

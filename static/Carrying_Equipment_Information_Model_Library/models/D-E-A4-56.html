@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-E-A4-20 边侧车辆轨迹匹配信息模型 - 详情</title>
+    <title>D-E-A4-56 边侧路径流量计算信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -28,23 +28,23 @@
 <body>
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
-    <h1>边侧车辆轨迹匹配信息模型</h1>
-    <p>模型编号：D-E-A4-20 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+    <h1>边侧路径流量计算信息模型</h1>
+    <p>模型编号：D-E-A4-56 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
         <table class="meta-table">
-            <tr><th>信息模型名称</th><td>边侧车辆轨迹匹配信息模型</td></tr>
+            <tr><th>信息模型名称</th><td>边侧路径流量计算信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>路侧装备</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-E-A4-20</span></td></tr>
-            <tr><th>信息模型描述</th><td>在自主化等级为A4的场景中，边缘计算模块通过接收并预处理交通参与者相关数据，识别车辆状态，构建环境模型，生成并优化车辆轨迹，最终输出匹配轨迹的详细信息，实现交叉口级和车道级的车辆轨迹精准匹配</td></tr>
-            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、交通流量监测与优化、交叉口粒流协同控制、多车运动控制等</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>路侧装备</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-E-A4-56</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在自主化水平为A4的场景中，边缘计算模块通过边侧感知设备获取区域路网内所有交通参与者的运行情况，并进行交叉口级路径流量计算，输出包括平均延误时间、绿波带宽、饱和度等关键指标，为交通管理和优化提供数据支持</td></tr>
+            <tr><th>信息模型服务场景</th><td>跨域动态需求响应、交叉口粒流协同控制等</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通流感知信息模型（P-E-A4-4）、边侧车辆轨迹匹配信息模型（D-E-A4-55）</td></tr>
+            <tr><th>下游信息模型编号</th><td>路网信息融合信息模型（D-C-A4-58）、OD流量估计信息模型（D-C-A4-59）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,30 +52,28 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="9" class="text-center highlight">交通参与者信息</td><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>编号</td><td>每个参与交通活动个体的唯一标识符</td><td>摄像头、雷达、车载单元OBU</td></tr>
-                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>类型</td><td>交通参与者个体分类，车辆、行人、非机动车等</td><td>摄像头、雷达、车载单元OBU</td></tr>
-                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>位置</td><td>经纬度坐标</td><td>雷达、车载单元OBU</td></tr>
-                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>速度</td><td>交通参与者位移快慢程度，单位m/s</td><td>雷达、车载单元OBU</td></tr>
-                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>加速度</td><td>交通参与者速度变化快慢程度，单位m/s2</td><td>雷达、车载单元OBU</td></tr>
-                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>航向角</td><td>运行方向与正北方向顺时针夹角</td><td>车载单元OBU</td></tr>
-                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>时间戳</td><td>信息采集的具体时间</td><td>摄像头、雷达、车载单元OBU</td></tr>
-                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>传感器标识</td><td>采集该信息的传感器编号或类型</td><td>摄像头、雷达</td></tr>
-                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>轨迹</td><td>位移路径</td><td>摄像头、雷达、车载单元OBU</td></tr>
-                <tr><td rowspan="4" class="text-center highlight">运行状态信息</td><td>交通参与者在行驶过程中各种动态特征，表现为特定区域内的特征信息。</td><td>信号灯状态</td><td>交叉口信号灯的当前相位及剩余时间</td><td>交通信号控制单元</td></tr>
-                <tr><td>交通参与者在行驶过程中各种动态特征，表现为特定区域内的特征信息。</td><td>交通流量</td><td>车道级或交叉口级的交通流量情况</td><td>摄像头、雷达</td></tr>
-                <tr><td>交通参与者在行驶过程中各种动态特征，表现为特定区域内的特征信息。</td><td>排队长度</td><td>进口道内各车道的排队长度，单位m</td><td>摄像头、雷达</td></tr>
-                <tr><td>交通参与者在行驶过程中各种动态特征，表现为特定区域内的特征信息。</td><td>限行禁行信息</td><td>该区域的车辆限行、禁行规定</td><td>车载单元OBU</td></tr>
-                <tr><td rowspan="8" class="text-center highlight">车辆轨迹信息</td><td>指最终输出的车辆轨迹匹配序列信息</td><td>匹配后车辆ID序列</td><td>按照时间顺序排列的车辆 ID 列表</td><td>边缘计算单元</td></tr>
-                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>坐标序列</td><td>包含每个时间点对应的经度、纬度、高度的坐标列表</td><td>边缘计算单元</td></tr>
-                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>时间戳序列</td><td>与轨迹点坐标序列对应的时间戳列表</td><td>边缘计算单元</td></tr>
-                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>经过车道 ID 序列</td><td>按照行驶顺序记录车辆经过的车道 ID 列表</td><td>边缘计算单元</td></tr>
-                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>各车道停留时间</td><td>车辆在每个经过的车道上停留的时间，单位为s</td><td>边缘计算单元</td></tr>
-                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>平均速度</td><td>在匹配时间段内的平均行驶速度，单位为km/h</td><td>边缘计算单元</td></tr>
-                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>最大速度</td><td>在匹配时间段内达到的最大行驶速度，单位为km/h</td><td>边缘计算单元</td></tr>
-                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>行驶方向变化</td><td>记录车辆行驶方向的变化情况，如角度变化、转向次数等</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="7" class="text-center highlight">交通参与者信息</td><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>类型</td><td>指车辆类型，如轿车、客车、货车等</td><td>摄像头、雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>位置</td><td>车辆经纬度坐标</td><td>摄像头、雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>速度</td><td>车辆位移快慢程度，单位m/s</td><td>摄像头、雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>加速度</td><td>车辆速度变化快慢程度，单位m/s2</td><td>摄像头、雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>车道ID</td><td>车辆所在的车道编号</td><td>摄像头、雷达</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>车道数量</td><td>各进口道的车道数量</td><td>摄像头、雷达</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>车道宽度</td><td>单位为m</td><td>摄像头、雷达</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">车辆运行状态信息</td><td>车辆在行驶过程中各种动态特征</td><td>信号灯状态</td><td>交叉口信号灯的周期及绿灯时间</td><td>信号机</td></tr>
+                <tr><td>车辆在行驶过程中各种动态特征</td><td>排队长度</td><td>进口道内各车道的排队长度，单位m</td><td>摄像头、雷达</td></tr>
+                <tr><td>车辆在行驶过程中各种动态特征</td><td>车辆进出交叉口时间</td><td>用于计算车辆在交叉口的停留时间和延误时间</td><td>摄像头、雷达</td></tr>
+                <tr><td>车辆在行驶过程中各种动态特征</td><td>车辆进出交叉口速度</td><td>用于计算车辆通过交叉口的时间和流量，单位为km/h</td><td>摄像头、雷达</td></tr>
+                <tr><td>车辆在行驶过程中各种动态特征</td><td>车辆行驶方向</td><td>如直行、左转、右转等，用于统计不同方向的流量</td><td>摄像头、雷达</td></tr>
+                <tr><td rowspan="7" class="text-center highlight">路径流量信息</td><td>通过输入的信息数据，最终输出交叉口或车道内的流量信息及关键指标值</td><td>各车道流量</td><td>单位时间内通过每个车道的标准车当量数，单位为pcu/h</td><td>边缘计算单元</td></tr>
+                <tr><td>通过输入的信息数据，最终输出交叉口或车道内的流量信息及关键指标值</td><td>各方向流量</td><td>直行、左转、右转等不同方向的车辆流量，单位为pcu/h</td><td>边缘计算单元</td></tr>
+                <tr><td>通过输入的信息数据，最终输出交叉口或车道内的流量信息及关键指标值</td><td>总流量</td><td>整个交叉口的车辆流量总和，单位为pcu/h</td><td>边缘计算单元</td></tr>
+                <tr><td>通过输入的信息数据，最终输出交叉口或车道内的流量信息及关键指标值</td><td>平均延误时间</td><td>车辆在交叉口内的平均停留时间与无延误情况下通过交叉口所需时间的差值，单位为s。</td><td>边缘计算单元</td></tr>
+                <tr><td>通过输入的信息数据，最终输出交叉口或车道内的流量信息及关键指标值</td><td>饱和度</td><td>交叉口实际流量与通行能力的比值</td><td>边缘计算单元</td></tr>
+                <tr><td>通过输入的信息数据，最终输出交叉口或车道内的流量信息及关键指标值</td><td>车道占有率</td><td>车道上车辆占用的像素比例或车辆间距</td><td>边缘计算单元</td></tr>
+                <tr><td>通过输入的信息数据，最终输出交叉口或车道内的流量信息及关键指标值</td><td>绿波带宽度</td><td>在一个信号周期内，能够实现绿波通行的时间范围，单位为s</td><td>边缘计算单元</td></tr>
             </tbody>
         </table>
     </div>

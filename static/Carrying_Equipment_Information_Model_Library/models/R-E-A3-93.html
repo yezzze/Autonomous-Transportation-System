@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R-E-A3-93 轨道客流激增态势识别信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>轨道客流激增态势识别信息模型</h1>
+    <p>模型编号：R-E-A3-93 | 逻辑阶段：认知 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>轨道客流激增态势识别信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>认知</td></tr>
+            <tr><th>实体层级</th><td>边缘</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">R-E-A3-93</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，轨道站点边缘计算单元识别本站客流激增并判定激增等级，结合接驳需求预测结果与本地应急预案，推演需由道路交通承担的疏散客流量、疏散方向、目标接运站点与分批疏散时序。</td></tr>
+            <tr><th>信息模型服务场景</th><td>轨道激增客流应急疏散的多方式调度、自主协同交通管控。</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通事件感知信息模型（P-E-A3-6）、轨道站点客流与列车运行状态感知信息模型（P-E-A3-90）、轨道出站接驳需求预测信息模型（R-E-A3-92）</td></tr>
+            <tr><th>下游信息模型编号</th><td>轨道-道路跨域协同交互信息模型（T-E-A3-94）、轨道激增客流多方式协同调度信息模型（C-C-A3-96）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="6" class="text-center highlight">车站客流与列车运行状态信息</td><td>由轨道站点客流与列车运行状态感知信息模型形成的本站客流集聚程度与轨道运营状态</td><td>区域人数检测结果</td><td>站厅、站台候车区的实时人数检测与计数结果</td><td>站厅与站台顶置全景摄像机</td></tr>
+                <tr><td>由轨道站点客流与列车运行状态感知信息模型形成的本站客流集聚程度与轨道运营状态</td><td>排队长度检测结果</td><td>闸机口、扶梯口及换乘通道的排队队列长度</td><td>闸机口与通道视频摄像机</td></tr>
+                <tr><td>由轨道站点客流与列车运行状态感知信息模型形成的本站客流集聚程度与轨道运营状态</td><td>站内设施设计容量</td><td>站厅、站台及换乘通道的设计承载人数与通行能力</td><td>车站基础信息库</td></tr>
+                <tr><td>由轨道站点客流与列车运行状态感知信息模型形成的本站客流集聚程度与轨道运营状态</td><td>进站刷卡记录</td><td>各闸机进站刷卡时刻与刷卡人次</td><td>车站自动售检票闸机</td></tr>
+                <tr><td>由轨道站点客流与列车运行状态感知信息模型形成的本站客流集聚程度与轨道运营状态</td><td>车厢载客人数</td><td>各车厢实时载客人数检测结果</td><td>车厢空气弹簧载荷传感器/车门双目客流计数器</td></tr>
+                <tr><td>由轨道站点客流与列车运行状态感知信息模型形成的本站客流集聚程度与轨道运营状态</td><td>运营异常状态</td><td>晚点时长、限流、停运、区间中断等运营异常标识及影响范围</td><td>轨道交通调度系统</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">轨道出站接驳需求预测信息</td><td>由轨道出站接驳需求预测信息模型输出的本站常态接驳需求基线</td><td>预测出站客流量序列</td><td>未来各预测时段内各出入口的出站客流量</td><td>边缘计算单元</td></tr>
+                <tr><td>由轨道出站接驳需求预测信息模型输出的本站常态接驳需求基线</td><td>预测接驳需求总量</td><td>各出入口需换乘道路交通方式的接驳客流量及其到达时间分布</td><td>边缘计算单元</td></tr>
+                <tr><td>由轨道出站接驳需求预测信息模型输出的本站常态接驳需求基线</td><td>预测接驳方向分布</td><td>接驳需求在各接驳方向与目的地分区的分布比例</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">交通事件影响信息</td><td>由交通事件感知信息模型输出的车站周边道路交通事件及其影响对象</td><td>事件类型</td><td>事故、施工、异常停车、车辆故障或道路拥堵的类型</td><td>边缘摄像头、雷达、传感器</td></tr>
+                <tr><td>由交通事件感知信息模型输出的车站周边道路交通事件及其影响对象</td><td>事件发生时空信息</td><td>事件发生的位置与时刻、受影响范围、事件持续时间等</td><td>边缘摄像头、雷达、传感器</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">应急疏散预案与阈值信息</td><td>由边缘数据库提供、中心云周期性下发更新的激增判定口径与本站疏散预案</td><td>激增等级判定阈值</td><td>各激增等级对应的滞留人数、排队长度与设施容量占用比阈值</td><td>边缘计算单元（本地应急预案库）</td></tr>
+                <tr><td>由边缘数据库提供、中心云周期性下发更新的激增判定口径与本站疏散预案</td><td>车站疏散预案信息</td><td>本站分等级的疏散方向、目标接运站点与限流措施</td><td>边缘计算单元（本地应急预案库）</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">轨道客流激增态势与疏散需求推演信息</td><td>边缘计算单元融合本站客流、运营异常与预案信息形成的激增态势判定与外部疏散需求推演结果</td><td>激增态势判定结果</td><td>本站激增等级、起始时刻与预计持续时长</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘计算单元融合本站客流、运营异常与预案信息形成的激增态势判定与外部疏散需求推演结果</td><td>站内影响范围推演结果</td><td>本站受影响的站厅、站台与通道区域及向相邻站点的客流转移趋势</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘计算单元融合本站客流、运营异常与预案信息形成的激增态势判定与外部疏散需求推演结果</td><td>外部疏散需求量</td><td>需由道路交通承担的疏散客流量及其时间分布</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘计算单元融合本站客流、运营异常与预案信息形成的激增态势判定与外部疏散需求推演结果</td><td>疏散方向与目标站点</td><td>各疏散方向的客流量、目标接运站点及对应接驳区</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘计算单元融合本站客流、运营异常与预案信息形成的激增态势判定与外部疏散需求推演结果</td><td>推演可信度</td><td>对各项态势判定与需求推演结果可靠程度的量化描述</td><td>边缘计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

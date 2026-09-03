@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A2-31 盲区预警信息模型 - 详情</title>
+    <title>D-D-A2-26 盲区预警信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>盲区预警信息模型</h1>
-    <p>模型编号：D-D-A2-31 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A2</span></p>
+    <p>模型编号：D-D-A2-26 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A2</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>盲区预警信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A2</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A2-31</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市道路低速变道、高速公路常规并线等场景，主要针对侧后方盲区车辆预警。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A2-26</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A2时，端侧（车载决策单元）整合自身本车状态信息与盲区目标状态信息，通过基础风险算法判断盲区障碍物情况，生成预警提示，辅助驾驶员主导决策（系统不直接干预），不涉及感知阶段的数据采集。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市道路低速变道、高速公路常规并线等场景，主要针对侧后方盲区车辆预警。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车车通信V2V信息模型（T-D-A2-17）</td></tr>
+            <tr><th>下游信息模型编号</th><td>紧急转向避让信息模型（C-D-A2-32）、车载信息显示信息模型（C-D-A2-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,12 +52,12 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="3" class="text-center highlight">本车状态信息</td><td>载运装备自身与盲区预警相关的动态参数</td><td>车速</td><td>当前行驶速度（误差≤±0.1m/s）</td><td>车载单元OBU</td></tr>
-                <tr><td>载运装备自身与盲区预警相关的动态参数</td><td>转向灯状态</td><td>左/右转向灯开启/关闭状态</td><td>车载单元OBU</td></tr>
-                <tr><td>载运装备自身与盲区预警相关的动态参数</td><td>行驶状态</td><td>直行、准备变道（基于转向灯+方向盘角度判断）</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">本车状态信息</td><td>端侧自身与盲区预警相关的动态参数</td><td>车速</td><td>当前行驶速度（误差≤±0.1m/s）</td><td>车载单元OBU</td></tr>
+                <tr><td>端侧自身与盲区预警相关的动态参数</td><td>转向灯状态</td><td>左/右转向灯开启/关闭状态</td><td>车载单元OBU</td></tr>
+                <tr><td>端侧自身与盲区预警相关的动态参数</td><td>行驶状态</td><td>直行、准备变道（基于转向灯+方向盘角度判断）</td><td>车载单元OBU</td></tr>
                 <tr><td rowspan="3" class="text-center highlight">盲区目标状态信息</td><td>车载传感器感知的侧后方盲区目标特征</td><td>目标存在性</td><td>盲区是否有车辆/障碍物（有/无）</td><td>车载单元OBU</td></tr>
                 <tr><td>车载传感器感知的侧后方盲区目标特征</td><td>目标距离</td><td>目标与本车的横向距离（误差≤±0.5m）</td><td>车载单元OBU</td></tr>
                 <tr><td>车载传感器感知的侧后方盲区目标特征</td><td>目标相对速度</td><td>目标与本车的相对速度（接近/远离）</td><td>车载单元OBU</td></tr>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MODEL-015 人机接管决策信息模型 - 详情</title>
+    <title>D-D-A3-30 人机接管决策信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>人机接管决策信息模型</h1>
-    <p>模型编号：MODEL-015 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-D-A3-30 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,22 +37,22 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>人机接管决策信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-015</span></td></tr>
-            <tr><th>信息模型描述</th><td>自主化等级为A3时，道路交通系统包含L3、L4、L5级自动驾驶车辆与人类驾驶车辆，边缘计算与中心云具备一定的决策与控制能力。人机接管决策信息模型运行于车辆端计算单元（车载单元OBU），接收驾驶员状态监测信息模型输出的疲劳与分心等级及接管准备等级、冲突情况检测信息模型输出的冲突风险信息，结合辅助驾驶功能状态信息，判定接管请求（TOR）的发起时机与紧迫等级，输出接管请求指令并监测驾驶员的接管响应结果。当驾驶员在预留接管时间内未有效响应或经评估不具备接管能力时，模型自主输出最小风险策略指令，由紧急制动、紧急转向避让等控制类模型执行，不再依赖驾驶员响应；同时将接管事件经车网通信V2N信息模型上传中心云，供远程监控与运行状态评估使用。</td></tr>
-            <tr><th>模型服务场景</th><td>人机共驾接管管理、疲劳与分心提醒等</td></tr>
-            <tr><th>上游接口模型编号</th><td>驾驶员状态监测信息模型、冲突情况检测信息模型</td></tr>
-            <tr><th>下游接口模型编号</th><td>车载信息显示信息模型、紧急制动信息模型、紧急转向避让信息模型、车网通信V2N信息模型</td></tr>
-            <tr><th>交付时间</th><td></td></tr>
-            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-30</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，道路交通系统包含L3、L4、L5级自动驾驶车辆与人类驾驶车辆，边缘计算与中心云具备一定的决策与控制能力。人机接管决策信息模型运行于车辆端计算单元（车载单元OBU），接收驾驶员状态监测信息模型输出的疲劳与分心等级及接管准备等级、冲突情况检测信息模型输出的冲突风险信息，结合辅助驾驶功能状态信息，判定接管请求（TOR）的发起时机与紧迫等级，输出接管请求指令并监测驾驶员的接管响应结果。当驾驶员在预留接管时间内未有效响应或经评估不具备接管能力时，模型自主输出最小风险策略指令，由紧急制动、紧急转向避让等控制类模型执行，不再依赖驾驶员响应；同时将接管事件经车网通信V2N信息模型上传中心云，供远程监控与运行状态评估使用。</td></tr>
+            <tr><th>信息模型服务场景</th><td>人机共驾接管管理、疲劳与分心提醒等。</td></tr>
+            <tr><th>上游信息模型编号</th><td>冲突情况检测信息模型（R-D-A3-10）、驾驶员状态监测信息模型（R-D-A3-12）</td></tr>
+            <tr><th>下游信息模型编号</th><td>紧急制动信息模型（C-D-A3-31）、车载信息显示信息模型（C-D-A3-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
         </table>
     </div>
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="3" class="text-center highlight">驾驶员状态信息</td><td>由驾驶员状态监测信息模型输出的驾驶员状态估计结果</td><td>疲劳等级</td><td>基于面部与头部特征判定的疲劳等级</td><td>端计算单元（车载域控制器）</td></tr>

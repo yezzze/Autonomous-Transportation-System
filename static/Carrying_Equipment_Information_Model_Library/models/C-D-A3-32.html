@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>C-D-A3-32 紧急制动预警信息模型 - 详情</title>
+    <title>C-D-A3-32 紧急转向避让信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -28,23 +28,23 @@
 <body>
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
-    <h1>紧急制动预警信息模型</h1>
-    <p>模型编号：C-D-A3-32 | 逻辑阶段：控制 | 自主化等级：<span class="badge">A3</span></p>
+    <h1>紧急转向避让信息模型</h1>
+    <p>模型编号：C-D-A3-32 | 逻辑阶段：控制 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
         <table class="meta-table">
-            <tr><th>信息模型名称</th><td>紧急制动预警信息模型</td></tr>
+            <tr><th>信息模型名称</th><td>紧急转向避让信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>控制</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
             <tr><th>信息模型编号</th><td><span class="highlight">C-D-A3-32</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市快速路、高速公路、复杂交叉口（无信号/多相位）等场景，针对中远距离（50-200m）紧急碰撞风险的协同预警与自动干预。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>信息模型功能描述</th><td>在A3等级下，车辆根据紧急避让目标和规划轨迹，自主生成并执行转向控制指令，实时调节车辆横向运动状态并跟踪避让轨迹，在特定运行场景下完成自主紧急转向避让。</td></tr>
+            <tr><th>信息模型服务场景</th><td>自动驾驶车辆障碍物避让、突发冲突紧急转向、车道内危险目标规避及紧急横向控制等场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>冲突情况检测信息模型（R-D-A3-10）、车辆轨迹预测信息模型（R-E-A3-15）、前向碰撞预警信息模型（D-D-A3-22）、盲区预警信息模型（D-D-A3-26）、弱势交通参与者碰撞预警信息模型（D-D-A3-48）</td></tr>
+            <tr><th>下游信息模型编号</th><td>无（本模型为控制执行或信息输出终端模型）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,22 +52,27 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="4" class="text-center highlight">车辆自身状态信息</td><td>车辆实时运行关键参数</td><td>当前速度</td><td>瞬时行驶速度，单位：km/h，（精度±0.05km/h）</td><td>IMU惯性测量单元、车载雷达</td></tr>
-                <tr><td>车辆实时运行关键参数</td><td>加速度</td><td>速度变化率，单位：m/s²，（精度±0.005m/s²）</td><td>IMU惯性测量单元</td></tr>
-                <tr><td>车辆实时运行关键参数</td><td>制动系统状态</td><td>制动踏板开度（0%-100%）、制动压力（0-250bar）</td><td>制动踏板传感器、制动压力传感器</td></tr>
-                <tr><td>车辆实时运行关键参数</td><td>当前位置</td><td>车辆经纬度坐标</td><td>北斗车载定位模块</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">路侧协同信息</td><td>路侧设备扩展的感知数据</td><td>远距离障碍物信息</td><td>50-200m 范围内障碍物状态（位置、速度）</td><td>路侧单元（RSU）、路侧激光雷达</td></tr>
-                <tr><td>路侧设备扩展的感知数据</td><td>邻车制动意图</td><td>前方500m内邻车的制动灯状态（亮/灭）、制动踏板开度（0%-100%）、制动压力（0-250bar）</td><td>车载单元OBU</td></tr>
-                <tr><td>路侧设备扩展的感知数据</td><td>路网拓扑信息</td><td>前方路口、弯道等道路结构</td><td>路侧GPS</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">预警触发条件信息</td><td>预警启动的量化判定标准</td><td>安全距离阈值</td><td>基于车速计算的最小安全距离，单位：m</td><td>车载单元OBU</td></tr>
-                <tr><td>预警启动的量化判定标准</td><td>碰撞时间预测（TTC）</td><td>预计碰撞剩余时间，单位：s</td><td>车载单元OBU</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">制动干预信息</td><td>系统自主执行的制动操作</td><td>制动干预强度</td><td>部分制动（0-30%制动力，适用于TTC=0.8-1.5s）、紧急制动（30%-100%制动力，适用于TTC<0.8s）</td><td>车辆控制单元</td></tr>
-                <tr><td>系统自主执行的制动操作</td><td>干预触发条件</td><td>驾驶员未响应时间≥0.5s，且TTC≤0.8s，同时满足路侧MEC协同验证的风险判定结果</td><td>车载单元OBU、边缘计算单元MEC</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">干预反馈信息</td><td>制动干预后的状态反馈</td><td>实际制动力</td><td>执行的制动力百分比，单位：%</td><td>制动压力传感器</td></tr>
-                <tr><td>制动干预后的状态反馈</td><td>剩余安全距离</td><td>干预后本车与障碍物的实时距离，单位：m</td><td>激光雷达</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">避让控制目标信息</td><td>车辆自主实施紧急转向所需达到的控制目标</td><td>避让方向</td><td>当前建议向左或向右实施转向避让</td><td>自动驾驶域控制器</td></tr>
+                <tr><td>车辆自主实施紧急转向所需达到的控制目标</td><td>目标避让轨迹</td><td>上游决策形成的车辆紧急避让目标轨迹</td><td>自动驾驶域控制器</td></tr>
+                <tr><td>车辆自主实施紧急转向所需达到的控制目标</td><td>目标横向位置</td><td>避让完成后车辆应达到的横向位置</td><td>自动驾驶域控制器</td></tr>
+                <tr><td>车辆自主实施紧急转向所需达到的控制目标</td><td>安全横向间距</td><td>避让过程中需要保持的最小横向安全距离（m）</td><td>自动驾驶域控制器</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">车辆横向状态信息</td><td>避让控制过程中车辆的实时横向运动状态</td><td>当前转向角</td><td>当前前轮或方向盘转向角（°）</td><td>电子助力转向系统EPS</td></tr>
+                <tr><td>避让控制过程中车辆的实时横向运动状态</td><td>横摆角速度</td><td>当前车辆绕垂直轴旋转速度（°/s）</td><td>惯性测量单元IMU</td></tr>
+                <tr><td>避让控制过程中车辆的实时横向运动状态</td><td>横向加速度</td><td>当前车辆横向加速度（m/s²）</td><td>惯性测量单元IMU</td></tr>
+                <tr><td>避让控制过程中车辆的实时横向运动状态</td><td>车辆位置</td><td>当前车辆实时空间位置</td><td>高精度定位系统</td></tr>
+                <tr><td>避让控制过程中车辆的实时横向运动状态</td><td>当前车速</td><td>紧急转向控制时车辆运行速度（km/h）</td><td>车载诊断系统OBD</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">转向轨迹控制信息</td><td>车辆自主跟踪避让轨迹所需的转向控制参数</td><td>目标转向角序列</td><td>避让过程中随时间变化的目标转向角序列</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆自主跟踪避让轨迹所需的转向控制参数</td><td>目标横摆角速度</td><td>避让过程中期望达到的横摆角速度</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆自主跟踪避让轨迹所需的转向控制参数</td><td>横向加速度约束</td><td>避让过程中允许的横向加速度范围</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆自主跟踪避让轨迹所需的转向控制参数</td><td>轨迹跟踪误差</td><td>车辆实际位置与目标避让轨迹之间的偏差（m）</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆自主跟踪避让轨迹所需的转向控制参数</td><td>控制周期</td><td>转向控制指令的更新周期（s）</td><td>车辆控制单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">控制执行反馈信息</td><td>车辆自主避让控制的执行结果</td><td>实际转向角</td><td>转向系统实际执行的转向角（°）</td><td>电子助力转向系统EPS</td></tr>
+                <tr><td>车辆自主避让控制的执行结果</td><td>实际避让轨迹</td><td>车辆紧急避让过程中的实际运行轨迹</td><td>高精度定位系统</td></tr>
+                <tr><td>车辆自主避让控制的执行结果</td><td>轨迹跟踪状态</td><td>当前车辆对目标避让轨迹的跟踪情况</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆自主避让控制的执行结果</td><td>避让完成状态</td><td>紧急转向避让是否成功完成</td><td>车辆控制单元</td></tr>
             </tbody>
         </table>
     </div>

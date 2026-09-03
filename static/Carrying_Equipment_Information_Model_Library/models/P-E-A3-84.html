@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P-E-A3-84 港口码头运行状态感知信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>港口码头运行状态感知信息模型</h1>
+    <p>模型编号：P-E-A3-84 | 逻辑阶段：感知 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>港口码头运行状态感知信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>感知</td></tr>
+            <tr><th>实体层级</th><td>边缘</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">P-E-A3-84</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>A3级港口边缘计算单元感知并汇总泊位、船舶、闸口、港区车辆和港区道路的实时状态，形成港口节点运行状态。</td></tr>
+            <tr><th>信息模型服务场景</th><td>港口码头实时运行状态感知。</td></tr>
+            <tr><th>上游信息模型编号</th><td>无（本模型为感知源模型）</td></tr>
+            <tr><th>下游信息模型编号</th><td>船舶到离港状态交互信息模型（T-E-A3-85）、港口码头泊位资源动态调度信息模型（D-C-A3-86）、港区车辆进出场协同调度信息模型（D-C-A3-87）、船港集疏运衔接计划信息模型（D-C-A3-88）、港口码头泊位资源动态调度信息模型（D-C-A4-86）、船港集疏运衔接计划信息模型（D-C-A4-88）、港口运行异常协同调整信息模型（C-C-A3-89）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">泊位状态信息</td><td>感知各泊位能力、占用及作业状态</td><td>泊位ID</td><td>泊位唯一编号</td><td>港口码头基础信息库</td></tr>
+                <tr><td>感知各泊位能力、占用及作业状态</td><td>泊位能力与限制</td><td>最大船长/吃水、货种能力及安全限制</td><td>港口码头基础信息库、生产管理系统</td></tr>
+                <tr><td>感知各泊位能力、占用及作业状态</td><td>泊位占用状态</td><td>空闲/占用/不可用状态、在泊船舶MMSI、在泊船舶装卸作业状态</td><td>泊位视频摄像头、泊位雷达、码头作业终端、装卸设备控制器</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">船舶到离港状态信息</td><td>感知船舶在港和靠离泊实际状态</td><td>船舶MMSI</td><td>船舶唯一身份标识</td><td>AIS基站</td></tr>
+                <tr><td>感知船舶在港和靠离泊实际状态</td><td>船舶实际到离港状态</td><td>到港、待泊、靠泊、作业、离泊/离港状态</td><td>AIS基站、VTS雷达、泊位视频摄像头</td></tr>
+                <tr><td>感知船舶在港和靠离泊实际状态</td><td>船舶位置与靠泊位置</td><td>当前位置及相对泊位位置</td><td>AIS基站、VTS雷达、泊位视频摄像头</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">闸口运行状态信息</td><td>感知车辆进出港和闸口服务状态</td><td>闸口通行状态</td><td>各闸口通道开放状态</td><td>闸口控制系统</td></tr>
+                <tr><td>感知车辆进出港和闸口服务状态</td><td>闸口排队状态</td><td>通行量、排队车辆数、排队长度、平均服务时间</td><td>闸口RFID/车牌识别设备</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">港区车辆运行状态信息</td><td>感知港区车辆位置和任务进度</td><td>车辆位置</td><td>车辆经纬度</td><td>车辆北斗/GNSS终端</td></tr>
+                <tr><td>感知港区车辆位置和任务进度</td><td>车辆运行状态</td><td>行驶/等待状态、任务状态及进出港进度</td><td>车载单元OBU、车辆调度终端</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">港区道路交通状态信息</td><td>感知港区道路运行状态</td><td>道路位置</td><td>道路经纬度</td><td>车辆北斗/GNSS终端</td></tr>
+                <tr><td>感知港区道路运行状态</td><td>道路拓扑</td><td>道路之间的连通关系、与泊位的连通关系</td><td>车辆北斗/GNSS终端、港口码头基础信息库</td></tr>
+                <tr><td>感知港区道路运行状态</td><td>道路交通状态</td><td>路段流量、速度、排队、拥堵或受阻状态</td><td>港区视频摄像头、路侧雷达/地磁检测器、路侧单元RSU</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

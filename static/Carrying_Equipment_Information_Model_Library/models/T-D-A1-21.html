@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>T-D-A1-51 车服通信V2S信息模型 - 详情</title>
+    <title>T-D-A1-21 车服通信V2S信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>车服通信V2S信息模型</h1>
-    <p>模型编号：T-D-A1-51 | 逻辑阶段：传输 | 自主化等级：<span class="badge">A1</span></p>
+    <p>模型编号：T-D-A1-21 | 逻辑阶段：传输 | 自主化水平：<span class="badge">A1</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>车服通信V2S信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>传输</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A1</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">T-D-A1-51</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>车辆辅助导航、道路信息提醒、交通事件提示。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A1</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">T-D-A1-21</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在A1场景下，车辆向第三方交通服务系统上传基础位置与状态信息，服务系统提供辅助导航、交通提示和道路信息反馈。车辆仅接收提示并人工决策，无系统自动调整能力，实现信息共享辅助驾驶。</td></tr>
+            <tr><th>信息模型服务场景</th><td>车辆辅助导航、道路信息提醒、交通事件提示。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A1-1）</td></tr>
+            <tr><th>下游信息模型编号</th><td>无（本模型面向索引范围外的通信或服务对象输出）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="4" class="text-center highlight">车辆运行状态信息</td><td>基础位置和行驶参数</td><td>车辆ID</td><td>唯一车辆标识</td><td>车载单元OBU</td></tr>

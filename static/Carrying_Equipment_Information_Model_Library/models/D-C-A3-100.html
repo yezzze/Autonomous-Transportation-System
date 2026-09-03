@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A3-100 空地联运运力匹配信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>空地联运运力匹配信息模型</h1>
+    <p>模型编号：D-C-A3-100 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>空地联运运力匹配信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-100</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在A3等级下，中心云综合旅客换乘需求和地面交通可用运力，分析不同接驳资源的供需关系及约束条件，形成运力分配结果并识别剩余运力与运力缺口，为空地联运衔接组织提供支撑。</td></tr>
+            <tr><th>信息模型服务场景</th><td>航空枢纽空地联运、旅客接驳组织、地面运力协调、大客流疏运及运力不足处置等场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>航空枢纽综合运行状态认知信息模型（R-C-A3-98）、航空枢纽旅客换乘需求认知信息模型（R-C-A3-99）</td></tr>
+            <tr><th>下游信息模型编号</th><td>空地联运衔接计划信息模型（D-C-A3-101）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="5" class="text-center highlight">换乘需求信息</td><td>参与运力匹配的旅客换乘需求</td><td>换乘方式</td><td>旅客拟选择或适配的地面交通方式</td><td>中心云计算单元</td></tr>
+                <tr><td>参与运力匹配的旅客换乘需求</td><td>换乘需求量</td><td>不同交通方式对应的旅客换乘需求数量（人）</td><td>中心云计算单元</td></tr>
+                <tr><td>参与运力匹配的旅客换乘需求</td><td>需求时间</td><td>旅客需要获得接驳服务的主要时间范围</td><td>中心云计算单元</td></tr>
+                <tr><td>参与运力匹配的旅客换乘需求</td><td>需求方向</td><td>换乘旅客主要目的方向或服务区域</td><td>中心云计算单元</td></tr>
+                <tr><td>参与运力匹配的旅客换乘需求</td><td>需求优先级</td><td>根据联程时限、特殊保障等条件确定的需求优先程度</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">接驳运力信息</td><td>参与空地联运的地面运输资源及当前服务能力</td><td>交通方式</td><td>提供接驳服务的地面交通方式类型</td><td>中心云通信单元</td></tr>
+                <tr><td>参与空地联运的地面运输资源及当前服务能力</td><td>可用运力</td><td>当前能够用于旅客接驳的运输能力</td><td>中心云通信单元</td></tr>
+                <tr><td>参与空地联运的地面运输资源及当前服务能力</td><td>服务方向</td><td>当前运输资源能够覆盖的主要目的方向</td><td>中心云通信单元</td></tr>
+                <tr><td>参与空地联运的地面运输资源及当前服务能力</td><td>服务时间</td><td>当前运输资源能够提供服务的时间范围</td><td>中心云通信单元</td></tr>
+                <tr><td>参与空地联运的地面运输资源及当前服务能力</td><td>运力状态</td><td>当前运力充足、紧张、饱和或不可用等状态</td><td>中心云通信单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">运力匹配约束信息</td><td>描述旅客需求与运输资源进行匹配时需要满足的条件</td><td>时间约束</td><td>旅客换乘时间与交通服务时间之间的匹配条件</td><td>中心云计算单元</td></tr>
+                <tr><td>描述旅客需求与运输资源进行匹配时需要满足的条件</td><td>方向约束</td><td>旅客目的方向与交通方式服务范围之间的匹配条件</td><td>中心云计算单元</td></tr>
+                <tr><td>描述旅客需求与运输资源进行匹配时需要满足的条件</td><td>容量约束</td><td>分配旅客数量不超过相应交通方式可用运力</td><td>中心云计算单元</td></tr>
+                <tr><td>描述旅客需求与运输资源进行匹配时需要满足的条件</td><td>服务约束</td><td>班次运行、接驳条件及服务状态等限制条件</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">运力匹配结果信息</td><td>中心云根据需求与运力形成的资源匹配方案</td><td>运力分配量</td><td>分配给相应换乘需求的运输能力</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据需求与运力形成的资源匹配方案</td><td>匹配旅客量</td><td>当前方案能够承接的旅客数量（人）</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据需求与运力形成的资源匹配方案</td><td>剩余运力</td><td>完成匹配后仍可继续提供的运输能力</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据需求与运力形成的资源匹配方案</td><td>运力缺口</td><td>现有运力无法满足的旅客需求数量</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据需求与运力形成的资源匹配方案</td><td>匹配状态</td><td>当前需求与运输能力匹配充分、紧张或不足等状态</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据需求与运力形成的资源匹配方案</td><td>更新时间</td><td>当前运力匹配结果生成或更新的时间</td><td>中心云决策单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

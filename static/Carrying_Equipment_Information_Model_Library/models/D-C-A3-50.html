@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-C-A3-47 车道功能动态调整信息模型 - 详情</title>
+    <title>D-C-A3-50 车道功能动态调整信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>车道功能动态调整信息模型</h1>
-    <p>模型编号：D-C-A3-47 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-C-A3-50 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>车道功能动态调整信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>中心云</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-47</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>潮汐车道动态启停、公交专用道动态管理、应急车道临时开放、道路事件条件下车道功能调整等</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-50</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A3下，中心云系统基于交通流、车道使用及道路事件等信息，依据预设规则判断是否需调整潮汐车道、公交专用道、应急车道等功能，生成调整方案（含车道、功能、方向、生效时间及车辆类型），并下发至道路基础设施执行，实现车道资源动态配置。</td></tr>
+            <tr><th>信息模型服务场景</th><td>潮汐车道动态启停、公交专用道动态管理、应急车道临时开放、道路事件条件下车道功能调整等</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通事件感知信息模型（P-E-A3-6）、交通流预测信息模型（R-E-A3-14）、车网通信V2N信息模型（T-D-A3-19）、路网通信I2N信息模型（T-E-A3-20）</td></tr>
+            <tr><th>下游信息模型编号</th><td>高精度地图要素实时检测与更新信息模型（R-C-A3-16）、路网动态通行能力评估信息模型（D-C-A3-61）、公交信号优先信息模型（D-C-A3-67）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="6" class="text-center highlight">道路交通运行信息</td><td>目标道路及各车道当前交通运行状态</td><td>路段标识</td><td>当前进行车道功能调整判断的目标路段唯一标识</td><td>路侧设备RSU</td></tr>

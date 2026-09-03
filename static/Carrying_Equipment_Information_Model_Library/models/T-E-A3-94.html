@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>T-E-A3-94 轨道-道路跨域协同交互信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>轨道-道路跨域协同交互信息模型</h1>
+    <p>模型编号：T-E-A3-94 | 逻辑阶段：传输 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>轨道-道路跨域协同交互信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>传输</td></tr>
+            <tr><th>实体层级</th><td>边缘、中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">T-E-A3-94</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，中心云与边缘进行跨域信息交互，汇集轨道侧接驳需求与激增态势、道路侧可用运力与交通运行状态，按车站和接驳区建立接驳需求与道路运力的关联，并以协商请求、协商应答、结果确认和执行回执的方式完成各调度子系统之间的协商决策交互。</td></tr>
+            <tr><th>信息模型服务场景</th><td>轨道-道路接驳状态与需求交互、多方式运输运力协商配置。</td></tr>
+            <tr><th>上游信息模型编号</th><td>轨道站点客流与列车运行状态感知信息模型（P-E-A3-90）、轨道出站接驳需求预测信息模型（R-E-A3-92）、轨道客流激增态势识别信息模型（R-E-A3-93）、轨道接驳多方式运力一体化配置信息模型（D-C-A3-95）</td></tr>
+            <tr><th>下游信息模型编号</th><td>轨道接驳多方式运力一体化配置信息模型（D-C-A3-95）、轨道激增客流多方式协同调度信息模型（C-C-A3-96）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">车站基础信息属性信息</td><td>轨道站点客流与列车运行状态感知信息模型提供的车站、出入口及其关联接驳区的静态信息</td><td>车站与线路标识</td><td>车站唯一编号、所属线路及运行方向</td><td>车站基础信息库</td></tr>
+                <tr><td>轨道站点客流与列车运行状态感知信息模型提供的车站、出入口及其关联接驳区的静态信息</td><td>出入口与接驳区标识</td><td>各出入口唯一编号、空间位置及其关联的道路接驳区编号</td><td>车站基础信息库</td></tr>
+                <tr><td>轨道站点客流与列车运行状态感知信息模型提供的车站、出入口及其关联接驳区的静态信息</td><td>站内设施设计容量</td><td>站厅、站台及换乘通道的设计承载人数与通行能力</td><td>车站基础信息库</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">轨道交通承担客流信息</td><td>轨道站点客流与列车运行状态感知信息模型提供的进出站客流和站内客流</td><td>进站客流量</td><td>各闸机进站刷卡时刻与刷卡人次</td><td>车站自动售检票闸机终端</td></tr>
+                <tr><td>轨道站点客流与列车运行状态感知信息模型提供的进出站客流和站内客流</td><td>出站客流量</td><td>各闸机出站刷卡时刻与刷卡人次</td><td>车站自动售检票闸机终端</td></tr>
+                <tr><td>轨道站点客流与列车运行状态感知信息模型提供的进出站客流和站内客流</td><td>区域人数检测结果</td><td>站厅、站台候车区的实时人数检测与计数结果</td><td>站厅与站台顶置全景摄像机</td></tr>
+                <tr><td>轨道站点客流与列车运行状态感知信息模型提供的进出站客流和站内客流</td><td>排队长度检测结果</td><td>闸机口、扶梯口及换乘通道的排队队列长度</td><td>通道视频摄像头</td></tr>
+                <tr><td>轨道站点客流与列车运行状态感知信息模型提供的进出站客流和站内客流</td><td>客流行进速度</td><td>换乘通道内客流的平均行进速度</td><td>毫米波雷达</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">列车到离站状态信息</td><td>由轨道站点客流与列车运行状态感知信息模型提供的列车到离站时刻与运营状态</td><td>列车标识</td><td>列车编号、所属线路及运行方向</td><td>轨道交通调度系统</td></tr>
+                <tr><td>由轨道站点客流与列车运行状态感知信息模型提供的列车到离站时刻与运营状态</td><td>实际到离站时刻</td><td>列车实际到站、开门、关门及发车时刻</td><td>轨道交通调度系统</td></tr>
+                <tr><td>由轨道站点客流与列车运行状态感知信息模型提供的列车到离站时刻与运营状态</td><td>预计到站时刻</td><td>后续列车预计到达本站的时刻序列</td><td>轨道交通调度系统</td></tr>
+                <tr><td>由轨道站点客流与列车运行状态感知信息模型提供的列车到离站时刻与运营状态</td><td>运营异常状态</td><td>晚点时长、限流、停运、区间中断等运营异常标识及影响范围</td><td>轨道交通调度系统</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">轨道侧接驳需求与态势信息</td><td>由轨道出站接驳需求预测信息模型识别的接驳需求预测结果，与轨道客流激增态势识别信息模型识别的客流激增态势</td><td>接驳需求总量预测</td><td>各出入口需换乘道路交通方式的接驳客流量及其到达时间分布</td><td>边缘计算单元</td></tr>
+                <tr><td>由轨道出站接驳需求预测信息模型识别的接驳需求预测结果，与轨道客流激增态势识别信息模型识别的客流激增态势</td><td>接驳方向分布预测</td><td>接驳需求在各接驳方向与目的地分区的分布比例</td><td>边缘计算单元</td></tr>
+                <tr><td>由轨道出站接驳需求预测信息模型识别的接驳需求预测结果，与轨道客流激增态势识别信息模型识别的客流激增态势</td><td>接驳方式分担预测</td><td>接驳需求在常规公交、出租网约、步行之间的分担客流量</td><td>边缘计算单元</td></tr>
+                <tr><td>由轨道出站接驳需求预测信息模型识别的接驳需求预测结果，与轨道客流激增态势识别信息模型识别的客流激增态势</td><td>激增态势判定结果</td><td>本站激增等级、起始时刻与预计持续时长</td><td>边缘计算单元</td></tr>
+                <tr><td>由轨道出站接驳需求预测信息模型识别的接驳需求预测结果，与轨道客流激增态势识别信息模型识别的客流激增态势</td><td>外部疏散需求量</td><td>需由道路交通承担的疏散客流量及其时间分布</td><td>边缘计算单元</td></tr>
+                <tr><td>由轨道出站接驳需求预测信息模型识别的接驳需求预测结果，与轨道客流激增态势识别信息模型识别的客流激增态势</td><td>疏散方向与目标站点</td><td>各疏散方向的客流量、目标接运站点及对应接驳区</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">道路侧运力与运行状态信息</td><td>由各道路交通调度系统与中心云共享的可用运力与接驳走廊运行状态</td><td>可用公交车辆资源信息</td><td>场站内可投入车辆、备用车辆、车辆类型、额定容量和可用时间</td><td>公交调度系统</td></tr>
+                <tr><td>由各道路交通调度系统与中心云共享的可用运力与接驳走廊运行状态</td><td>可用出租网约车辆信息</td><td>接驳区周边空驶车辆数量、可用座位数与预计到达接驳区时刻</td><td>出租网约调度系统</td></tr>
+                <tr><td>由各道路交通调度系统与中心云共享的可用运力与接驳走廊运行状态</td><td>接驳走廊交通状态信息</td><td>接驳走廊各路段的流量、平均速度与拥堵等级</td><td>边缘传感器、摄像头、雷达</td></tr>
+                <tr><td>由各道路交通调度系统与中心云共享的可用运力与接驳走廊运行状态</td><td>接驳区设施容量信息</td><td>出租网约上落客点、公交泊位的设计容量</td><td>边缘数据库</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">轨道—道路接驳关联信息</td><td>用于将轨道侧需求与道路侧运力关联为同一接驳对象的标识与对应关系</td><td>出入口与接驳区标识</td><td>各出入口唯一编号、空间位置及其关联的道路接驳区编号</td><td>车站基础信息库</td></tr>
+                <tr><td>用于将轨道侧需求与道路侧运力关联为同一接驳对象的标识与对应关系</td><td>接驳线路与站点关联</td><td>接驳区对应的公交线路、停靠站点及出租网约上落客点</td><td>边缘数据库</td></tr>
+                <tr><td>用于将轨道侧需求与道路侧运力关联为同一接驳对象的标识与对应关系</td><td>需求—运力对应关系</td><td>各接驳需求单元与承担该需求的调度子系统、车辆任务之间的关联关系</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">跨域协商与执行回执信息</td><td>各调度子系统之间共享状态、协商决策并回执确认所交互的报文内容</td><td>协商请求信息</td><td>发起方标识、协商事项、需求量与时限要求</td><td>中心云计算单元</td></tr>
+                <tr><td>各调度子系统之间共享状态、协商决策并回执确认所交互的报文内容</td><td>协商应答信息</td><td>各调度子系统可承担的运力量、约束条件与备选方案</td><td>公交调度系统、出租网约调度系统、交通信号控制系统</td></tr>
+                <tr><td>各调度子系统之间共享状态、协商决策并回执确认所交互的报文内容</td><td>协商结果确认信息</td><td>达成一致的方案标识、生效时刻、有效期与责任子系统</td><td>中心云计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A4-31 盲区预警信息模型 - 详情</title>
+    <title>D-D-A4-26 盲区预警信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>盲区预警信息模型</h1>
-    <p>模型编号：D-D-A4-31 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+    <p>模型编号：D-D-A4-26 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>盲区预警信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A4-31</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市复杂路口转弯（侧向盲区）、高速公路高密度车流并线、恶劣天气（暴雨/大雾）盲区预警等场景，支持全自动盲区风险规避。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A4-26</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A4时，端侧（车载决策单元）融合本车状态信息、盲区目标状态信息及地图数据，通过深度学习算法预测目标行为与碰撞风险，生成全自主预警及控制指令（无需人工干预），直接触发制动或转向规避盲区风险，不涉及感知阶段的数据采集。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市复杂路口转弯（侧向盲区）、高速公路高密度车流并线、恶劣天气（暴雨/大雾）盲区预警等场景，支持全自动盲区风险规避。</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通参与者感知信息模型（P-E-A4-5）、车辆轨迹预测信息模型（R-E-A4-15）、车车通信V2V信息模型（T-D-A4-17）</td></tr>
+            <tr><th>下游信息模型编号</th><td>紧急转向避让信息模型（C-D-A4-32）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,19 +52,19 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="3" class="text-center highlight">本车状态信息</td><td>载运装备自身与盲区预警相关的动态参数</td><td>车速</td><td>当前行驶速度（误差≤±0.01m/s）</td><td>车载单元OBU</td></tr>
-                <tr><td>载运装备自身与盲区预警相关的动态参数</td><td>车身姿态</td><td>横摆角、侧倾角（影响盲区范围判定）</td><td>车载单元OBU</td></tr>
-                <tr><td>载运装备自身与盲区预警相关的动态参数</td><td>规划轨迹</td><td>未来5s内的精确行驶路径（含变道轨迹）</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">本车状态信息</td><td>端侧自身与盲区预警相关的动态参数</td><td>车速</td><td>当前行驶速度（误差≤±0.01m/s）</td><td>车载单元OBU</td></tr>
+                <tr><td>端侧自身与盲区预警相关的动态参数</td><td>车身姿态</td><td>横摆角、侧倾角（影响盲区范围判定）</td><td>车载单元OBU</td></tr>
+                <tr><td>端侧自身与盲区预警相关的动态参数</td><td>规划轨迹</td><td>未来5s内的精确行驶路径（含变道轨迹）</td><td>车载单元OBU</td></tr>
                 <tr><td rowspan="4" class="text-center highlight">盲区目标状态信息</td><td>车载传感器感知的侧后方盲区目标特征</td><td>目标位置</td><td>绝对经纬度（误差≤±0.1m）</td><td>车载GNSS、IMU惯性导航系统</td></tr>
                 <tr><td>车载传感器感知的侧后方盲区目标特征</td><td>目标速度</td><td>绝对速度（误差≤±0.05m/s）</td><td>车载单元OBU</td></tr>
                 <tr><td>车载传感器感知的侧后方盲区目标特征</td><td>目标意图</td><td>变道、加速、减速等行为（未来5s预测）</td><td>中心云</td></tr>
                 <tr><td>车载传感器感知的侧后方盲区目标特征</td><td>目标尺寸</td><td>长度、宽度（判定碰撞范围）</td><td>车载单元OBU</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">路侧V2X信息</td><td>路侧设备通过V2X广播的盲区增强信息</td><td>实时盲区态势</td><td>多车感知的盲区目标列表（含被遮挡目标）</td><td>V2X 通信（PC5 接口）、车载单元OBU</td></tr>
-                <tr><td>路侧设备通过V2X广播的盲区增强信息</td><td>交叉路口盲区预警</td><td>路口转弯时的侧向盲区行人/车辆</td><td>摄像头</td></tr>
-                <tr><td>路侧设备通过V2X广播的盲区增强信息</td><td>固定盲区位置</td><td>桥梁、建筑物形成的永久盲区区域</td><td>车载激光雷达、摄像头</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">路侧V2X信息</td><td>边缘通过V2X广播的盲区增强信息</td><td>实时盲区态势</td><td>多车感知的盲区目标列表（含被遮挡目标）</td><td>V2X 通信（PC5 接口）、车载单元OBU</td></tr>
+                <tr><td>边缘通过V2X广播的盲区增强信息</td><td>交叉路口盲区预警</td><td>路口转弯时的侧向盲区行人/车辆</td><td>摄像头</td></tr>
+                <tr><td>边缘通过V2X广播的盲区增强信息</td><td>固定盲区位置</td><td>桥梁、建筑物形成的永久盲区区域</td><td>车载激光雷达、摄像头</td></tr>
                 <tr><td rowspan="2" class="text-center highlight">风险计算参数信息</td><td>判断盲区风险的基础指标</td><td>动态碰撞风险</td><td>目标与本车规划轨迹的碰撞概率（0-100%，≥30%触发干预）</td><td>中心云</td></tr>
                 <tr><td>判断盲区风险的基础指标</td><td>安全避让空间</td><td>是否存在可用于规避的相邻车道空间</td><td>车载单元OBU</td></tr>
                 <tr><td rowspan="3" class="text-center highlight">预警决策信息</td><td>基于风险计算的辅助提示策略</td><td>预警等级</td><td>低（仅预警）、中（预警+准备制动）、高（预警+强制规避）</td><td>中心云</td></tr>

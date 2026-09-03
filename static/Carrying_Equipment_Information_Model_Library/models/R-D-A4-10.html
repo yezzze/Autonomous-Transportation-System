@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>R-D-A4-5 冲突情况检测信息模型 - 详情</title>
+    <title>R-D-A4-10 冲突情况检测信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,22 +29,22 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>冲突情况检测信息模型</h1>
-    <p>模型编号：R-D-A4-5 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+    <p>模型编号：R-D-A4-10 | 逻辑阶段：认知 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>冲突情况检测信息模型</td></tr>
-            <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">R-D-A4-5</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、城市路网车辆路径-信号协同控制，应急疏散的自主协同交通管控等</td></tr>
-            <tr><th>上游接口模型编号</th><td></td></tr>
-            <tr><th>下游接口模型编号</th><td></td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>逻辑阶段</th><td>认知</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">R-D-A4-10</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A4时，车辆自动化等级包含L4、L5。在冲突情况检测中，车辆通过自身的感知设备实时获取车辆的运行状况，全面感知周边环境和相关管制措施，提取运行过程中的冲突信息</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、城市路网车辆路径-信号协同控制，应急疏散的自主协同交通管控等</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A4-1）、车辆路况感知信息模型（P-D-A4-2）、交通信号感知信息模型（P-E-A4-3）、交通参与者感知信息模型（P-E-A4-5）、车路通信V2I信息模型（T-D-A4-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>前向碰撞预警信息模型（D-D-A4-22）、弱势交通参与者碰撞预警信息模型（D-D-A4-48）、交叉口车辆通行权决策信息模型（D-E-A4-45）、紧急转向避让信息模型（C-D-A4-32）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="9" class="text-center highlight">多源交通主体运行信息</td><td>本车及相关交通主体的实时运行状态和运动意图</td><td>本车位置</td><td>车辆的经度，纬度和高度</td><td>车载终端、GPS定位、雷达</td></tr>

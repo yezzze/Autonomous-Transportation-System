@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>车辆状态感知信息模型</h1>
-    <p>模型编号：P-D-A1-1 | 逻辑阶段：感知 | 自主化等级：<span class="badge"></span></p>
+    <p>模型编号：P-D-A1-1 | 逻辑阶段：感知 | 自主化水平：<span class="badge">A1</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>车辆状态感知信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>感知</td></tr>
-            <tr><th>实体类别</th><td></td></tr>
-            <tr><th>自主化等级</th><td></td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A1</td></tr>
             <tr><th>信息模型编号</th><td><span class="highlight">P-D-A1-1</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td></td></tr>
-            <tr><th>上游接口模型编号</th><td></td></tr>
-            <tr><th>下游接口模型编号</th><td></td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A1时，载运工具为人类驾驶的汽车，无智能网联汽车(CAV)。车辆通过雷达、传感器等设备监测车辆状态信息和车辆操作信息</td></tr>
+            <tr><th>信息模型服务场景</th><td>人工驾驶车辆运行状态监测、车辆位置与速度信息采集、车辆轨迹跟踪与记录、道路交通运行基础感知、交通运行数据采集分析</td></tr>
+            <tr><th>上游信息模型编号</th><td>无（本模型为感知源模型）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车服通信V2S信息模型（T-D-A1-21）、车载信息显示信息模型（C-D-A1-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="5" class="text-center highlight">车辆状态信息</td><td>车辆行驶过程中各种动态特征，反映车辆当前的运行情况</td><td>速度</td><td>车辆单位时间内的位移量</td><td>IMU惯性测量单元</td></tr>

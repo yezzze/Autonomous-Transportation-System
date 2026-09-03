@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A3-37 闯红灯预警信息模型 - 详情</title>
+    <title>D-C-A3-47 闯红灯预警信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>闯红灯预警信息模型</h1>
-    <p>模型编号：D-D-A3-37 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-C-A3-47 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>闯红灯预警信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-37</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市主干道交叉口（高峰时段车流量≥150辆/km）、学校/医院周边路口（信号灯配时动态调整）、复杂多相位交叉口。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-47</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A3（L3-L4）下，通过C-V2X通信（PC5接口）融合车载激光雷达、INS 惯性导航系统与路侧单元（RSU）、信号机数据，获取精准信号灯配时；边缘计算单元（MEC）结合路面状态、路口车流动态预测闯红灯风险，触发“预警-预制动-紧急制动”分级控制，驾驶员可Override接管操作。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市主干道交叉口（高峰时段车流量≥150辆/km）、学校/医院周边路口（信号灯配时动态调整）、复杂多相位交叉口。</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通信号感知信息模型（P-E-A3-3）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车载信息显示信息模型（C-D-A3-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,12 +52,12 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="3" class="text-center highlight">车-路协同信号灯信息</td><td>路侧设备提供的精准信号配时</td><td>实时灯色</td><td>红灯/黄灯/绿灯（同步路侧信号机，误差≤0.1s）</td><td>路侧单元RSU、信号机</td></tr>
-                <tr><td>路侧设备提供的精准信号配时</td><td>相位配时</td><td>各方向信号灯周期（如30s）、红灯/黄灯/绿灯时长（精确到0.1s）</td><td>边缘计算单元MEC</td></tr>
-                <tr><td>路侧设备提供的精准信号配时</td><td>路口盲区提示</td><td>路侧雷达检测到的路口内其他车辆/行人（避免急刹导致追尾）</td><td>路侧单元RSU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">车-路协同信号灯信息</td><td>边缘提供的精准信号配时</td><td>实时灯色</td><td>红灯/黄灯/绿灯（同步路侧信号机，误差≤0.1s）</td><td>路侧单元RSU、信号机</td></tr>
+                <tr><td>边缘提供的精准信号配时</td><td>相位配时</td><td>各方向信号灯周期（如30s）、红灯/黄灯/绿灯时长（精确到0.1s）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td>边缘提供的精准信号配时</td><td>路口盲区提示</td><td>路侧雷达检测到的路口内其他车辆/行人（避免急刹导致追尾）</td><td>路侧单元RSU</td></tr>
                 <tr><td rowspan="3" class="text-center highlight">车辆动态参数信息</td><td>更精细的运动状态</td><td>当前速度</td><td>km/h（误差≤±1km/h）</td><td>INS惯性导航系统</td></tr>
                 <tr><td>更精细的运动状态</td><td>制动能力</td><td>当前路面可支持的最大减速度（如雨天0.6g）</td><td>边缘计算单元MEC</td></tr>
                 <tr><td>更精细的运动状态</td><td>距离停止线距离</td><td>精确到0.5m（融合车载雷达与路侧定位）</td><td>边缘计算单元MEC</td></tr>

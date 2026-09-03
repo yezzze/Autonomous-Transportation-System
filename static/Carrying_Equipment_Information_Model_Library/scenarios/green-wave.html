@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>干线绿波协同通行 - UML 场景详情</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+<style>
+        :root {
+            --primary: #1a73e8;
+            --scenario: #13a8a8;
+            --bg: #f8f9fa;
+            --text: #2c3e50;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --p: #bf9000;
+            --r: #722ed1;
+            --t: #2e75b6;
+            --d: #548235;
+            --c: #7c7c7c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif; }
+        body { background: var(--bg); color: #333; min-height: 100vh; }
+
+        .page-header { background: linear-gradient(135deg, #0f7f7f, var(--scenario)); color: #fff; padding: 32px 24px 86px; }
+        .header-inner { max-width: 1280px; margin: 0 auto; }
+        .breadcrumb { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: .88rem; opacity: .9; margin-bottom: 20px; }
+        .breadcrumb a { color: #fff; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,.55); }
+        .page-header h1 { font-size: 2rem; line-height: 1.35; margin-bottom: 12px; }
+        .page-header p { max-width: 980px; line-height: 1.75; opacity: .92; }
+
+        .toolbar {
+            max-width: 1280px; margin: -46px auto 22px; padding: 0 24px;
+            display: flex; flex-wrap: wrap; gap: 12px; position: relative; z-index: 3;
+        }
+        .tool-btn {
+            height: 48px; padding: 0 18px; border-radius: 12px; background: #fff;
+            color: var(--text); border: 1px solid var(--border); box-shadow: 0 10px 22px rgba(0,0,0,.08);
+            text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+            gap: 9px; font-weight: 800; cursor: pointer; transition: all .2s ease;
+        }
+        .tool-btn:hover { transform: translateY(-2px); border-color: var(--scenario); color: var(--scenario); }
+        .tool-btn.primary { background: #2c3e50; color: white; border-color: #2c3e50; }
+        .tool-btn.primary:hover { color: white; background: #34495e; }
+
+        .container { max-width: 1280px; margin: 0 auto; padding: 0 24px 60px; }
+        .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; align-items: start; }
+
+        .panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 10px 24px rgba(0,0,0,.05); }
+        .side-panel { position: sticky; top: 18px; overflow: hidden; }
+        .panel-title { padding: 18px 20px; border-bottom: 1px solid var(--border); color: var(--text); font-size: 1.05rem; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+        .panel-body { padding: 18px 20px; }
+
+        .info-list { display: grid; gap: 15px; }
+        .info-item label { display: block; color: var(--muted); font-size: .78rem; font-weight: 800; margin-bottom: 6px; }
+        .info-item div, .info-item p { color: #374151; font-size: .92rem; line-height: 1.75; }
+
+        .pill-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pill { border-radius: 999px; padding: 6px 10px; font-size: .76rem; background: #f3f4f6; color: #4b5563; font-weight: 700; }
+        .pill.p { background: rgba(191,144,0,.14); color: #8a6500; }
+        .pill.r { background: rgba(114,46,209,.12); color: #531dab; }
+        .pill.t { background: rgba(46,117,182,.13); color: #1d5f9e; }
+        .pill.d { background: rgba(84,130,53,.15); color: #3f6f24; }
+        .pill.c { background: rgba(124,124,124,.15); color: #595959; }
+
+        .main-content { display: grid; gap: 20px; }
+        .uml-card { overflow: hidden; }
+        .uml-header {
+            padding: 16px 18px; display: flex; justify-content: space-between; gap: 12px;
+            flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border);
+        }
+        .uml-header h2 { color: var(--text); font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
+        .uml-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+        .small-btn {
+            border: 1px solid var(--border); background: #fff; color: #374151;
+            border-radius: 10px; padding: 8px 10px; cursor: pointer; font-weight: 800; font-size: .82rem;
+        }
+        .small-btn:hover { border-color: var(--scenario); color: var(--scenario); }
+
+        .uml-viewport {
+            background: #eef2f6;
+            height: calc(100vh - 245px);
+            min-height: 600px;
+            max-height: 860px;
+            overflow: auto;
+            padding: 22px;
+        }
+
+        .uml-image-wrap {
+            min-width: 100%;
+            min-height: 100%;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .uml-image {
+            display: block;
+            width: auto;
+            height: auto;
+            max-width: none;
+            max-height: none;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 8px 18px rgba(0,0,0,.08);
+        }
+
+        .section { padding: 20px; }
+        .section h2 { color: var(--text); font-size: 1.12rem; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+
+        .stage-grid { display: grid; grid-template-columns: repeat(var(--stage-count, 5), minmax(0, 1fr)); gap: 12px; }
+        .stage-card { border-radius: 14px; border: 1px solid var(--border); padding: 15px; background: #fff; }
+        .stage-card h3 { font-size: .95rem; margin-bottom: 8px; color: var(--text); }
+        .stage-card p { font-size: .84rem; line-height: 1.72; color: var(--muted); }
+        .stage-card.p { border-top: 5px solid var(--p); }
+        .stage-card.r { border-top: 5px solid var(--r); }
+        .stage-card.t { border-top: 5px solid var(--t); }
+        .stage-card.d { border-top: 5px solid var(--d); }
+        .stage-card.c { border-top: 5px solid var(--c); }
+
+        .model-table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 820px; font-size: .9rem; }
+        th, td { border-bottom: 1px solid var(--border); padding: 12px 10px; text-align: left; vertical-align: top; line-height: 1.55; }
+        th { color: #4b5563; background: #f9fafb; font-weight: 900; }
+        td a { color: var(--primary); text-decoration: none; font-weight: 800; }
+        td a:hover { text-decoration: underline; }
+
+        .stage-label { font-weight: 900; white-space: nowrap; }
+        .stage-label.p { color: #8a6500; }
+        .stage-label.r { color: #531dab; }
+        .stage-label.t { color: #1d5f9e; }
+        .stage-label.d { color: #3f6f24; }
+        .stage-label.c { color: #595959; }
+
+        .check-list { display: grid; gap: 12px; }
+        .check-item { display: flex; gap: 10px; align-items: flex-start; color: #374151; line-height: 1.7; font-size: .9rem; }
+        .check-item i { color: #52c41a; margin-top: 4px; }
+
+        @media (max-width: 1120px) {
+            .stage-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 980px) {
+            .layout { grid-template-columns: 1fr; }
+            .side-panel { position: static; }
+            .stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 640px) {
+            .page-header h1 { font-size: 1.45rem; }
+            .stage-grid { grid-template-columns: 1fr; }
+            .tool-btn { flex: 1; }
+        }
+</style>
+</head>
+<body>
+<header class="page-header">
+<div class="header-inner">
+<div class="breadcrumb">
+<a href="../index.html">模型库首页</a>
+<i class="fa-solid fa-chevron-right"></i>
+<a href="../scenarios.html">典型场景 UML</a>
+<i class="fa-solid fa-chevron-right"></i>
+<span>干线绿波协同通行</span>
+</div>
+<h1>干线绿波协同通行 UML 时序图</h1>
+<p>围绕城市干线连续通行需求，组织车辆、交通感知设备、边缘路侧单元、中心云平台及多个信号控制器之间的信息交互，将交通流预测、车辆轨迹预测、绿波车速引导与干线信号协调控制集成为统一场景。</p>
+</div>
+</header>
+
+<div class="toolbar">
+<a class="tool-btn primary" href="../scenarios.html"><i class="fa-solid fa-arrow-left"></i> 返回场景列表</a>
+<a class="tool-btn" href="../index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
+<a class="tool-btn" href="../graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
+<a class="tool-btn" download href="../assets/uml/green-wave.svg"><i class="fa-solid fa-download"></i> 下载 SVG 图</a>
+</div>
+
+<main class="container">
+<div class="layout">
+<aside class="panel side-panel">
+<div class="panel-title"><i class="fa-solid fa-circle-info"></i> 场景信息</div>
+<div class="panel-body">
+<div class="info-list">
+<div class="info-item">
+<label>场景名称</label>
+<div>干线绿波协同通行</div>
+</div>
+<div class="info-item">
+<label>英文名称</label>
+<div>Arterial Green-Wave Coordinated Passage</div>
+</div>
+<div class="info-item">
+<label>场景目标</label>
+<p>联合优化干线交叉口周期、相位差和绿信比，并向车辆提供目标车速与建议到达时间，使车辆运行与绿波带匹配，提高沿线连续通行效率。</p>
+</div>
+<div class="info-item">
+<label>参与主体</label>
+<div class="pill-list"><span class="pill ">智能网联车辆</span><span class="pill ">交通感知设备</span><span class="pill ">边缘路侧单元</span><span class="pill ">中心云平台</span><span class="pill ">交叉口1信号控制器</span><span class="pill ">交叉口2信号控制器</span></div>
+</div>
+<div class="info-item">
+<label>协同方式</label>
+<div class="pill-list"><span class="pill ">车路云协同</span><span class="pill ">V2I</span><span class="pill ">I2N</span><span class="pill ">干线信号协同</span><span class="pill ">车速引导</span></div>
+</div>
+<div class="info-item">
+<label>信息流阶段</label>
+<div class="pill-list"><span class="pill p">感知阶段</span><span class="pill r">认知阶段</span><span class="pill t">传输阶段</span><span class="pill d">决策阶段</span><span class="pill c">控制阶段</span></div>
+</div>
+<div class="info-item">
+<label>核心逻辑</label>
+<p>路侧获取干线交通流和信号状态，并结合车辆运行信息形成交通流与轨迹预测；中心云据此同时形成绿波车速引导和干线信号协调方案，使信号配时与车辆速度两侧协同匹配。</p>
+</div>
+</div>
+</div>
+</aside>
+
+<section class="main-content">
+<div class="panel uml-card">
+<div class="uml-header">
+<h2><i class="fa-solid fa-timeline"></i> UML 时序图</h2>
+<div class="uml-tools">
+<button class="small-btn" onclick="fitWidth()">适应宽度</button>
+<button class="small-btn" onclick="fitToView()">适应整图</button>
+<button class="small-btn" onclick="zoomOut()">缩小</button>
+<button class="small-btn" onclick="zoomIn()">放大</button>
+<button class="small-btn" onclick="showOriginal()">原始尺寸</button>
+</div>
+</div>
+<div class="uml-viewport" id="umlViewport">
+<div class="uml-image-wrap" id="umlImageWrap">
+<img alt="干线绿波协同通行 UML 时序图" class="uml-image" src="../assets/uml/green-wave.svg"/>
+</div>
+</div>
+</div>
+
+<div class="panel section">
+<h2><i class="fa-solid fa-layer-group"></i> 五阶段信息流说明</h2>
+<div class="stage-grid" style="--stage-count:5">
+<div class="stage-card p">
+<h3>感知阶段</h3>
+<p>车辆生成位置、速度和运行状态，路侧获取交通流信息，沿线信号控制器生成周期、相位和绿灯状态。</p>
+</div><div class="stage-card r">
+<h3>认知阶段</h3>
+<p>边缘侧形成交通流预测和车辆轨迹预测结果，得到未来交通趋势及车辆预计到达时间。</p>
+</div><div class="stage-card t">
+<h3>传输阶段</h3>
+<p>车辆通过V2I向边缘侧共享运行状态，边缘侧通过I2N向中心云汇聚交通流、信号状态及预测结果。</p>
+</div><div class="stage-card d">
+<h3>决策阶段</h3>
+<p>中心云生成绿波车速引导信息，并形成公共周期、相位差和绿波带宽等干线绿波协调方案。</p>
+</div><div class="stage-card c">
+<h3>控制阶段</h3>
+<p>中心云形成干线信号控制参数并作用于多个交叉口，同时向车辆提供目标车速和建议到达时间，车辆执行车速控制。</p>
+</div>
+</div>
+</div>
+
+<div class="panel section">
+<h2><i class="fa-solid fa-link"></i> 关联模型清单</h2>
+<div class="model-table-wrap">
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>模型名称</th>
+<th>模型索引</th>
+<th>在 UML 中的作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="stage-label p">感知</span></td>
+<td>车辆状态感知信息模型</td>
+<td><a href="../models/P-D-A4-1.html">P-D-A4-1</a></td>
+<td>生成车辆位置、速度和当前运行状态。</td>
+</tr><tr>
+<td><span class="stage-label p">感知</span></td>
+<td>交通流感知信息模型</td>
+<td><a href="../models/P-E-A4-4.html">P-E-A4-4</a></td>
+<td>获取干线流量、速度和占有率。</td>
+</tr><tr>
+<td><span class="stage-label p">感知</span></td>
+<td>交通信号感知信息模型</td>
+<td><a href="../models/P-E-A4-3.html">P-E-A4-3</a></td>
+<td>获取沿线交叉口周期、相位及绿灯状态。</td>
+</tr><tr>
+<td><span class="stage-label r">认知</span></td>
+<td>交通流预测信息模型</td>
+<td><a href="../models/R-E-A4-14.html">R-E-A4-14</a></td>
+<td>形成未来流量、速度及拥堵趋势预测。</td>
+</tr><tr>
+<td><span class="stage-label r">认知</span></td>
+<td>车辆轨迹预测信息模型</td>
+<td><a href="../models/R-E-A4-15.html">R-E-A4-15</a></td>
+<td>形成车辆短时轨迹及预计到达时间。</td>
+</tr><tr>
+<td><span class="stage-label t">传输</span></td>
+<td>车路通信V2I信息模型</td>
+<td><a href="../models/T-D-A4-18.html">T-D-A4-18</a></td>
+<td>车辆与边缘侧交换位置、速度和运行状态。</td>
+</tr><tr>
+<td><span class="stage-label t">传输</span></td>
+<td>路网通信I2N信息模型</td>
+<td><a href="../models/T-E-A4-20.html">T-E-A4-20</a></td>
+<td>边缘侧与中心云交换交通流、信号状态及预测信息。</td>
+</tr><tr>
+<td><span class="stage-label d">决策</span></td>
+<td>绿波车速引导信息模型</td>
+<td><a href="../models/D-C-A4-49.html">D-C-A4-49</a></td>
+<td>形成目标车速、建议到达时间和速度调整信息。</td>
+</tr><tr>
+<td><span class="stage-label c">控制</span></td>
+<td>干线交叉口信号控制信息模型</td>
+<td><a href="../models/C-C-A4-66.html">C-C-A4-66</a></td>
+<td>形成公共周期、相位差和绿信比并协调沿线信号。</td>
+</tr><tr>
+<td><span class="stage-label c">控制</span></td>
+<td>车速控制信息模型</td>
+<td><a href="../models/C-D-A4-33.html">C-D-A4-33</a></td>
+<td>车辆依据绿波引导调整行驶速度。</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div class="panel section">
+<h2><i class="fa-solid fa-diagram-project"></i> 场景化集成说明</h2>
+<div class="check-list">
+<div class="check-item"><i class="fa-solid fa-check-circle"></i><span>UML同时表达信号侧协调与车辆侧车速引导两条控制链，体现绿波协同而非单一信号优化。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>交通流预测与车辆轨迹预测共同支撑干线运行认知，分别对应路网状态和车辆到达时序。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>干线交叉口信号控制面向多个沿线信号控制器统一作用，体现公共周期与相位差协调。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>车辆端执行车速控制，使车辆到达时刻与绿波带相匹配。</span></div>
+</div>
+</div>
+</section>
+</div>
+</main>
+
+<script>
+    let zoom = 1;
+    let naturalSize = { width: 0, height: 0 };
+
+    const viewport = document.getElementById('umlViewport');
+    const wrap = document.getElementById('umlImageWrap');
+    const img = document.querySelector('.uml-image');
+
+    function readNaturalSize() {
+        const rect = img.getBoundingClientRect();
+        naturalSize.width = img.naturalWidth || rect.width || 1200;
+        naturalSize.height = img.naturalHeight || rect.height || 700;
+        return naturalSize;
+    }
+
+    function updateAlignment() {
+        const availableWidth = viewport.clientWidth - 44;
+        const availableHeight = viewport.clientHeight - 44;
+        const scaledWidth = naturalSize.width * zoom;
+        const scaledHeight = naturalSize.height * zoom;
+
+        wrap.style.justifyContent = scaledWidth <= availableWidth ? 'center' : 'flex-start';
+        wrap.style.alignItems = scaledHeight <= availableHeight ? 'center' : 'flex-start';
+    }
+
+    function applyZoom(centerAfterZoom = false) {
+        if (!naturalSize.width || !naturalSize.height) readNaturalSize();
+
+        img.style.width = `${naturalSize.width * zoom}px`;
+        img.style.height = `${naturalSize.height * zoom}px`;
+        updateAlignment();
+
+        if (centerAfterZoom) {
+            requestAnimationFrame(() => {
+                viewport.scrollLeft = Math.max((viewport.scrollWidth - viewport.clientWidth) / 2, 0);
+                viewport.scrollTop = Math.max((viewport.scrollHeight - viewport.clientHeight) / 2, 0);
+            });
+        }
+    }
+
+    function fitWidth() {
+        if (!naturalSize.width || !naturalSize.height) readNaturalSize();
+
+        const availableWidth = Math.max(viewport.clientWidth - 44, 1);
+        zoom = Math.min(availableWidth / naturalSize.width, 1);
+        applyZoom(false);
+
+        requestAnimationFrame(() => {
+            viewport.scrollLeft = 0;
+            viewport.scrollTop = 0;
+        });
+    }
+
+    function fitToView() {
+        if (!naturalSize.width || !naturalSize.height) readNaturalSize();
+
+        const availableWidth = Math.max(viewport.clientWidth - 44, 1);
+        const availableHeight = Math.max(viewport.clientHeight - 44, 1);
+
+        zoom = Math.min(
+            availableWidth / naturalSize.width,
+            availableHeight / naturalSize.height,
+            1
+        );
+
+        applyZoom(true);
+    }
+
+    function zoomIn() {
+        zoom = Math.min(zoom + 0.1, 2.5);
+        applyZoom(true);
+    }
+
+    function zoomOut() {
+        zoom = Math.max(zoom - 0.1, 0.15);
+        applyZoom(true);
+    }
+
+    function showOriginal() {
+        zoom = 1;
+        applyZoom(false);
+        requestAnimationFrame(() => {
+            viewport.scrollLeft = 0;
+            viewport.scrollTop = 0;
+        });
+    }
+
+    function initUmlImage() {
+        readNaturalSize();
+        fitWidth();
+    }
+
+    if (img.complete) {
+        initUmlImage();
+    } else {
+        img.addEventListener('load', initUmlImage);
+    }
+
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(fitWidth, 150);
+    });
+</script>
+</body>
+</html>

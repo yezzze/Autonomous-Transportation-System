@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A3-36 限速预警信息模型 - 详情</title>
+    <title>D-D-A3-27 限速预警信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>限速预警信息模型</h1>
-    <p>模型编号：D-D-A3-36 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-D-A3-27 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>限速预警信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-36</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>高速公路施工路段、城市快速路临时交通管制、恶劣天气（雨/雪/雾）限速调整场景。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-27</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A3（L3-L4）下，通过 C-V2X 通信（PC5 接口）融合车载激光雷达、高精地图与路侧单元（RSU）数据，实现500m范围内固定限速、临时限速的精准识别；边缘计算单元（MEC）结合路况动态优化预警阈值，系统自主生成减速建议（目标速度、减速度），驾驶员可Override取消操作。</td></tr>
+            <tr><th>信息模型服务场景</th><td>高速公路施工路段、城市快速路临时交通管制、恶劣天气（雨/雪/雾）限速调整场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆路况感知信息模型（P-D-A3-2）、气象条件认知信息模型（R-E-A3-7）、车路通信V2I信息模型（T-D-A3-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车速控制信息模型（C-D-A3-33）、车载信息显示信息模型（C-D-A3-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="2" class="text-center highlight">固定限速信息</td><td>道路永久限速标识</td><td>限速值</td><td>长期生效的最高速度（km/h）</td><td>激光雷达、高精地图</td></tr>
@@ -68,6 +68,8 @@
                 <tr><td>影响限速执行的动态因素</td><td>交通流密度</td><td>单位长度内车辆数量（辆/km），分为稀疏（≤50）、中等（50-150）、密集（≥150）</td><td>路侧雷达</td></tr>
                 <tr><td rowspan="2" class="text-center highlight">MEC优化预警参数</td><td>边缘计算动态调整的预警策略</td><td>动态阈值</td><td>根据路况调整（如雨天限速差值≥3km/h即预警）</td><td>边缘计算单元MEC</td></tr>
                 <tr><td>边缘计算动态调整的预警策略</td><td>自主减速建议</td><td>系统计算的目标减速值（km/h）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">动态限速预警结果信息</td><td>融合固定及临时限速、车辆状态与道路环境形成的动态预警结果</td><td>预警等级</td><td>根据速度差值、道路环境及交通状态划分的限速预警严重程度</td><td>车载单元OBU、边缘计算单元MEC</td></tr>
+                <tr><td>融合固定及临时限速、车辆状态与道路环境形成的动态预警结果</td><td>预警内容</td><td>向驾驶员及车辆驾驶决策系统提供的动态限速值、超速程度和建议目标车速</td><td>车载人机交互模块、车载单元OBU</td></tr>
             </tbody>
         </table>
     </div>

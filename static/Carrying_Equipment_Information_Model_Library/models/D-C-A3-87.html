@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A3-87 港区车辆进出场协同调度信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>港区车辆进出场协同调度信息模型</h1>
+    <p>模型编号：D-C-A3-87 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>港区车辆进出场协同调度信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-87</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>A3级中心云根据车辆到港、闸口排队和港区道路状态，协调车辆进出港时间、闸口选择和通行顺序，形成车辆进出场调度方案。</td></tr>
+            <tr><th>信息模型服务场景</th><td>港区集疏运车辆进出港协调。</td></tr>
+            <tr><th>上游信息模型编号</th><td>港口码头运行状态感知信息模型（P-E-A3-84）、船舶到离港状态交互信息模型（T-E-A3-85）、船港集疏运衔接计划信息模型（D-C-A3-88）</td></tr>
+            <tr><th>下游信息模型编号</th><td>船港集疏运衔接计划信息模型（D-C-A3-88）、船港集疏运衔接计划信息模型（D-C-A4-88）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">车辆到港状态</td><td>反映待进出港车辆的到港进度</td><td>车辆标识</td><td>车辆编号或车牌等唯一标识</td><td>车辆北斗/GNSS终端、车载单元OBU（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>反映待进出港车辆的到港进度</td><td>实际/预计到港时间</td><td>车辆实际到场或预计到达港区的时间</td><td>车辆北斗/GNSS终端、车辆调度终端（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>反映待进出港车辆的到港进度</td><td>车辆任务状态</td><td>待进港、待出港、装卸完成或等待状态</td><td>车载单元OBU、车辆调度终端（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">闸口排队状态</td><td>反映各闸口可服务能力和排队压力</td><td>闸口开放状态</td><td>闸口通道开放、关闭或故障状态</td><td>闸口控制系统（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>反映各闸口可服务能力和排队压力</td><td>排队车辆数与长度</td><td>闸口当前排队车辆数和排队长度</td><td>闸口RFID/车牌识别设备（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>反映各闸口可服务能力和排队压力</td><td>闸口服务状态</td><td>当前服务进度和服务能力状态</td><td>闸口控制系统（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">港区道路状态</td><td>反映车辆进出港路径的通行条件</td><td>道路通行状态</td><td>路段通畅、拥堵、受阻或关闭状态</td><td>港区视频摄像头、路侧雷达/地磁检测器、路侧单元RSU（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>反映车辆进出港路径的通行条件</td><td>道路拓扑</td><td>道路之间的连通关系、与泊位的连通关系</td><td>车辆北斗/GNSS终端、港口码头基础信息库（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>反映车辆进出港路径的通行条件</td><td>道路旅行时间</td><td>主要进出港路段的当前通行时间</td><td>港区视频摄像头、路侧雷达/地磁检测器、路侧单元RSU（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">车辆进出场调度信息</td><td>中心云根据车辆、闸口和道路状态生成进出场安排</td><td>推荐进港时段</td><td>建议车辆进入港区的时间窗口</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据车辆、闸口和道路状态生成进出场安排</td><td>目标闸口</td><td>为车辆分配的进出港闸口</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据车辆、闸口和道路状态生成进出场安排</td><td>进出场顺序</td><td>同一闸口或任务组内的车辆服务次序</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据车辆、闸口和道路状态生成进出场安排</td><td>调度状态</td><td>方案版本、生效状态及执行确认状态</td><td>中心云决策单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

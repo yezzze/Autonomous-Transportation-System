@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-C-A3-14 路网区域识别信息模型 - 详情</title>
+    <title>D-C-A3-52 路网区域识别信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>路网区域识别信息模型</h1>
-    <p>模型编号：D-C-A3-14 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-C-A3-52 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>路网区域识别信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>中心云</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-14</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应等。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-52</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在自主化水平为A3的场景中，中心云通过获取端侧的运行状况，路网中道路几何信息属性，交通流状况，信号灯状况等信息，再结合历史的事故数据、人口和社会经济数据进行分析，用于最终识别出城市路网中较为关键的区域。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应等。</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通流感知信息模型（P-E-A3-4）、交通流预测信息模型（R-E-A3-14）、车网通信V2N信息模型（T-D-A3-19）、路网通信I2N信息模型（T-E-A3-20）</td></tr>
+            <tr><th>下游信息模型编号</th><td>路网时空信息整合信息模型（D-C-A3-53）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,14 +52,14 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="4" class="text-center highlight">车辆运行状况</td><td>车辆在行驶过程中一段时间内各种动态特征。</td><td>位置</td><td>车辆的经度，纬度和高度</td><td>车载终端，感应线圈，路侧雷达</td></tr>
                 <tr><td>车辆在行驶过程中一段时间内各种动态特征。</td><td>速度</td><td>车辆位移的快慢程度，单位m/s</td><td>车载终端，感应线圈，路侧雷达</td></tr>
                 <tr><td>车辆在行驶过程中一段时间内各种动态特征。</td><td>航向角</td><td>车辆当前运动方向与正北方向顺时针夹角，单位：1e-4°</td><td>车载终端，感应线圈，路侧雷达</td></tr>
                 <tr><td>车辆在行驶过程中一段时间内各种动态特征。</td><td>运行轨迹</td><td>车辆在一段时间内的行驶路径，也包含车辆在车道上的保持情况。</td><td>车载终端，感应线圈，路侧雷达</td></tr>
-                <tr><td rowspan="6" class="text-center highlight">道路几何属性信息</td><td>当前路网中道路的布局特征</td><td>路段编号</td><td>不同路段特有的编号</td><td>中心云数据库</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">道路几何信息属性信息</td><td>当前路网中道路的布局特征</td><td>路段编号</td><td>不同路段特有的编号</td><td>中心云数据库</td></tr>
                 <tr><td>当前路网中道路的布局特征</td><td>车道数</td><td>道路在一个方向上划分的可供车辆独立行驶的通道数量</td><td>路侧摄像头、中心云数据库</td></tr>
                 <tr><td>当前路网中道路的布局特征</td><td>车道宽度</td><td>车辆正常行驶有效宽度部分，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
                 <tr><td>当前路网中道路的布局特征</td><td>转弯半径</td><td>道路弯道处的曲线半径，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
@@ -89,6 +89,15 @@
                 <tr><td>当前路网中人口的密度，收入等情况和标志性建筑情况</td><td>居民密度</td><td>单位土地面积上的人口数量</td><td>中心云数据库</td></tr>
                 <tr><td>当前路网中人口的密度，收入等情况和标志性建筑情况</td><td>收入水平</td><td>居民年收入情况</td><td>中心云数据库</td></tr>
                 <tr><td>当前路网中人口的密度，收入等情况和标志性建筑情况</td><td>就业情况</td><td>居民就业率</td><td>中心云数据库</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">路网区域识别</td><td>当前城市路网中较为关键的区域的分布情况</td><td>区域位置</td><td>不同区域分布情况，位置和大小</td><td>中心云计算单元</td></tr>
+                <tr><td>当前城市路网中较为关键的区域的分布情况</td><td>区域特征</td><td>区域内端侧或交通流等明显特征，例如高比例自动驾驶车辆区</td><td>中心云计算单元</td></tr>
+                <tr><td>当前城市路网中较为关键的区域的分布情况</td><td>区域自主化构成</td><td>区域内不同自主化水平端侧与边缘的数量及比例</td><td>中心云计算单元</td></tr>
+                <tr><td>当前城市路网中较为关键的区域的分布情况</td><td>区域管理优化建议</td><td>针对不同区域内的情况提出适当的管理方案</td><td>中心云决策单元</td></tr>
+                <tr><td>当前城市路网中较为关键的区域的分布情况</td><td>未来发展</td><td>预测各区域可能的发展变化趋势</td><td>中心云决策单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">区域安全评估</td><td>对不同区域内的安全性进行评估</td><td>安全评分</td><td>对区域内消防，防撞护栏等保护设施进行检查评分</td><td>中心云计算单元</td></tr>
+                <tr><td>对不同区域内的安全性进行评估</td><td>潜在风险点标识</td><td>识别出区域内交通事故率较高区域，找出潜在风险点</td><td>中心云计算单元</td></tr>
+                <tr><td>对不同区域内的安全性进行评估</td><td>混合交通冲突风险识别</td><td>低自主化端侧与高等级自动驾驶车辆混行区段的冲突风险识别结果</td><td>中心云计算单元</td></tr>
+                <tr><td>对不同区域内的安全性进行评估</td><td>风险预警等级与处置建议</td><td>各风险点的预警等级及建议管理人员采取的处置措施</td><td>中心云决策单元</td></tr>
             </tbody>
         </table>
     </div>

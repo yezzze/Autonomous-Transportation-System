@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>C-D-A4-42 协作式变道信息模型 - 详情</title>
+    <title>C-D-A4-64 协作式车辆汇入信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -28,46 +28,52 @@
 <body>
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
-    <h1>协作式变道信息模型</h1>
-    <p>模型编号：C-D-A4-42 | 逻辑阶段：控制 | 自主化等级：<span class="badge">A4</span></p>
+    <h1>协作式车辆汇入信息模型</h1>
+    <p>模型编号：C-D-A4-64 | 逻辑阶段：控制 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
         <table class="meta-table">
-            <tr><th>信息模型名称</th><td>协作式变道信息模型</td></tr>
+            <tr><th>信息模型名称</th><td>协作式车辆汇入信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>控制</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">C-D-A4-42</span></td></tr>
-            <tr><th>信息模型描述</th><td>在A4级自动驾驶场景中，通过车载单元OBU提供的主车状态信息，车辆决策系统实时融合本车状态、周边车辆意图反馈及道路环境风险数据，构建协作式变道信息模型，并可完成自主变道。</td></tr>
-            <tr><th>模型服务场景</th><td></td></tr>
-            <tr><th>上游接口模型编号</th><td></td></tr>
-            <tr><th>下游接口模型编号</th><td></td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
-            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">C-D-A4-64</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A4时，协作式车辆汇入信息模型面向高度自动化多车动态合流过程，以汇入车辆及目标车道协作车辆为控制对象，接收V2V/V2I交换的多车实时状态、意图与协作信息，并接收车辆跟驰信息模型形成的建议速度、期望加速度、安全跟驰间距和短时状态预测结果，围绕目标间隙、汇入时机和协作次序连续滚动执行多车纵向协同控制，构造并维持稳定的汇入窗口；当交通状态或安全约束发生变化时，系统自主调整控制目标，必要时中止或降级当前协作过程。</td></tr>
+            <tr><th>信息模型服务场景</th><td>高速公路及城市快速路高密度匝道汇入、车道封闭动态合流、多车交替通行和车队重组等需要连续自主协同控制的场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车车通信V2V信息模型（T-D-A4-17）、车路通信V2I信息模型（T-D-A4-18）、车辆跟驰信息模型（D-D-A4-24）、车辆状态感知信息模型(P-D-A4-1)、车辆路况感知信息模型(P-D-A4-2)</td></tr>
+            <tr><th>下游信息模型编号</th><td>无（本模型为控制执行或信息输出终端模型）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
         </table>
     </div>
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="4" class="text-center highlight">主车精确无偏差状态信息</td><td>载运装备自身运行的核心动态参数</td><td>位置</td><td>经纬度坐标（误差≤±0.1cm）</td><td>车载单元OBU</td></tr>
-                <tr><td>载运装备自身运行的核心动态参数</td><td>速度</td><td>瞬时速度（误差≤±0.02m/s）</td><td>车载单元OBU</td></tr>
-                <tr><td>载运装备自身运行的核心动态参数</td><td>加速度</td><td>纵向/横向加速度</td><td>车载单元OBU</td></tr>
-                <tr><td>载运装备自身运行的核心动态参数</td><td>车辆动力学参数</td><td>轮胎附着力、制动效能系数</td><td>车载单元OBU</td></tr>
-                <tr><td rowspan="4" class="text-center highlight">协作车辆状态与反馈</td><td>相邻车道的车辆响应数据</td><td>协同车辆编号</td><td>周边车辆唯一标识符（识别生命周期内不变），依据文档“交通参与者信息-编号”字段</td><td>车辆决策系统</td></tr>
-                <tr><td>相邻车道的车辆响应数据</td><td>协同车辆精确意图</td><td>0=直行，1=减速让行（本车变道），2=加速通过（拒绝让行），基于协同车辆“加速度”“方向盘转角”精确判定</td><td>车辆决策系统</td></tr>
-                <tr><td>相邻车道的车辆响应数据</td><td>相对位置/速度</td><td>与本车的纵向距离、横向距离、相对速度</td><td>车辆决策系统</td></tr>
-                <tr><td>相邻车道的车辆响应数据</td><td>协作反馈时效</td><td>接收本车变道请求后，≤0.5s反馈意图</td><td>车辆决策系统</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">影响协作变道的环境数据</td><td>车载协同感知的环境风险</td><td>路面状况</td><td>0=正常，1=积水，2=坑洼，3=结冰（积水/结冰时禁用协同变道</td><td>车辆决策系统</td></tr>
-                <tr><td>车载协同感知的环境风险</td><td>交通事件</td><td>故障车或施工</td><td>车辆决策系统</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">协作决策输出信息</td><td>最终变道指导数据</td><td>模型输出的协同结果</td><td>协同变道建议，0=可协同变道（附窗口期），1=需等待（周边车辆未让行），2=禁止协同变道（环境风险）</td><td>车辆决策系统</td></tr>
-                <tr><td>最终变道指导数据</td><td>周边车辆协同指令</td><td>向协同车辆发送“请减速让行”“请加速通过”指令（基于协同优先级）</td><td>车辆决策系统</td></tr>
-                <tr><td>最终变道指导数据</td><td>驾驶员接管提示</td><td>协同变道建议异常时（如窗口期突然缩短），提示“请立即接管方向盘”</td><td>车辆决策系统</td></tr>
+                <tr><td rowspan="7" class="text-center highlight">多协作车辆实时状态与环境约束信息</td><td>汇入车辆、目标车道关键车辆及汇入区域的连续状态与安全约束</td><td>车辆编号与协作角色</td><td>汇入车、目标车道前车、后车等关键车辆的唯一标识及协作角色</td><td>车车通信V2V</td></tr>
+                <tr><td>汇入车辆、目标车道关键车辆及汇入区域的连续状态与安全约束</td><td>位置与所在车道</td><td>各关键车辆的高精度实时位置、所在车道及与汇入点的空间关系</td><td>组合定位、车载单元OBU、车路通信V2I</td></tr>
+                <tr><td>汇入车辆、目标车道关键车辆及汇入区域的连续状态与安全约束</td><td>速度与加速度</td><td>各关键车辆的速度、纵横向加速度及运动变化状态</td><td>车载单元OBU、车车通信V2V</td></tr>
+                <tr><td>汇入车辆、目标车道关键车辆及汇入区域的连续状态与安全约束</td><td>相对运动状态</td><td>汇入车与目标车道关键车辆之间的相对距离、相对速度和间距变化率</td><td>车载感知模块、车车通信V2V</td></tr>
+                <tr><td>汇入车辆、目标车道关键车辆及汇入区域的连续状态与安全约束</td><td>短时运动与协作意图</td><td>保持、加速、减速、让行、汇入等短时意图及其当前有效状态</td><td>车车通信V2V、车辆决策系统</td></tr>
+                <tr><td>汇入车辆、目标车道关键车辆及汇入区域的连续状态与安全约束</td><td>汇入区几何与通行规则</td><td>主线/匝道几何、汇入点、车道连接关系及实时可用通行规则</td><td>高精度地图、车路通信V2I</td></tr>
+                <tr><td>汇入车辆、目标车道关键车辆及汇入区域的连续状态与安全约束</td><td>路面状态与交通事件</td><td>路面附着、障碍、施工、故障车辆和临时管制等动态约束</td><td>车载感知模块、车路通信V2I</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">车辆跟驰决策结果信息</td><td>由车辆跟驰信息模型（D-D-A4-24）滚动形成的纵向运动决策结果</td><td>建议速度</td><td>结合目标间隙和周边车辆状态滚动计算的建议行驶速度</td><td>车辆决策系统</td></tr>
+                <tr><td>由车辆跟驰信息模型（D-D-A4-24）滚动形成的纵向运动决策结果</td><td>期望加速度</td><td>用于形成、扩大或维持目标间隙的期望纵向加/减速度</td><td>车辆决策系统</td></tr>
+                <tr><td>由车辆跟驰信息模型（D-D-A4-24）滚动形成的纵向运动决策结果</td><td>安全跟驰间距</td><td>在当前自动驾驶状态和协作条件下需要满足的动态安全纵向间距</td><td>车辆决策系统</td></tr>
+                <tr><td>由车辆跟驰信息模型（D-D-A4-24）滚动形成的纵向运动决策结果</td><td>跟驰状态预测</td><td>短时范围内车辆间距、相对速度和跟驰状态的预测结果</td><td>车辆决策系统</td></tr>
+                <tr><td>由车辆跟驰信息模型（D-D-A4-24）滚动形成的纵向运动决策结果</td><td>决策有效时域与更新时间</td><td>纵向决策结果对应的预测时域、有效时刻和滚动更新时间</td><td>车辆决策系统</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">协作汇入控制目标与交互信息</td><td>多车协作处理形成并通过V2V/V2I持续确认的汇入目标和交互状态</td><td>汇入请求</td><td>目标车道、目标汇入位置、期望时间窗口及当前汇入请求状态</td><td>车车通信V2V、车路通信V2I</td></tr>
+                <tr><td>多车协作处理形成并通过V2V/V2I持续确认的汇入目标和交互状态</td><td>协作响应</td><td>协作车辆对汇入请求的确认结果、附加条件及响应有效状态</td><td>车车通信V2V</td></tr>
+                <tr><td>多车协作处理形成并通过V2V/V2I持续确认的汇入目标和交互状态</td><td>目标间隙与汇入窗口</td><td>动态更新的目标纵向间隙、期望汇入时刻和可用窗口范围</td><td>车辆决策系统</td></tr>
+                <tr><td>多车协作处理形成并通过V2V/V2I持续确认的汇入目标和交互状态</td><td>协作对象与汇入次序</td><td>当前承担间距调整的协作车辆及多车汇入/通行次序</td><td>车辆决策系统</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">协作控制执行信息</td><td>车辆控制系统滚动执行多车纵向协同控制并反馈汇入窗口与控制状态</td><td>多车纵向协调控制目标</td><td>汇入车和协作车辆的滚动目标速度、加速度及车间距控制目标</td><td>车辆控制系统</td></tr>
+                <tr><td>车辆控制系统滚动执行多车纵向协同控制并反馈汇入窗口与控制状态</td><td>汇入窗口形成状态与持续时间</td><td>目标间隙可用性、预计形成时刻、可维持时间及状态变化趋势</td><td>车辆控制系统</td></tr>
+                <tr><td>车辆控制系统滚动执行多车纵向协同控制并反馈汇入窗口与控制状态</td><td>控制执行与自主降级状态</td><td>协作控制的准备、执行、完成、中止和自主降级/备选控制状态</td><td>车辆控制系统</td></tr>
             </tbody>
         </table>
     </div>

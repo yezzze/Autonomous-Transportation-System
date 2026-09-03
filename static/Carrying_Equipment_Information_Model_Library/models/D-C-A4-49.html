@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-C-A4-39 绿波车速引导信息模型 - 详情</title>
+    <title>D-C-A4-49 绿波车速引导信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>绿波车速引导信息模型</h1>
-    <p>模型编号：D-C-A4-39 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+    <p>模型编号：D-C-A4-49 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>绿波车速引导信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>中心云</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-39</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市全域绿波网络通行、复杂路口（含行人/非机动车）协同引导、极端天气/突发事件下自适应通行。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-49</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A4（L4-L5）下，中心云与路侧MEC协同，融合历史信号配时、实时交通流数据与车载AI单元生成的车辆轨迹预测，动态调整绿波参数；通过V2X通信向车辆下发高精度车速引导策略，支持车辆全自主调整车速（无需人工干预），极端场景下自动切换至临时绕行路径，确保连续绿灯通行。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市全域绿波网络通行、复杂路口（含行人/非机动车）协同引导、极端天气/突发事件下自适应通行。</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通信号感知信息模型（P-E-A4-3）、交通流预测信息模型（R-E-A4-14）、车路通信V2I信息模型（T-D-A4-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车速控制信息模型（C-D-A4-33）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="2" class="text-center highlight">信号配时预测信息</td><td>绿波带交叉口的短期信号配时预测</td><td>未来5-10min周期/绿灯时长</td><td>预测时段内信号灯的周期长度及各相位绿灯持续时间，单位为秒（s）</td><td>边缘计算单元MEC</td></tr>

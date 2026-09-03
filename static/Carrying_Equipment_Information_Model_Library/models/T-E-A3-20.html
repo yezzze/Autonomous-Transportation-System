@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>T-EC-A3-50 路网通信I2N信息模型 - 详情</title>
+    <title>T-E-A3-20 路网通信I2N信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>路网通信I2N信息模型</h1>
-    <p>模型编号：T-EC-A3-50 | 逻辑阶段：传输 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：T-E-A3-20 | 逻辑阶段：传输 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>路网通信I2N信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>传输</td></tr>
-            <tr><th>实体类别</th><td>路侧设备-中心云</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">T-EC-A3-50</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市交通管理平台数据采集、道路交通状态监测、交通事件监测等交通管理场景。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>边缘-中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">T-E-A3-20</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在A3自动驾驶交通环境下，边缘通过I2N通信与交通管理平台进行信息交互，实时上传道路交通运行状态与道路事件信息，形成道路交通运行信息共享机制，从而支持交通管理系统进行交通监测与管理决策。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市交通管理平台数据采集、道路交通状态监测、交通事件监测等交通管理场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>站台客流感知信息模型（R-E-A3-70）、交通流预测信息模型（R-E-A3-14）、交叉口排队溢出疏解信息模型（D-E-A3-46）</td></tr>
+            <tr><th>下游信息模型编号</th><td>交通流预测信息模型（R-E-A3-14）、跨方式换乘匹配统计信息模型（R-E-A3-91）、高精度地图要素实时检测与更新信息模型（R-C-A3-16）、应急车辆优先信息模型（D-C-A3-40）、车道功能动态调整信息模型（D-C-A3-50）、路网区域识别信息模型（D-C-A3-52）、路网时空信息整合信息模型（D-C-A3-53）、路网信息融合信息模型（D-C-A3-58）、OD流量估计信息模型（D-C-A3-59）、关键路径识别信息模型（D-C-A3-60）、路网动态通行能力评估信息模型（D-C-A3-61）、路网车辆路径负载均衡信息模型（D-C-A3-62）、公交信号优先信息模型（D-C-A3-67）、公交运力动态调配信息模型（D-C-A3-73）、公交停站方案优化信息模型（D-C-A3-74）、公交信号优先自适应补偿信息模型（C-C-A3-68）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="4" class="text-center highlight">交通流状态信息</td><td>描述道路交通运行状态信息</td><td>路段ID</td><td>当前车辆行驶速度（km/h）</td><td>路侧单元</td></tr>
@@ -64,7 +64,7 @@
                 <tr><td>描述道路异常交通事件</td><td>事件时间</td><td>事件发生时间</td><td>路侧单元</td></tr>
                 <tr><td rowspan="2" class="text-center highlight">交通参与者感知信息</td><td>描述交通参与者状态</td><td>车辆信息</td><td>车辆位置与数量</td><td>路侧单元</td></tr>
                 <tr><td>描述交通参与者状态</td><td>行人信息</td><td>行人数量与位置</td><td>路侧单元</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">设备运行状态信息</td><td>描述设备运行情况</td><td>设备ID</td><td>路侧设备编号</td><td>路侧单元</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">设备运行状态信息</td><td>描述设备运行情况</td><td>设备ID</td><td>边缘编号</td><td>路侧单元</td></tr>
                 <tr><td>描述设备运行情况</td><td>设备状态</td><td>正常/故障</td><td>路侧单元</td></tr>
                 <tr><td rowspan="4" class="text-center highlight">网络下发指令信息</td><td>云平台下发的控制与调度指令</td><td>调度类型</td><td>流量控制/信号优化/事件响应</td><td>中心云</td></tr>
                 <tr><td>云平台下发的控制与调度指令</td><td>指令时间</td><td>指令下发时间戳</td><td>中心云</td></tr>

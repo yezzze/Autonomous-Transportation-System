@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A4-58 路网信息融合信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>路网信息融合信息模型</h1>
+    <p>模型编号：D-C-A4-58 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>路网信息融合信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-58</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在自主化水平为A4的场景中，云端与边缘计算单元进一步集成多源数据，包括地图、卡口、浮动车和信号配时数据等。经过深度清洗、融合与解析，生成高精度的时空信息、轨迹数据和拓扑结构，为智能交通系统的高效运行提供全面支持</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应、交叉口粒流协同控制等</td></tr>
+            <tr><th>上游信息模型编号</th><td>车网通信V2N信息模型（T-D-A4-19）、路网通信I2N信息模型（T-E-A4-20）、边侧路径流量计算信息模型（D-E-A4-56）</td></tr>
+            <tr><th>下游信息模型编号</th><td>应急车辆优先信息模型（D-C-A4-40）、OD流量估计信息模型（D-C-A4-59）、关键路径识别信息模型（D-C-A4-60）、路网动态通行能力评估信息模型（D-C-A4-61）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="6" class="text-center highlight">地图数据</td><td>指涵盖道路的位置、形态、信息属性及相互关系等内容的数据</td><td>道路名称</td><td>用于标识路网中各条道路的具体名称</td><td>边缘计算单元</td></tr>
+                <tr><td>指涵盖道路的位置、形态、信息属性及相互关系等内容的数据</td><td>道路等级</td><td>区分主干道、次干道、支路等</td><td>边缘计算单元</td></tr>
+                <tr><td>指涵盖道路的位置、形态、信息属性及相互关系等内容的数据</td><td>道路长度</td><td>道路的实际长度</td><td>边缘计算单元</td></tr>
+                <tr><td>指涵盖道路的位置、形态、信息属性及相互关系等内容的数据</td><td>道路宽度</td><td>反映道路的通行能力</td><td>边缘计算单元</td></tr>
+                <tr><td>指涵盖道路的位置、形态、信息属性及相互关系等内容的数据</td><td>车道数</td><td>各个道路的车道数</td><td>边缘计算单元</td></tr>
+                <tr><td>指涵盖道路的位置、形态、信息属性及相互关系等内容的数据</td><td>道路坐标范围（经度、纬度）</td><td>确定道路在地理空间中的位置范围，便于与其他地理信息结合</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">卡口数据</td><td>指道路卡口设备对过往车辆信息的记录数据，可用于监测车辆通行状况、追踪车辆轨迹及识别交通事件等</td><td>卡口ID</td><td>唯一标识每个卡口</td><td>边缘计算单元</td></tr>
+                <tr><td>指道路卡口设备对过往车辆信息的记录数据，可用于监测车辆通行状况、追踪车辆轨迹及识别交通事件等</td><td>卡口位置（经度、纬度）</td><td>卡口的具体地理位置</td><td>边缘计算单元</td></tr>
+                <tr><td>指道路卡口设备对过往车辆信息的记录数据，可用于监测车辆通行状况、追踪车辆轨迹及识别交通事件等</td><td>车辆通过时间</td><td>记录车辆经过卡口的准确时刻，（精确到秒）</td><td>边缘计算单元</td></tr>
+                <tr><td>指道路卡口设备对过往车辆信息的记录数据，可用于监测车辆通行状况、追踪车辆轨迹及识别交通事件等</td><td>车辆牌照</td><td>车辆的唯一标识，用于追踪车辆轨迹等</td><td>边缘计算单元</td></tr>
+                <tr><td>指道路卡口设备对过往车辆信息的记录数据，可用于监测车辆通行状况、追踪车辆轨迹及识别交通事件等</td><td>车辆类型</td><td>如小型车、大型车等</td><td>边缘计算单元</td></tr>
+                <tr><td>指道路卡口设备对过往车辆信息的记录数据，可用于监测车辆通行状况、追踪车辆轨迹及识别交通事件等</td><td>车速</td><td>车辆通过卡口时的瞬时速度</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">浮动车数据</td><td>指基于移动车辆的定位信息所产生的数据，能实时反映车辆的运行状态</td><td>车辆标识ID</td><td>用于区分不同的浮动车，便于数据跟踪和分析</td><td>车载终端</td></tr>
+                <tr><td>指基于移动车辆的定位信息所产生的数据，能实时反映车辆的运行状态</td><td>时间戳</td><td>记录浮动车数据的采集时间（精确到秒）</td><td>车载终端</td></tr>
+                <tr><td>指基于移动车辆的定位信息所产生的数据，能实时反映车辆的运行状态</td><td>经度</td><td>浮动车的实时经度位置</td><td>车载终端</td></tr>
+                <tr><td>指基于移动车辆的定位信息所产生的数据，能实时反映车辆的运行状态</td><td>纬度</td><td>浮动车的实时纬度位置</td><td>车载终端</td></tr>
+                <tr><td>指基于移动车辆的定位信息所产生的数据，能实时反映车辆的运行状态</td><td>速度</td><td>浮动车的行驶速度</td><td>车载终端</td></tr>
+                <tr><td>指基于移动车辆的定位信息所产生的数据，能实时反映车辆的运行状态</td><td>行驶方向</td><td>车辆的行驶方向（角度）</td><td>车载终端</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">信号配时数据</td><td>指针对交通信号灯的时间设置数据</td><td>信号灯路口ID</td><td>标识信号灯所在的路口，便于与路网信息关联</td><td>信号机</td></tr>
+                <tr><td>指针对交通信号灯的时间设置数据</td><td>信号灯周期时长</td><td>信号灯一个完整周期的时长</td><td>信号机</td></tr>
+                <tr><td>指针对交通信号灯的时间设置数据</td><td>各相位绿灯时长</td><td>各相位绿灯的持续时间</td><td>信号机</td></tr>
+                <tr><td>指针对交通信号灯的时间设置数据</td><td>信号灯配时方案ID</td><td>用于区分不同的信号灯配时方案，便于管理和调整</td><td>信号机</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">时空信息</td><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>时间区间（起始时间、结束时间）</td><td>明确交通信息统计的时间段</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>各时间段交通流量</td><td>按设定时间段（如每5分钟、每10分钟等）统计的交通流量</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>路段ID</td><td>为路网中的每个路段赋予的唯一编号</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>路段长度</td><td>路段的实际长度</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>路段所属区域</td><td>路段所在的行政区域、商圈等</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内交通实体的时间和空间上的位置、状态和变化的信息</td><td>路段上下游路口信息</td><td>路段两端连接的路口信息，用于分析交通流向和路口关联</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">拓扑信息</td><td>指空间对象之间的位置关系和连接关系的信息</td><td>位置</td><td>车辆相对于路段起点的距离，确定车辆在路段中的具体位置</td><td>边缘计算单元</td></tr>
+                <tr><td>指空间对象之间的位置关系和连接关系的信息</td><td>拥堵点位置（经度、纬度）</td><td>拥堵发生的具体地理位置</td><td>边缘计算单元</td></tr>
+                <tr><td>指空间对象之间的位置关系和连接关系的信息</td><td>路网节点（路口）ID</td><td>为路网中的每个路口赋予的编号</td><td>边缘计算单元</td></tr>
+                <tr><td>指空间对象之间的位置关系和连接关系的信息</td><td>路段信息</td><td>每个路口连接的路段列表，构建路网的拓扑关系</td><td>边缘计算单元</td></tr>
+                <tr><td>指空间对象之间的位置关系和连接关系的信息</td><td>路网连通性矩阵</td><td>用矩阵形式表示路网中各节点之间的连通性</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">轨迹信息</td><td>指车辆在路网中的移动路径信息</td><td>轨迹ID</td><td>为每辆车的行驶轨迹赋予的编号</td><td>边缘计算单元</td></tr>
+                <tr><td>指车辆在路网中的移动路径信息</td><td>轨迹路段序列</td><td>车辆行驶轨迹所经过的路段顺序</td><td>边缘计算单元</td></tr>
+                <tr><td>指车辆在路网中的移动路径信息</td><td>起始时间</td><td>车辆轨迹的开始时间</td><td>边缘计算单元</td></tr>
+                <tr><td>指车辆在路网中的移动路径信息</td><td>轨迹结束时间</td><td>车辆轨迹的结束时间</td><td>边缘计算单元</td></tr>
+                <tr><td>指车辆在路网中的移动路径信息</td><td>轨迹平均速度</td><td>车辆在整个行驶轨迹中的平均速度，单位km/h</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">速度信息</td><td>指路网内的速度相关信息，可帮助判断道路拥堵状况</td><td>路段平均速度</td><td>路段上车辆的平均行驶速度，单位km/h</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内的速度相关信息，可帮助判断道路拥堵状况</td><td>速度变化曲线</td><td>展示路段速度随时间变化的趋势</td><td>边缘计算单元</td></tr>
+                <tr><td>指路网内的速度相关信息，可帮助判断道路拥堵状况</td><td>车辆速度分布</td><td>不同速度区间的车辆数量占比</td><td>边缘计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

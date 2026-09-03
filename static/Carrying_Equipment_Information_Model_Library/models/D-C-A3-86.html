@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A3-86 港口码头泊位资源动态调度信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>港口码头泊位资源动态调度信息模型</h1>
+    <p>模型编号：D-C-A3-86 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>港口码头泊位资源动态调度信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-86</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，中心云根据船舶靠泊需求，以及港口码头泊位能力，对当前待靠船舶进行泊位与靠泊时段匹配。</td></tr>
+            <tr><th>信息模型服务场景</th><td>船舶作业协调、泊位资源规划。</td></tr>
+            <tr><th>上游信息模型编号</th><td>港口码头运行状态感知信息模型（P-E-A3-84）、船舶到离港状态交互信息模型（T-E-A3-85）</td></tr>
+            <tr><th>下游信息模型编号</th><td>船港集疏运衔接计划信息模型（D-C-A3-88）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">船舶靠泊需求与约束信息</td><td>待靠船舶基本信息、运行计划和靠泊约束条件</td><td>待靠船舶与靠泊需求</td><td>待靠船舶、航次、靠泊任务</td><td>AIS基站、VTS雷达、泊位视频摄像头、生产管理系统（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>待靠船舶基本信息、运行计划和靠泊约束条件</td><td>船舶适泊条件</td><td>船长、吃水、船型、货种/作业要求</td><td>港口码头基础信息库、生产管理系统（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>待靠船舶基本信息、运行计划和靠泊约束条件</td><td>船舶到港与等待状态</td><td>实际/预计到港状态、当前待泊状态、计划—实际偏差</td><td>AIS基站、VTS雷达、泊位视频摄像头（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>待靠船舶基本信息、运行计划和靠泊约束条件</td><td>任务优先与时窗约束</td><td>任务优先级、可接受靠泊时段、作业截止要求及不可调整约束</td><td>生产管理系统（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">泊位资源当前状态与约束信息</td><td>泊位当前占用、作业资源约束</td><td>泊位能力与适泊限制</td><td>各泊位可停靠船型、最大船长/吃水、货种能力和安全限制</td><td>港口码头基础信息库、生产管理系统（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>泊位当前占用、作业资源约束</td><td>泊位占用与释放状态</td><td>泊位当前占用/可用/不可用状态、在泊船舶和当前作业进度</td><td>泊位视频摄像头、泊位雷达、码头作业终端、装卸设备控制器（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>泊位当前占用、作业资源约束</td><td>泊位作业资源可用状态</td><td>岸桥、装卸设备、作业区的可用、占用、故障和维护状态</td><td>码头作业终端、装卸设备控制器（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">泊位资源动态调度结果信息</td><td>在船舶需求与泊位状态约束下决策的匹配结果</td><td>目标泊位</td><td>为各船舶匹配的目标泊位</td><td>中心云决策单元</td></tr>
+                <tr><td>在船舶需求与泊位状态约束下决策的匹配结果</td><td>计划靠泊与离泊时段</td><td>计划靠泊开始/结束时刻、计划作业时段和计划离泊时刻</td><td>中心云决策单元</td></tr>
+                <tr><td>在船舶需求与泊位状态约束下决策的匹配结果</td><td>泊位作业顺序</td><td>同一泊位待靠船舶的服务顺序</td><td>中心云决策单元</td></tr>
+                <tr><td>在船舶需求与泊位状态约束下决策的匹配结果</td><td>预计等待时间</td><td>船舶预计等待时长</td><td>中心云决策单元</td></tr>
+                <tr><td>在船舶需求与泊位状态约束下决策的匹配结果</td><td>调度版本</td><td>调度生成时间、适用时段、所依据状态版本</td><td>中心云决策单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

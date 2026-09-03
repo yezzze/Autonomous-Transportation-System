@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>车辆路况感知信息模型</h1>
-    <p>模型编号：P-D-A2-2 | 逻辑阶段：感知 | 自主化等级：<span class="badge">A2</span></p>
+    <p>模型编号：P-D-A2-2 | 逻辑阶段：感知 | 自主化水平：<span class="badge">A2</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>车辆路况感知信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>感知</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A2</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A2</td></tr>
             <tr><th>信息模型编号</th><td><span class="highlight">P-D-A2-2</span></td></tr>
-            <tr><th>信息模型描述</th><td>自主化等级为A2时，道路交通系统包含自动化等级为L1、L2、L3的自动驾驶车辆以及人类驾驶车辆。自动化等级为L2、L3的车辆通过雷达、传感器等设备监测城市道路信息，并整合至车载终端</td></tr>
-            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应、交叉口粒流协同控制、多车运动控制等</td></tr>
-            <tr><th>上游接口模型编号</th><td></td></tr>
-            <tr><th>下游接口模型编号</th><td></td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A2时，道路交通系统包含自动化等级为L1、L2、L3的自动驾驶车辆以及人类驾驶车辆。自动化等级为L2、L3的车辆通过雷达、传感器等设备监测城市道路信息，并整合至车载终端</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应、交叉口粒流协同控制、多车运动控制等</td></tr>
+            <tr><th>上游信息模型编号</th><td>无（本模型为感知源模型）</td></tr>
+            <tr><th>下游信息模型编号</th><td>冲突情况检测信息模型（R-D-A2-10）、车道偏离状态认知信息模型（R-D-A2-13）、限速预警信息模型（D-D-A2-27）、道路危险状况提示信息模型（D-D-A2-41）、闯红灯预警信息模型（D-C-A2-47）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="4" class="text-center highlight">道路渠化信息</td><td>与道路本身结构、设计和固定特性相关的静态信息</td><td>车道数</td><td>同一行驶方向上供车辆通行的平行车道的数量</td><td>摄像头</td></tr>

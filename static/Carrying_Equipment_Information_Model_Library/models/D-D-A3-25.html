@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MODEL-034 自主泊车信息模型 - 详情</title>
+    <title>D-D-A3-25 自主泊车信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>自主泊车信息模型</h1>
-    <p>模型编号：MODEL-034 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-D-A3-25 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,39 +37,38 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>自主泊车信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>边缘</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-034</span></td></tr>
-            <tr><th>信息模型描述</th><td>自主化等级为A3时，停车场区内路侧/场端感知设备和边缘计算单元具备一定的自主决策能力。自主泊车信息模型运行于边缘计算单元，规划车辆从接驳区域至目标泊位的泊车轨迹、目标停车姿态以及速度控制约束，供车辆运动控制信息模型执行。</td></tr>
-            <tr><th>模型服务场景</th><td>泊位资源管理、自主泊车</td></tr>
-            <tr><th>上游接口模型编号</th><td>泊位资源调度信息模型、泊位占用感知信息模型、车辆状态感知信息模型、车路通信V2I信息模型</td></tr>
-            <tr><th>下游接口模型编号</th><td>车路通信V2I信息模型、车载信息显示信息模型、泊车运动控制信息模型</td></tr>
-            <tr><th>交付时间</th><td></td></tr>
-            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-25</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，规划车辆从接驳区域至目标泊位的泊车轨迹、目标停车姿态以及速度控制约束，供车辆运动控制信息模型执行。</td></tr>
+            <tr><th>信息模型服务场景</th><td>泊位资源管理、自主泊车。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A3-1）、泊位占用感知信息模型（P-E-A3-8）、车路通信V2I信息模型（T-D-A3-18）、泊位资源调度信息模型（D-E-A3-97）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车载信息显示信息模型（C-D-A3-35）、泊车运动控制信息模型（C-D-A3-37）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
         </table>
     </div>
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="4" class="text-center highlight">泊位分配与引导调度信息</td><td>泊位资源调度信息模型输出的泊位调度结果</td><td>目标泊位分配结果</td><td>为请求车辆分配的目标泊位编号、位置和泊位类型</td><td>边缘计算单元</td></tr>
-                <tr><td>泊位资源调度信息模型输出的泊位调度结果</td><td>候选泊位排序</td><td>可选泊位的距离、可用性和适配性排序结果</td><td>边缘计算单元</td></tr>
-                <tr><td>泊位资源调度信息模型输出的泊位调度结果</td><td>入场引导路径</td><td>由入口至目标泊位附近的推荐行驶方向与关键提示点</td><td>边缘计算单元</td></tr>
-                <tr><td>泊位资源调度信息模型输出的泊位调度结果</td><td>预约与保留状态</td><td>目标泊位的保留状态、有效时间及取消条件</td><td>边缘计算单元</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">车辆定位与状态信息</td><td>车辆状态感知信息模型输出的车辆当前状态</td><td>车辆位置与姿态</td><td>车辆当前位置、航向角、车身姿态和所在位置</td><td>载运装备（经车路通信V2I）</td></tr>
-                <tr><td>车辆状态感知信息模型输出的车辆当前状态</td><td>车辆运动状态</td><td>车辆速度、加速度</td><td>载运装备（经车路通信V2I）</td></tr>
-                <tr><td>车辆状态感知信息模型输出的车辆当前状态</td><td>车辆几何信息</td><td>车辆长度、宽度等</td><td>载运装备（经车路通信V2I）</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">场区地图与泊位几何信息</td><td>自主泊车路径规划所需的场区静态空间信息</td><td>场区道路拓扑</td><td>通道、出入口、转弯区域、限行方向及连接关系</td><td>边缘（场区地图数据库）</td></tr>
-                <tr><td>自主泊车路径规划所需的场区静态空间信息</td><td>泊位几何边界</td><td>目标泊位及相邻泊位的边界、停车方向和可用空间</td><td>边缘（泊位基础信息库）</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">泊位及周边障碍感知信息</td><td>泊位占用感知信息模型输出的目标泊位状态，以及泊位区摄像头感知的泊车路径周边的动态环境状态</td><td>目标泊位占用状态</td><td>目标泊位空闲、占用、不可用及状态置信度</td><td>边缘计算单元</td></tr>
-                <tr><td>泊位占用感知信息模型输出的目标泊位状态，以及泊位区摄像头感知的泊车路径周边的动态环境状态</td><td>周边障碍物状态</td><td>泊车路径及泊位周边障碍物、行人、车辆的位置和运动状态</td><td>泊位区视频摄像头</td></tr>
-                <tr><td>泊位占用感知信息模型输出的目标泊位状态，以及泊位区摄像头感知的泊车路径周边的动态环境状态</td><td>通道可通行状态</td><td>通道阻断、占用、临时管制和安全通行状态</td><td>泊位区视频摄像头</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">自主泊车引导信息</td><td>边缘计算单元根据目标泊位与环境状态规划的泊车引导信息</td><td>泊车轨迹</td><td>从接驳区域至目标泊位的可行行驶路径</td><td>边缘计算单元</td></tr>
-                <tr><td>边缘计算单元根据目标泊位与环境状态规划的泊车引导信息</td><td>目标停车姿态</td><td>车辆完成泊入后的目标位置、航向和车身姿态</td><td>边缘计算单元</td></tr>
-                <tr><td>边缘计算单元根据目标泊位与环境状态规划的泊车引导信息</td><td>速度与加速度约束</td><td>泊车过程的目标速度、加速度、减速度和低速控制范围</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">泊位分配与引导调度信息</td><td>泊位资源调度信息模型输出的泊位调度结果</td><td>目标泊位分配结果</td><td>为请求车辆分配的目标泊位编号、位置和泊位类型</td><td>边缘计算单元（经车路通信V2I）</td></tr>
+                <tr><td>泊位资源调度信息模型输出的泊位调度结果</td><td>候选泊位排序</td><td>可选泊位的距离、可用性和适配性排序结果</td><td>边缘计算单元（经车路通信V2I）</td></tr>
+                <tr><td>泊位资源调度信息模型输出的泊位调度结果</td><td>预约与保留状态</td><td>目标泊位的保留状态、有效时间及取消条件</td><td>边缘计算单元（经车路通信V2I）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">车辆定位与状态信息</td><td>车辆状态感知信息模型输出的车辆当前状态</td><td>车辆位置与姿态</td><td>车辆当前位置、航向角、车身姿态和所在位置</td><td>端侧（车载单元OBU）</td></tr>
+                <tr><td>车辆状态感知信息模型输出的车辆当前状态</td><td>车辆运动状态</td><td>车辆速度、加速度</td><td>端侧（车载单元OBU）</td></tr>
+                <tr><td>车辆状态感知信息模型输出的车辆当前状态</td><td>车辆几何信息</td><td>车辆长度、宽度等</td><td>端侧（车载单元OBU）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">场区地图与泊位几何信息</td><td>自主泊车路径规划所需的场区静态空间信息</td><td>场区道路拓扑</td><td>通道、出入口、转弯区域、限行方向及连接关系</td><td>边缘（场区地图数据库，经车路通信V2I）</td></tr>
+                <tr><td>自主泊车路径规划所需的场区静态空间信息</td><td>泊位几何边界</td><td>目标泊位及相邻泊位的边界、停车方向和可用空间</td><td>边缘（泊位基础信息库，经车路通信V2I）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">泊位及周边障碍感知信息</td><td>泊位占用感知信息模型输出的目标泊位状态，以及泊位区摄像头感知的泊车路径周边的动态环境状态</td><td>目标泊位占用状态</td><td>目标泊位空闲、占用、不可用及状态置信度</td><td>边缘计算单元，经车路通信V2I</td></tr>
+                <tr><td>泊位占用感知信息模型输出的目标泊位状态，以及泊位区摄像头感知的泊车路径周边的动态环境状态</td><td>周边障碍物状态</td><td>泊车路径及泊位周边障碍物、行人、车辆的位置和运动状态</td><td>泊位区视频摄像头，经车路通信V2I</td></tr>
+                <tr><td>泊位占用感知信息模型输出的目标泊位状态，以及泊位区摄像头感知的泊车路径周边的动态环境状态</td><td>通道可通行状态</td><td>通道阻断、占用、临时管制和安全通行状态</td><td>泊位区视频摄像头，经车路通信V2I</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">自主泊车引导信息</td><td>边缘计算单元根据目标泊位与环境状态规划的泊车引导信息</td><td>泊车轨迹</td><td>从接驳区域至目标泊位的可行行驶路径</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>边缘计算单元根据目标泊位与环境状态规划的泊车引导信息</td><td>目标停车姿态</td><td>车辆完成泊入后的目标位置、航向和车身姿态</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>边缘计算单元根据目标泊位与环境状态规划的泊车引导信息</td><td>速度与加速度约束</td><td>泊车过程的目标速度、加速度、减速度和低速控制范围</td><td>端计算单元（车载单元OBU）</td></tr>
             </tbody>
         </table>
     </div>

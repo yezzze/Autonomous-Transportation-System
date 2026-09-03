@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>紧急任务车辆优先通行协同 - UML 场景详情</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+<style>
+        :root {
+            --primary: #1a73e8;
+            --scenario: #13a8a8;
+            --bg: #f8f9fa;
+            --text: #2c3e50;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --p: #bf9000;
+            --r: #722ed1;
+            --t: #2e75b6;
+            --d: #548235;
+            --c: #7c7c7c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif; }
+        body { background: var(--bg); color: #333; min-height: 100vh; }
+
+        .page-header { background: linear-gradient(135deg, #0f7f7f, var(--scenario)); color: #fff; padding: 32px 24px 86px; }
+        .header-inner { max-width: 1280px; margin: 0 auto; }
+        .breadcrumb { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: .88rem; opacity: .9; margin-bottom: 20px; }
+        .breadcrumb a { color: #fff; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,.55); }
+        .page-header h1 { font-size: 2rem; line-height: 1.35; margin-bottom: 12px; }
+        .page-header p { max-width: 980px; line-height: 1.75; opacity: .92; }
+
+        .toolbar {
+            max-width: 1280px; margin: -46px auto 22px; padding: 0 24px;
+            display: flex; flex-wrap: wrap; gap: 12px; position: relative; z-index: 3;
+        }
+        .tool-btn {
+            height: 48px; padding: 0 18px; border-radius: 12px; background: #fff;
+            color: var(--text); border: 1px solid var(--border); box-shadow: 0 10px 22px rgba(0,0,0,.08);
+            text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+            gap: 9px; font-weight: 800; cursor: pointer; transition: all .2s ease;
+        }
+        .tool-btn:hover { transform: translateY(-2px); border-color: var(--scenario); color: var(--scenario); }
+        .tool-btn.primary { background: #2c3e50; color: white; border-color: #2c3e50; }
+        .tool-btn.primary:hover { color: white; background: #34495e; }
+
+        .container { max-width: 1280px; margin: 0 auto; padding: 0 24px 60px; }
+        .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; align-items: start; }
+
+        .panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 10px 24px rgba(0,0,0,.05); }
+        .side-panel { position: sticky; top: 18px; overflow: hidden; }
+        .panel-title { padding: 18px 20px; border-bottom: 1px solid var(--border); color: var(--text); font-size: 1.05rem; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+        .panel-body { padding: 18px 20px; }
+
+        .info-list { display: grid; gap: 15px; }
+        .info-item label { display: block; color: var(--muted); font-size: .78rem; font-weight: 800; margin-bottom: 6px; }
+        .info-item div, .info-item p { color: #374151; font-size: .92rem; line-height: 1.75; }
+
+        .pill-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pill { border-radius: 999px; padding: 6px 10px; font-size: .76rem; background: #f3f4f6; color: #4b5563; font-weight: 700; }
+        .pill.p { background: rgba(191,144,0,.14); color: #8a6500; }
+        .pill.r { background: rgba(114,46,209,.12); color: #531dab; }
+        .pill.t { background: rgba(46,117,182,.13); color: #1d5f9e; }
+        .pill.d { background: rgba(84,130,53,.15); color: #3f6f24; }
+        .pill.c { background: rgba(124,124,124,.15); color: #595959; }
+
+        .main-content { display: grid; gap: 20px; }
+        .uml-card { overflow: hidden; }
+        .uml-header {
+            padding: 16px 18px; display: flex; justify-content: space-between; gap: 12px;
+            flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border);
+        }
+        .uml-header h2 { color: var(--text); font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
+        .uml-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+        .small-btn {
+            border: 1px solid var(--border); background: #fff; color: #374151;
+            border-radius: 10px; padding: 8px 10px; cursor: pointer; font-weight: 800; font-size: .82rem;
+        }
+        .small-btn:hover { border-color: var(--scenario); color: var(--scenario); }
+
+        .uml-viewport {
+            background: #eef2f6;
+            height: calc(100vh - 245px);
+            min-height: 600px;
+            max-height: 860px;
+            overflow: auto;
+            padding: 22px;
+        }
+
+        .uml-image-wrap {
+            min-width: 100%;
+            min-height: 100%;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .uml-image {
+            display: block;
+            width: auto;
+            height: auto;
+            max-width: none;
+            max-height: none;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 8px 18px rgba(0,0,0,.08);
+        }
+
+        .section { padding: 20px; }
+        .section h2 { color: var(--text); font-size: 1.12rem; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+
+        .stage-grid { display: grid; grid-template-columns: repeat(var(--stage-count, 5), minmax(0, 1fr)); gap: 12px; }
+        .stage-card { border-radius: 14px; border: 1px solid var(--border); padding: 15px; background: #fff; }
+        .stage-card h3 { font-size: .95rem; margin-bottom: 8px; color: var(--text); }
+        .stage-card p { font-size: .84rem; line-height: 1.72; color: var(--muted); }
+        .stage-card.p { border-top: 5px solid var(--p); }
+        .stage-card.r { border-top: 5px solid var(--r); }
+        .stage-card.t { border-top: 5px solid var(--t); }
+        .stage-card.d { border-top: 5px solid var(--d); }
+        .stage-card.c { border-top: 5px solid var(--c); }
+
+        .model-table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 820px; font-size: .9rem; }
+        th, td { border-bottom: 1px solid var(--border); padding: 12px 10px; text-align: left; vertical-align: top; line-height: 1.55; }
+        th { color: #4b5563; background: #f9fafb; font-weight: 900; }
+        td a { color: var(--primary); text-decoration: none; font-weight: 800; }
+        td a:hover { text-decoration: underline; }
+
+        .stage-label { font-weight: 900; white-space: nowrap; }
+        .stage-label.p { color: #8a6500; }
+        .stage-label.r { color: #531dab; }
+        .stage-label.t { color: #1d5f9e; }
+        .stage-label.d { color: #3f6f24; }
+        .stage-label.c { color: #595959; }
+
+        .check-list { display: grid; gap: 12px; }
+        .check-item { display: flex; gap: 10px; align-items: flex-start; color: #374151; line-height: 1.7; font-size: .9rem; }
+        .check-item i { color: #52c41a; margin-top: 4px; }
+
+        @media (max-width: 1120px) {
+            .stage-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 980px) {
+            .layout { grid-template-columns: 1fr; }
+            .side-panel { position: static; }
+            .stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 640px) {
+            .page-header h1 { font-size: 1.45rem; }
+            .stage-grid { grid-template-columns: 1fr; }
+            .tool-btn { flex: 1; }
+        }
+</style>
+</head>
+<body>
+<header class="page-header">
+<div class="header-inner">
+<div class="breadcrumb">
+<a href="../index.html">模型库首页</a>
+<i class="fa-solid fa-chevron-right"></i>
+<a href="../scenarios.html">典型场景 UML</a>
+<i class="fa-solid fa-chevron-right"></i>
+<span>紧急任务车辆优先通行协同</span>
+</div>
+<h1>紧急任务车辆优先通行协同 UML 时序图</h1>
+<p>围绕紧急任务车辆在城市道路上的连续优先通行，组织车辆、路侧感知、区域云和沿线信号控制设备之间的信息交互，形成从任务触发、路网状态认知、优先路径识别到信号连续优先和交通组织恢复的协同过程。</p>
+</div>
+</header>
+
+<div class="toolbar">
+<a class="tool-btn primary" href="../scenarios.html"><i class="fa-solid fa-arrow-left"></i> 返回场景列表</a>
+<a class="tool-btn" href="../index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
+<a class="tool-btn" href="../graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
+<a class="tool-btn" download href="../assets/uml/emergency-priority.svg"><i class="fa-solid fa-download"></i> 下载 SVG 图</a>
+</div>
+
+<main class="container">
+<div class="layout">
+<aside class="panel side-panel">
+<div class="panel-title"><i class="fa-solid fa-circle-info"></i> 场景信息</div>
+<div class="panel-body">
+<div class="info-list">
+<div class="info-item">
+<label>场景名称</label>
+<div>紧急任务车辆优先通行协同</div>
+</div>
+<div class="info-item">
+<label>英文名称</label>
+<div>Emergency Vehicle Priority Coordination</div>
+</div>
+<div class="info-item">
+<label>场景目标</label>
+<p>综合紧急任务车辆位置与任务需求、沿线交通流和信号状态，确定优先通行路径及重点交叉口控制方案，在降低普通交通扰动的同时保障紧急任务车辆连续快速通行。</p>
+</div>
+<div class="info-item">
+<label>参与主体</label>
+<div class="pill-list"><span class="pill ">紧急任务车辆</span><span class="pill ">社会车辆</span><span class="pill ">交通感知设备</span><span class="pill ">边缘路侧单元</span><span class="pill ">区域云平台</span><span class="pill ">沿线信号控制设备</span></div>
+</div>
+<div class="info-item">
+<label>协同方式</label>
+<div class="pill-list"><span class="pill ">车路云协同</span><span class="pill ">V2I</span><span class="pill ">V2N</span><span class="pill ">I2N</span><span class="pill ">沿线信号协同</span></div>
+</div>
+<div class="info-item">
+<label>信息流阶段</label>
+<div class="pill-list"><span class="pill p">感知阶段</span><span class="pill r">认知阶段</span><span class="pill t">传输阶段</span><span class="pill d">决策阶段</span><span class="pill c">控制阶段</span></div>
+</div>
+<div class="info-item">
+<label>核心逻辑</label>
+<p>紧急任务车辆提出优先通行需求，路侧持续获取沿线交通状态并形成趋势认知；区域云识别优先路径和控制节点，向沿线信号设备组织连续优先控制，同时引导社会车辆协同避让，车辆通过后解除优先状态。</p>
+</div>
+</div>
+</div>
+</aside>
+
+<section class="main-content">
+<div class="panel uml-card">
+<div class="uml-header">
+<h2><i class="fa-solid fa-timeline"></i> UML 时序图</h2>
+<div class="uml-tools">
+<button class="small-btn" onclick="fitWidth()">适应宽度</button>
+<button class="small-btn" onclick="fitToView()">适应整图</button>
+<button class="small-btn" onclick="zoomOut()">缩小</button>
+<button class="small-btn" onclick="zoomIn()">放大</button>
+<button class="small-btn" onclick="showOriginal()">原始尺寸</button>
+</div>
+</div>
+<div class="uml-viewport" id="umlViewport">
+<div class="uml-image-wrap" id="umlImageWrap">
+<img alt="紧急任务车辆优先通行协同 UML 时序图" class="uml-image" src="../assets/uml/emergency-priority.svg"/>
+</div>
+</div>
+</div>
+
+<div class="panel section">
+<h2><i class="fa-solid fa-layer-group"></i> 五阶段信息流说明</h2>
+<div class="stage-grid" style="--stage-count:5">
+<div class="stage-card p">
+<h3>感知阶段</h3>
+<p>紧急任务车辆与社会车辆生成自身状态信息，路侧获取交通参与者、交通流及沿线信号运行状态。</p>
+</div><div class="stage-card r">
+<h3>认知阶段</h3>
+<p>边缘侧融合车辆、交通流和信号状态，预测沿线交通趋势及潜在拥堵风险。</p>
+</div><div class="stage-card t">
+<h3>传输阶段</h3>
+<p>紧急任务车辆通过V2N提交任务与状态，社会车辆通过V2I共享运行状态，边缘侧通过I2N汇聚区域状态至云端。</p>
+</div><div class="stage-card d">
+<h3>决策阶段</h3>
+<p>区域云融合路网运行信息，识别紧急任务优先通行关键路径，并形成优先交叉口、优先方式和触发时序。</p>
+</div><div class="stage-card c">
+<h3>控制阶段</h3>
+<p>沿线信号设备执行关键交叉口及干线协同控制，紧急车辆连续通行，社会车辆依据引导调整通行行为，任务结束后恢复正常控制。</p>
+</div>
+</div>
+</div>
+
+<div class="panel section">
+<h2><i class="fa-solid fa-link"></i> 关联模型清单</h2>
+<div class="model-table-wrap">
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>模型名称</th>
+<th>模型索引</th>
+<th>在 UML 中的作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="stage-label p">感知</span></td>
+<td>车辆状态感知信息模型</td>
+<td><a href="../models/P-D-A4-1.html">P-D-A4-1</a></td>
+<td>描述紧急任务车辆的位置、速度、行驶方向等运行状态。</td>
+</tr><tr>
+<td><span class="stage-label p">感知</span></td>
+<td>车辆状态感知信息模型</td>
+<td><a href="../models/P-D-A2-1.html">P-D-A2-1</a></td>
+<td>描述社会车辆的基础运行状态。</td>
+</tr><tr>
+<td><span class="stage-label p">感知</span></td>
+<td>交通参与者感知信息模型</td>
+<td><a href="../models/P-E-A4-5.html">P-E-A4-5</a></td>
+<td>获取沿线车辆等交通参与者的位置、速度及运行状态。</td>
+</tr><tr>
+<td><span class="stage-label p">感知</span></td>
+<td>交通流感知信息模型</td>
+<td><a href="../models/P-E-A4-4.html">P-E-A4-4</a></td>
+<td>获取流量、速度、排队长度等区域交通流状态。</td>
+</tr><tr>
+<td><span class="stage-label p">感知</span></td>
+<td>交通信号感知信息模型</td>
+<td><a href="../models/P-E-A4-3.html">P-E-A4-3</a></td>
+<td>获取沿线交叉口相位、配时及信号运行状态。</td>
+</tr><tr>
+<td><span class="stage-label r">认知</span></td>
+<td>交通流预测信息模型</td>
+<td><a href="../models/R-E-A4-14.html">R-E-A4-14</a></td>
+<td>预测沿线交通趋势和拥堵风险，为优先路径与信号控制提供依据。</td>
+</tr><tr>
+<td><span class="stage-label t">传输</span></td>
+<td>车网通信V2N信息模型</td>
+<td><a href="../models/T-D-A4-19.html">T-D-A4-19</a></td>
+<td>承载紧急任务请求、车辆状态与任务通行状态交互。</td>
+</tr><tr>
+<td><span class="stage-label t">传输</span></td>
+<td>车路通信V2I信息模型</td>
+<td><a href="../models/T-D-A4-18.html">T-D-A4-18</a></td>
+<td>承载车辆与路侧之间的运行状态、优先通行及避让引导信息。</td>
+</tr><tr>
+<td><span class="stage-label t">传输</span></td>
+<td>路网通信I2N信息模型</td>
+<td><a href="../models/T-E-A4-20.html">T-E-A4-20</a></td>
+<td>承载路侧交通流、信号状态与预测信息的路网级交互。</td>
+</tr><tr>
+<td><span class="stage-label d">决策</span></td>
+<td>路网信息融合信息模型</td>
+<td><a href="../models/D-C-A4-58.html">D-C-A4-58</a></td>
+<td>形成区域路网综合运行状态。</td>
+</tr><tr>
+<td><span class="stage-label d">决策</span></td>
+<td>关键路径识别信息模型</td>
+<td><a href="../models/D-C-A4-60.html">D-C-A4-60</a></td>
+<td>识别紧急任务车辆优先通行关键路径。</td>
+</tr><tr>
+<td><span class="stage-label d">决策</span></td>
+<td>应急车辆优先信息模型</td>
+<td><a href="../models/D-C-A4-40.html">D-C-A4-40</a></td>
+<td>形成优先交叉口、优先方式和触发时序。</td>
+</tr><tr>
+<td><span class="stage-label c">控制</span></td>
+<td>关键交叉口信号控制信息模型</td>
+<td><a href="../models/C-C-A4-65.html">C-C-A4-65</a></td>
+<td>对重点交叉口实施信号优先控制。</td>
+</tr><tr>
+<td><span class="stage-label c">控制</span></td>
+<td>干线交叉口信号控制信息模型</td>
+<td><a href="../models/C-C-A4-66.html">C-C-A4-66</a></td>
+<td>协调沿线交叉口信号，实现连续优先通行。</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div class="panel section">
+<h2><i class="fa-solid fa-diagram-project"></i> 场景化集成说明</h2>
+<div class="check-list">
+<div class="check-item"><i class="fa-solid fa-check-circle"></i><span>场景同时表达紧急任务车辆、普通社会车辆、路侧感知、区域云和信号控制设备之间的协同关系。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>路网信息融合、关键路径识别和应急车辆优先构成云端决策主链，信号控制模型落实到沿线控制执行。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>紧急车辆优先与社会车辆通行引导同时纳入场景过程，体现优先通行对常规交通组织的协同影响。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>任务车辆通过后解除优先控制，使场景覆盖任务触发、优先执行与恢复的完整过程。</span></div>
+</div>
+</div>
+</section>
+</div>
+</main>
+
+<script>
+    let zoom = 1;
+    let naturalSize = { width: 0, height: 0 };
+
+    const viewport = document.getElementById('umlViewport');
+    const wrap = document.getElementById('umlImageWrap');
+    const img = document.querySelector('.uml-image');
+
+    function readNaturalSize() {
+        const rect = img.getBoundingClientRect();
+        naturalSize.width = img.naturalWidth || rect.width || 1200;
+        naturalSize.height = img.naturalHeight || rect.height || 700;
+        return naturalSize;
+    }
+
+    function updateAlignment() {
+        const availableWidth = viewport.clientWidth - 44;
+        const availableHeight = viewport.clientHeight - 44;
+        const scaledWidth = naturalSize.width * zoom;
+        const scaledHeight = naturalSize.height * zoom;
+
+        wrap.style.justifyContent = scaledWidth <= availableWidth ? 'center' : 'flex-start';
+        wrap.style.alignItems = scaledHeight <= availableHeight ? 'center' : 'flex-start';
+    }
+
+    function applyZoom(centerAfterZoom = false) {
+        if (!naturalSize.width || !naturalSize.height) readNaturalSize();
+
+        img.style.width = `${naturalSize.width * zoom}px`;
+        img.style.height = `${naturalSize.height * zoom}px`;
+        updateAlignment();
+
+        if (centerAfterZoom) {
+            requestAnimationFrame(() => {
+                viewport.scrollLeft = Math.max((viewport.scrollWidth - viewport.clientWidth) / 2, 0);
+                viewport.scrollTop = Math.max((viewport.scrollHeight - viewport.clientHeight) / 2, 0);
+            });
+        }
+    }
+
+    function fitWidth() {
+        if (!naturalSize.width || !naturalSize.height) readNaturalSize();
+
+        const availableWidth = Math.max(viewport.clientWidth - 44, 1);
+        zoom = Math.min(availableWidth / naturalSize.width, 1);
+        applyZoom(false);
+
+        requestAnimationFrame(() => {
+            viewport.scrollLeft = 0;
+            viewport.scrollTop = 0;
+        });
+    }
+
+    function fitToView() {
+        if (!naturalSize.width || !naturalSize.height) readNaturalSize();
+
+        const availableWidth = Math.max(viewport.clientWidth - 44, 1);
+        const availableHeight = Math.max(viewport.clientHeight - 44, 1);
+
+        zoom = Math.min(
+            availableWidth / naturalSize.width,
+            availableHeight / naturalSize.height,
+            1
+        );
+
+        applyZoom(true);
+    }
+
+    function zoomIn() {
+        zoom = Math.min(zoom + 0.1, 2.5);
+        applyZoom(true);
+    }
+
+    function zoomOut() {
+        zoom = Math.max(zoom - 0.1, 0.15);
+        applyZoom(true);
+    }
+
+    function showOriginal() {
+        zoom = 1;
+        applyZoom(false);
+        requestAnimationFrame(() => {
+            viewport.scrollLeft = 0;
+            viewport.scrollTop = 0;
+        });
+    }
+
+    function initUmlImage() {
+        readNaturalSize();
+        fitWidth();
+    }
+
+    if (img.complete) {
+        initUmlImage();
+    } else {
+        img.addEventListener('load', initUmlImage);
+    }
+
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(fitWidth, 150);
+    });
+</script>
+</body>
+</html>

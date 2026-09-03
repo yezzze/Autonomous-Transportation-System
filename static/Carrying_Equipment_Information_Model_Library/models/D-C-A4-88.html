@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A4-88 船港集疏运衔接计划信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>船港集疏运衔接计划信息模型</h1>
+    <p>模型编号：D-C-A4-88 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>船港集疏运衔接计划信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-88</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>A4级中心云在A3衔接计划基础上，融合船舶预计到港、车辆预计到场、铁路运行和港区交通状态预测，提前识别风险并滚动调整集疏运衔接时序。</td></tr>
+            <tr><th>信息模型服务场景</th><td>船舶与公路、铁路集疏运衔接。</td></tr>
+            <tr><th>上游信息模型编号</th><td>港口码头运行状态感知信息模型（P-E-A3-84）、船舶到离港状态交互信息模型（T-E-A3-85）、港区车辆进出场协同调度信息模型（D-C-A3-87）、港口码头泊位资源动态调度信息模型（D-C-A4-86）</td></tr>
+            <tr><th>下游信息模型编号</th><td>港口运行异常协同调整信息模型（C-C-A3-89）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="2" class="text-center highlight">船舶靠离泊预计时间</td><td>预计船舶作业与陆侧运输的时间边界</td><td>预计靠泊时间</td><td>船舶预计开始靠泊或开始作业的时间</td><td>中心云计算单元</td></tr>
+                <tr><td>预计船舶作业与陆侧运输的时间边界</td><td>预计离泊时间</td><td>船舶预计离泊或完成泊位作业的时间</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">车辆和铁路预计到发状态</td><td>提供陆侧运输预计到港、离港和作业状态</td><td>车辆预计到发状态</td><td>车辆预计到港、进场、装卸和离场时间</td><td>中心云计算单元</td></tr>
+                <tr><td>提供陆侧运输预计到港、离港和作业状态</td><td>铁路预计到发状态</td><td>铁路班列预计到港、装卸和发运时间</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">港区通行状态预测</td><td>预测未来时段的港区通行约束</td><td>闸口通行状态</td><td>闸口开放和服务状态</td><td>闸口控制系统、闸口RFID/车牌识别设备（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>预测未来时段的港区通行约束</td><td>港区道路拓扑关系</td><td>道路之间的连通关系、与泊位的连通关系</td><td>车辆北斗/GNSS终端、港口码头基础信息库（经船舶到离港状态交互信息模型）</td></tr>
+                <tr><td>预测未来时段的港区通行约束</td><td>港区道路通行状态预测</td><td>预测的港区道路通畅、拥堵、受阻状态及旅行时间</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">预测性集疏运衔接计划</td><td>中心云根据多方交通状态预测更新的衔接方案</td><td>滚动计划衔接时间</td><td>船舶作业与车辆/铁路到发之间的计划衔接时段</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据多方交通状态预测更新的衔接方案</td><td>滚动目标运输方式</td><td>任务采用公路、铁路或公铁组合的衔接运输方式</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据多方交通状态预测更新的衔接方案</td><td>动态衔接时间裕度</td><td>预测衔接完成时间与时间边界之间的余量</td><td>中心云决策单元</td></tr>
+                <tr><td>中心云根据多方交通状态预测更新的衔接方案</td><td>衔接状态</td><td>滚动计划待执行、执行中、已完成或时间不足状态</td><td>中心云决策单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

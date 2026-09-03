@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>港口集疏运协同调度 - UML 场景详情</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+<style>
+        :root {
+            --primary: #1a73e8;
+            --scenario: #13a8a8;
+            --bg: #f8f9fa;
+            --text: #2c3e50;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --p: #bf9000;
+            --r: #722ed1;
+            --t: #2e75b6;
+            --d: #548235;
+            --c: #7c7c7c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif; }
+        body { background: var(--bg); color: #333; min-height: 100vh; }
+
+        .page-header { background: linear-gradient(135deg, #0f7f7f, var(--scenario)); color: #fff; padding: 32px 24px 86px; }
+        .header-inner { max-width: 1280px; margin: 0 auto; }
+        .breadcrumb { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: .88rem; opacity: .9; margin-bottom: 20px; }
+        .breadcrumb a { color: #fff; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,.55); }
+        .page-header h1 { font-size: 2rem; line-height: 1.35; margin-bottom: 12px; }
+        .page-header p { max-width: 980px; line-height: 1.75; opacity: .92; }
+
+        .toolbar {
+            max-width: 1280px; margin: -46px auto 22px; padding: 0 24px;
+            display: flex; flex-wrap: wrap; gap: 12px; position: relative; z-index: 3;
+        }
+        .tool-btn {
+            height: 48px; padding: 0 18px; border-radius: 12px; background: #fff;
+            color: var(--text); border: 1px solid var(--border); box-shadow: 0 10px 22px rgba(0,0,0,.08);
+            text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+            gap: 9px; font-weight: 800; cursor: pointer; transition: all .2s ease;
+        }
+        .tool-btn:hover { transform: translateY(-2px); border-color: var(--scenario); color: var(--scenario); }
+        .tool-btn.primary { background: #2c3e50; color: white; border-color: #2c3e50; }
+        .tool-btn.primary:hover { color: white; background: #34495e; }
+
+        .container { max-width: 1280px; margin: 0 auto; padding: 0 24px 60px; }
+        .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; align-items: start; }
+
+        .panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 10px 24px rgba(0,0,0,.05); }
+        .side-panel { position: sticky; top: 18px; overflow: hidden; }
+        .panel-title { padding: 18px 20px; border-bottom: 1px solid var(--border); color: var(--text); font-size: 1.05rem; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+        .panel-body { padding: 18px 20px; }
+
+        .info-list { display: grid; gap: 15px; }
+        .info-item label { display: block; color: var(--muted); font-size: .78rem; font-weight: 800; margin-bottom: 6px; }
+        .info-item div, .info-item p { color: #374151; font-size: .92rem; line-height: 1.75; }
+
+        .pill-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pill { border-radius: 999px; padding: 6px 10px; font-size: .76rem; background: #f3f4f6; color: #4b5563; font-weight: 700; }
+        .pill.p { background: rgba(191,144,0,.14); color: #8a6500; }
+        .pill.r { background: rgba(114,46,209,.12); color: #531dab; }
+        .pill.t { background: rgba(46,117,182,.13); color: #1d5f9e; }
+        .pill.d { background: rgba(84,130,53,.15); color: #3f6f24; }
+        .pill.c { background: rgba(124,124,124,.15); color: #595959; }
+
+        .main-content { display: grid; gap: 20px; }
+        .uml-card { overflow: hidden; }
+        .uml-header {
+            padding: 16px 18px; display: flex; justify-content: space-between; gap: 12px;
+            flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border);
+        }
+        .uml-header h2 { color: var(--text); font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
+        .uml-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+        .small-btn {
+            border: 1px solid var(--border); background: #fff; color: #374151;
+            border-radius: 10px; padding: 8px 10px; cursor: pointer; font-weight: 800; font-size: .82rem;
+        }
+        .small-btn:hover { border-color: var(--scenario); color: var(--scenario); }
+
+        .uml-viewport {
+            background: #eef2f6;
+            height: calc(100vh - 245px);
+            min-height: 600px;
+            max-height: 860px;
+            overflow: auto;
+            padding: 22px;
+        }
+
+        .uml-image-wrap {
+            min-width: 100%;
+            min-height: 100%;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .uml-image {
+            display: block;
+            width: auto;
+            height: auto;
+            max-width: none;
+            max-height: none;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 8px 18px rgba(0,0,0,.08);
+        }
+
+        .section { padding: 20px; }
+        .section h2 { color: var(--text); font-size: 1.12rem; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+
+        .stage-grid { display: grid; grid-template-columns: repeat(var(--stage-count, 5), minmax(0, 1fr)); gap: 12px; }
+        .stage-card { border-radius: 14px; border: 1px solid var(--border); padding: 15px; background: #fff; }
+        .stage-card h3 { font-size: .95rem; margin-bottom: 8px; color: var(--text); }
+        .stage-card p { font-size: .84rem; line-height: 1.72; color: var(--muted); }
+        .stage-card.p { border-top: 5px solid var(--p); }
+        .stage-card.r { border-top: 5px solid var(--r); }
+        .stage-card.t { border-top: 5px solid var(--t); }
+        .stage-card.d { border-top: 5px solid var(--d); }
+        .stage-card.c { border-top: 5px solid var(--c); }
+
+        .model-table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 820px; font-size: .9rem; }
+        th, td { border-bottom: 1px solid var(--border); padding: 12px 10px; text-align: left; vertical-align: top; line-height: 1.55; }
+        th { color: #4b5563; background: #f9fafb; font-weight: 900; }
+        td a { color: var(--primary); text-decoration: none; font-weight: 800; }
+        td a:hover { text-decoration: underline; }
+
+        .stage-label { font-weight: 900; white-space: nowrap; }
+        .stage-label.p { color: #8a6500; }
+        .stage-label.r { color: #531dab; }
+        .stage-label.t { color: #1d5f9e; }
+        .stage-label.d { color: #3f6f24; }
+        .stage-label.c { color: #595959; }
+
+        .check-list { display: grid; gap: 12px; }
+        .check-item { display: flex; gap: 10px; align-items: flex-start; color: #374151; line-height: 1.7; font-size: .9rem; }
+        .check-item i { color: #52c41a; margin-top: 4px; }
+
+        @media (max-width: 1120px) {
+            .stage-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 980px) {
+            .layout { grid-template-columns: 1fr; }
+            .side-panel { position: static; }
+            .stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 640px) {
+            .page-header h1 { font-size: 1.45rem; }
+            .stage-grid { grid-template-columns: 1fr; }
+            .tool-btn { flex: 1; }
+        }
+</style>
+</head>
+<body>
+<header class="page-header">
+<div class="header-inner">
+<div class="breadcrumb">
+<a href="../index.html">模型库首页</a>
+<i class="fa-solid fa-chevron-right"></i>
+<a href="../scenarios.html">典型场景 UML</a>
+<i class="fa-solid fa-chevron-right"></i>
+<span>港口集疏运协同调度</span>
+</div>
+<h1>港口集疏运协同调度 UML 时序图</h1>
+<p>围绕船舶靠离泊、港区集卡、铁路集疏运和码头作业之间的协同衔接，组织港口运行状态感知、船舶到离港状态交互、泊位与车辆调度、集疏运衔接计划以及异常协同调整。</p>
+</div>
+</header>
+
+<div class="toolbar">
+<a class="tool-btn primary" href="../scenarios.html"><i class="fa-solid fa-arrow-left"></i> 返回场景列表</a>
+<a class="tool-btn" href="../index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
+<a class="tool-btn" href="../graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
+<a class="tool-btn" download href="../assets/uml/port-intermodal.svg"><i class="fa-solid fa-download"></i> 下载 SVG 图</a>
+</div>
+
+<main class="container">
+<div class="layout">
+<aside class="panel side-panel">
+<div class="panel-title"><i class="fa-solid fa-circle-info"></i> 场景信息</div>
+<div class="panel-body">
+<div class="info-list">
+<div class="info-item">
+<label>场景名称</label>
+<div>港口集疏运协同调度</div>
+</div>
+<div class="info-item">
+<label>英文名称</label>
+<div>Port Hinterland Transport Coordination and Scheduling</div>
+</div>
+<div class="info-item">
+<label>场景目标</label>
+<p>协调船舶、泊位、港区车辆和铁路运输资源，形成一致的靠泊、进出港、装卸与集疏运衔接时序，并在异常发生时快速调整资源和作业计划。</p>
+</div>
+<div class="info-item">
+<label>参与主体</label>
+<div class="pill-list"><span class="pill ">船舶</span><span class="pill ">港区集卡车辆</span><span class="pill ">铁路集疏运系统</span><span class="pill ">港口边缘计算单元</span><span class="pill ">中心云协同平台</span></div>
+</div>
+<div class="info-item">
+<label>协同方式</label>
+<div class="pill-list"><span class="pill ">船港协同</span><span class="pill ">公铁集疏运</span><span class="pill ">港区资源协同</span><span class="pill ">中心云调度</span></div>
+</div>
+<div class="info-item">
+<label>信息流阶段</label>
+<div class="pill-list"><span class="pill p">感知阶段</span><span class="pill t">传输阶段</span><span class="pill d">决策阶段</span><span class="pill c">控制阶段</span></div>
+</div>
+<div class="info-item">
+<label>核心逻辑</label>
+<p>港口边缘侧首先形成码头综合运行状态，船舶、集卡和铁路到发信息进一步汇聚；中心云协调泊位和港区车辆资源并形成船港集疏运衔接计划，异常情况下统一调整靠离泊、进出港和铁路衔接时序。</p>
+</div>
+</div>
+</div>
+</aside>
+
+<section class="main-content">
+<div class="panel uml-card">
+<div class="uml-header">
+<h2><i class="fa-solid fa-timeline"></i> UML 时序图</h2>
+<div class="uml-tools">
+<button class="small-btn" onclick="fitWidth()">适应宽度</button>
+<button class="small-btn" onclick="fitToView()">适应整图</button>
+<button class="small-btn" onclick="zoomOut()">缩小</button>
+<button class="small-btn" onclick="zoomIn()">放大</button>
+<button class="small-btn" onclick="showOriginal()">原始尺寸</button>
+</div>
+</div>
+<div class="uml-viewport" id="umlViewport">
+<div class="uml-image-wrap" id="umlImageWrap">
+<img alt="港口集疏运协同调度 UML 时序图" class="uml-image" src="../assets/uml/port-intermodal.svg"/>
+</div>
+</div>
+</div>
+
+<div class="panel section">
+<h2><i class="fa-solid fa-layer-group"></i> 四阶段信息流说明</h2>
+<div class="stage-grid" style="--stage-count:4">
+<div class="stage-card p">
+<h3>感知阶段</h3>
+<p>港口边缘侧形成码头综合运行状态，包括泊位、船舶、闸口、港区车辆和港区道路状态。</p>
+</div><div class="stage-card t">
+<h3>传输阶段</h3>
+<p>船舶、集卡、铁路和港口节点围绕到离港计划、运输任务、班列到发与港区运行状态开展信息交互。</p>
+</div><div class="stage-card d">
+<h3>决策阶段</h3>
+<p>中心云依次形成泊位资源动态调度、港区车辆进出场协同调度及船港集疏运衔接计划。</p>
+</div><div class="stage-card c">
+<h3>控制阶段</h3>
+<p>发生晚到、闸口拥堵或作业异常时，形成港口运行异常协同调整，对船舶、车辆、铁路和港区资源进行统一调整。</p>
+</div>
+</div>
+</div>
+
+<div class="panel section">
+<h2><i class="fa-solid fa-link"></i> 关联模型清单</h2>
+<div class="model-table-wrap">
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>模型名称</th>
+<th>模型索引</th>
+<th>在 UML 中的作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="stage-label p">感知</span></td>
+<td>港口码头运行状态感知信息模型</td>
+<td><a href="../models/P-E-A3-84.html">P-E-A3-84</a></td>
+<td>形成泊位、船舶、闸口、港区车辆及道路综合运行状态。</td>
+</tr><tr>
+<td><span class="stage-label t">传输</span></td>
+<td>船舶到离港状态交互信息模型</td>
+<td><a href="../models/T-E-A3-85.html">T-E-A3-85</a></td>
+<td>组织船舶到离港、车辆到港、班列到发及港区运行状态交互。</td>
+</tr><tr>
+<td><span class="stage-label d">决策</span></td>
+<td>港口码头泊位资源动态调度信息模型</td>
+<td><a href="../models/D-C-A3-86.html">D-C-A3-86</a></td>
+<td>确定目标泊位、靠泊时段和泊位作业顺序。</td>
+</tr><tr>
+<td><span class="stage-label d">决策</span></td>
+<td>港区车辆进出场协同调度信息模型</td>
+<td><a href="../models/D-C-A3-87.html">D-C-A3-87</a></td>
+<td>确定车辆进出港时间、闸口选择和通行顺序。</td>
+</tr><tr>
+<td><span class="stage-label d">决策</span></td>
+<td>船港集疏运衔接计划信息模型</td>
+<td><a href="../models/D-C-A3-88.html">D-C-A3-88</a></td>
+<td>统一组织船舶作业、车辆与铁路到发及衔接时序。</td>
+</tr><tr>
+<td><span class="stage-label c">控制</span></td>
+<td>港口运行异常协同调整信息模型</td>
+<td><a href="../models/C-C-A3-89.html">C-C-A3-89</a></td>
+<td>在异常情况下调整泊位、靠离泊、车辆进出港、铁路及港区作业资源。</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<div class="panel section">
+<h2><i class="fa-solid fa-diagram-project"></i> 场景化集成说明</h2>
+<div class="check-list">
+<div class="check-item"><i class="fa-solid fa-check-circle"></i><span>UML同时纳入水运、公路、铁路和港口节点，体现港口集疏运的多方式协同特征。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>泊位调度和港区车辆调度分别解决水侧与陆侧资源组织问题，最终汇入船港集疏运衔接计划。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>异常协同调整同时作用于船舶、集卡、铁路和港区作业，体现港口运行的一体化调度。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>场景采用P—T—D—C四阶段，不额外设置无独立业务内容的认知阶段。</span></div>
+</div>
+</div>
+</section>
+</div>
+</main>
+
+<script>
+    let zoom = 1;
+    let naturalSize = { width: 0, height: 0 };
+
+    const viewport = document.getElementById('umlViewport');
+    const wrap = document.getElementById('umlImageWrap');
+    const img = document.querySelector('.uml-image');
+
+    function readNaturalSize() {
+        const rect = img.getBoundingClientRect();
+        naturalSize.width = img.naturalWidth || rect.width || 1200;
+        naturalSize.height = img.naturalHeight || rect.height || 700;
+        return naturalSize;
+    }
+
+    function updateAlignment() {
+        const availableWidth = viewport.clientWidth - 44;
+        const availableHeight = viewport.clientHeight - 44;
+        const scaledWidth = naturalSize.width * zoom;
+        const scaledHeight = naturalSize.height * zoom;
+
+        wrap.style.justifyContent = scaledWidth <= availableWidth ? 'center' : 'flex-start';
+        wrap.style.alignItems = scaledHeight <= availableHeight ? 'center' : 'flex-start';
+    }
+
+    function applyZoom(centerAfterZoom = false) {
+        if (!naturalSize.width || !naturalSize.height) readNaturalSize();
+
+        img.style.width = `${naturalSize.width * zoom}px`;
+        img.style.height = `${naturalSize.height * zoom}px`;
+        updateAlignment();
+
+        if (centerAfterZoom) {
+            requestAnimationFrame(() => {
+                viewport.scrollLeft = Math.max((viewport.scrollWidth - viewport.clientWidth) / 2, 0);
+                viewport.scrollTop = Math.max((viewport.scrollHeight - viewport.clientHeight) / 2, 0);
+            });
+        }
+    }
+
+    function fitWidth() {
+        if (!naturalSize.width || !naturalSize.height) readNaturalSize();
+
+        const availableWidth = Math.max(viewport.clientWidth - 44, 1);
+        zoom = Math.min(availableWidth / naturalSize.width, 1);
+        applyZoom(false);
+
+        requestAnimationFrame(() => {
+            viewport.scrollLeft = 0;
+            viewport.scrollTop = 0;
+        });
+    }
+
+    function fitToView() {
+        if (!naturalSize.width || !naturalSize.height) readNaturalSize();
+
+        const availableWidth = Math.max(viewport.clientWidth - 44, 1);
+        const availableHeight = Math.max(viewport.clientHeight - 44, 1);
+
+        zoom = Math.min(
+            availableWidth / naturalSize.width,
+            availableHeight / naturalSize.height,
+            1
+        );
+
+        applyZoom(true);
+    }
+
+    function zoomIn() {
+        zoom = Math.min(zoom + 0.1, 2.5);
+        applyZoom(true);
+    }
+
+    function zoomOut() {
+        zoom = Math.max(zoom - 0.1, 0.15);
+        applyZoom(true);
+    }
+
+    function showOriginal() {
+        zoom = 1;
+        applyZoom(false);
+        requestAnimationFrame(() => {
+            viewport.scrollLeft = 0;
+            viewport.scrollTop = 0;
+        });
+    }
+
+    function initUmlImage() {
+        readNaturalSize();
+        fitWidth();
+    }
+
+    if (img.complete) {
+        initUmlImage();
+    } else {
+        img.addEventListener('load', initUmlImage);
+    }
+
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(fitWidth, 150);
+    });
+</script>
+</body>
+</html>

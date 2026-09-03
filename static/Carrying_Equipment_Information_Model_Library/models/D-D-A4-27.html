@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A4-36 限速预警信息模型 - 详情</title>
+    <title>D-D-A4-27 限速预警信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>限速预警信息模型</h1>
-    <p>模型编号：D-D-A4-36 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+    <p>模型编号：D-D-A4-27 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>限速预警信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A4-36</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>全域自动驾驶路网、智能高速公路、城市无人配送区域、全天候动态限速管控场景。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A4-27</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A4（L4-L5）下，中心云融合全域V2X数据、卫星导航数据、历史交通数据及实时环境数据，生成1000m范围内动态限速方案；通过“中心云→RSU→OBU”协同下发预警与控制指令，车辆自主执行减速操作（无需人工干预），全程闭环管控。</td></tr>
+            <tr><th>信息模型服务场景</th><td>全域自动驾驶路网、智能高速公路、城市无人配送区域、全天候动态限速管控场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆路况感知信息模型（P-D-A4-2）、气象条件认知信息模型（R-E-A4-7）、车路通信V2I信息模型（T-D-A4-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车速控制信息模型（C-D-A4-33）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="3" class="text-center highlight">全域动态限速方案信息</td><td>中心云生成的实时限速策略</td><td>动态限速值</td><td>基于交通流、天气、事件的实时调整值（km/h）</td><td>中心云</td></tr>

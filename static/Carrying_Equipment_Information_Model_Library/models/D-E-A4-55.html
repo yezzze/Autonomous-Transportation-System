@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-E-A4-55 边侧车辆轨迹匹配信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>边侧车辆轨迹匹配信息模型</h1>
+    <p>模型编号：D-E-A4-55 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>边侧车辆轨迹匹配信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>路侧装备</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-E-A4-55</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在自主化水平为A4的场景中，边缘计算模块通过接收并预处理交通参与者相关数据，识别车辆状态，构建环境模型，生成并优化车辆轨迹，最终输出匹配轨迹的详细信息，实现交叉口级和车道级的车辆轨迹精准匹配</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、交通流量监测与优化、交叉口粒流协同控制、多车运动控制等</td></tr>
+            <tr><th>上游信息模型编号</th><td>时空协作域划分信息模型（D-C-A4-54）</td></tr>
+            <tr><th>下游信息模型编号</th><td>边侧路径流量计算信息模型（D-E-A4-56）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="9" class="text-center highlight">交通参与者信息</td><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>编号</td><td>每个参与交通活动个体的唯一标识符</td><td>摄像头、雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>类型</td><td>交通参与者个体分类，车辆、行人、非机动车等</td><td>摄像头、雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>位置</td><td>经纬度坐标</td><td>雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>速度</td><td>交通参与者位移快慢程度，单位m/s</td><td>雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>加速度</td><td>交通参与者速度变化快慢程度，单位m/s2</td><td>雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>航向角</td><td>运行方向与正北方向顺时针夹角</td><td>车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>时间戳</td><td>信息采集的具体时间</td><td>摄像头、雷达、车载单元OBU</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>传感器标识</td><td>采集该信息的传感器编号或类型</td><td>摄像头、雷达</td></tr>
+                <tr><td>在交通环境中，对参与交通活动的各类个体的相关特性</td><td>轨迹</td><td>位移路径</td><td>摄像头、雷达、车载单元OBU</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">运行状态信息</td><td>交通参与者在行驶过程中各种动态特征，表现为特定区域内的特征信息。</td><td>信号灯状态</td><td>交叉口信号灯的当前相位及剩余时间</td><td>交通信号控制单元</td></tr>
+                <tr><td>交通参与者在行驶过程中各种动态特征，表现为特定区域内的特征信息。</td><td>交通流量</td><td>车道级或交叉口级的交通流量情况</td><td>摄像头、雷达</td></tr>
+                <tr><td>交通参与者在行驶过程中各种动态特征，表现为特定区域内的特征信息。</td><td>排队长度</td><td>进口道内各车道的排队长度，单位m</td><td>摄像头、雷达</td></tr>
+                <tr><td>交通参与者在行驶过程中各种动态特征，表现为特定区域内的特征信息。</td><td>限行禁行信息</td><td>该区域的车辆限行、禁行规定</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="8" class="text-center highlight">车辆轨迹信息</td><td>指最终输出的车辆轨迹匹配序列信息</td><td>匹配后车辆ID序列</td><td>按照时间顺序排列的车辆 ID 列表</td><td>边缘计算单元</td></tr>
+                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>坐标序列</td><td>包含每个时间点对应的经度、纬度、高度的坐标列表</td><td>边缘计算单元</td></tr>
+                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>时间戳序列</td><td>与轨迹点坐标序列对应的时间戳列表</td><td>边缘计算单元</td></tr>
+                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>经过车道 ID 序列</td><td>按照行驶顺序记录车辆经过的车道 ID 列表</td><td>边缘计算单元</td></tr>
+                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>各车道停留时间</td><td>车辆在每个经过的车道上停留的时间，单位为s</td><td>边缘计算单元</td></tr>
+                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>平均速度</td><td>在匹配时间段内的平均行驶速度，单位为km/h</td><td>边缘计算单元</td></tr>
+                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>最大速度</td><td>在匹配时间段内达到的最大行驶速度，单位为km/h</td><td>边缘计算单元</td></tr>
+                <tr><td>指最终输出的车辆轨迹匹配序列信息</td><td>行驶方向变化</td><td>记录车辆行驶方向的变化情况，如角度变化、转向次数等</td><td>边缘计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

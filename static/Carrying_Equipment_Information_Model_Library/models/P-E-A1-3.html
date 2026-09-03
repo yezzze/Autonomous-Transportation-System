@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P-E-A1-6 交通信号感知信息模型 - 详情</title>
+    <title>P-E-A1-3 交通信号感知信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>交通信号感知信息模型</h1>
-    <p>模型编号：P-E-A1-6 | 逻辑阶段：感知 | 自主化等级：<span class="badge">A1</span></p>
+    <p>模型编号：P-E-A1-3 | 逻辑阶段：感知 | 自主化水平：<span class="badge">A1</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>交通信号感知信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>感知</td></tr>
-            <tr><th>实体类别</th><td>路侧设备</td></tr>
-            <tr><th>自主化等级</th><td>A1</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">P-E-A1-6</span></td></tr>
-            <tr><th>信息模型描述</th><td>在自主化等级为A1的场景中，路侧设备通过交通信号控制机和交通控制中心获取的本地预设静态信息</td></tr>
-            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应、交叉口粒流协同控制、多车运动控制等</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>边缘</td></tr>
+            <tr><th>自主化水平</th><td>A1</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">P-E-A1-3</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在自主化水平为A1的场景中，边缘通过交通信号控制机和交通控制中心获取的本地预设静态信息</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应、交叉口粒流协同控制、多车运动控制等</td></tr>
+            <tr><th>上游信息模型编号</th><td>无（本模型为感知源模型）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车载信息显示信息模型（C-D-A1-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="3" class="text-center highlight">交通信号灯信息</td><td>信号灯颜色状态及变化规律，获取当前路口的通行权分配信息</td><td>信号灯相位信息</td><td>信号灯显示状态组合</td><td>交通信号控制机</td></tr>

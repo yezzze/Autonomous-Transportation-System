@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-C-A4-18 时空协作域划分信息模型 - 详情</title>
+    <title>D-C-A4-54 时空协作域划分信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>时空协作域划分信息模型</h1>
-    <p>模型编号：D-C-A4-18 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+    <p>模型编号：D-C-A4-54 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>时空协作域划分信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>中心云</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-18</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应等。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-54</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在自主化水平为A4的场景中，中心云结合识别出的路网区域分布情况，再结合实时的路网时空信息，进行时空协作域的划分。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应等。</td></tr>
+            <tr><th>上游信息模型编号</th><td>路网时空信息整合信息模型（D-C-A4-53）</td></tr>
+            <tr><th>下游信息模型编号</th><td>边侧车辆轨迹匹配信息模型（D-E-A4-55）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,22 +52,30 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="3" class="text-center highlight">路网区域空间信息</td><td>当前路网中受到空间因素影响的信息</td><td>道路信息</td><td>路网中道路的几何属性，道路设施的位置。</td><td>中心云决策单元</td></tr>
-                <tr><td>当前路网中受到空间因素影响的信息</td><td>冲突情况</td><td>冲突发生的类型和实时地理位置。</td><td>中心云决策单元</td></tr>
-                <tr><td>当前路网中受到空间因素影响的信息</td><td>交通流感知</td><td>路网中随着空间而变化的交通流信息，例如排队长度，平均车速等</td><td>中心云决策单元</td></tr>
-                <tr><td rowspan="6" class="text-center highlight">路网区域时间信息</td><td>当前路网中随着时间变换而变化的信息</td><td>信号灯状态</td><td>当前路网中所有交叉口的信号灯状态</td><td>中心云决策单元</td></tr>
-                <tr><td>当前路网中随着时间变换而变化的信息</td><td>道路信息</td><td>路网中道路随时间变化的属性，例如湿度、天气情况。</td><td>中心云决策单元</td></tr>
-                <tr><td>当前路网中随着时间变换而变化的信息</td><td>参与者运行信息</td><td>路网中交通参与者在运行过程中各种动态特征。</td><td>中心云决策单元</td></tr>
-                <tr><td>当前路网中随着时间变换而变化的信息</td><td>冲突情况</td><td>发生冲突时冲突对象之间的实时速度，角度和距离。</td><td>中心云决策单元</td></tr>
-                <tr><td>当前路网中随着时间变换而变化的信息</td><td>延误情况</td><td>由于各种因素导致路网当前车辆行驶时间超出预期或正常时间的状况</td><td>中心云决策单元</td></tr>
-                <tr><td>当前路网中随着时间变换而变化的信息</td><td>交通流感知</td><td>路网中随着时间而变化的交通流信息，例如交通流量，高峰时段等</td><td>中心云决策单元</td></tr>
-                <tr><td rowspan="4" class="text-center highlight">路网区域识别</td><td>当前城市路网中较为关键的区域的分布情况</td><td>区域位置</td><td>不同区域分布情况，位置和大小</td><td>中心云计算单元</td></tr>
-                <tr><td>当前城市路网中较为关键的区域的分布情况</td><td>区域特征</td><td>区域内载运装备或交通流等明显特征，例如高比例自动驾驶车辆区</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">路网区域空间信息</td><td>按空间维度实时整合形成的路网状态信息</td><td>道路空间基础信息</td><td>以车道为单元实时整合的道路几何信息属性、设施位置与道路环境条件</td><td>中心云决策单元</td></tr>
+                <tr><td>按空间维度实时整合形成的路网状态信息</td><td>空间交通流分布信息</td><td>按车道、路段实时整合的交通流量、平均车速、流量密度与排队长度的空间分布</td><td>中心云决策单元</td></tr>
+                <tr><td>按空间维度实时整合形成的路网状态信息</td><td>空间冲突与延误分布信息</td><td>冲突点与延误路段在路网空间上的实时分布位置及严重程度</td><td>中心云决策单元</td></tr>
+                <tr><td>按空间维度实时整合形成的路网状态信息</td><td>空间关联关系信息</td><td>路段与交叉口之间的拓扑连接关系及交通流关联关系</td><td>中心云决策单元</td></tr>
+                <tr><td>按空间维度实时整合形成的路网状态信息</td><td>跨区域空间信息拼接结果</td><td>相邻管控区域空间信息在边界处的拼接与坐标一致性对齐结果</td><td>中心云决策单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">路网区域时间信息</td><td>按时间维度实时整合形成的路网状态时序信息</td><td>交通流时序变化信息</td><td>实时滚动更新的交通流量、平均车速与流量密度时间序列</td><td>中心云决策单元</td></tr>
+                <tr><td>按时间维度实时整合形成的路网状态时序信息</td><td>信号控制时序信息</td><td>各交叉口信号周期、相位方案、当前相位与绿信比的实时变化过程</td><td>中心云决策单元</td></tr>
+                <tr><td>按时间维度实时整合形成的路网状态时序信息</td><td>交通参与者运行时序信息</td><td>交通参与者位置、速度、加速度与运行轨迹的实时时序特征</td><td>中心云决策单元</td></tr>
+                <tr><td>按时间维度实时整合形成的路网状态时序信息</td><td>延误时序变化信息</td><td>停车次数、排队长度与延误时间的实时变化过程</td><td>中心云决策单元</td></tr>
+                <tr><td>按时间维度实时整合形成的路网状态时序信息</td><td>路网状态演化趋势信息</td><td>基于实时时序整合结果推算的路网运行状态短时演化趋势</td><td>中心云决策单元</td></tr>
+                <tr><td rowspan="1" class="text-center highlight">时空信息整合信息</td><td>多源数据在实时整合过程中的对齐结果</td><td>时空对齐结果</td><td>多源数据在统一时间基准与空间坐标下的实时对齐结果及整合时间粒度</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">路网区域识别</td><td>当前城市路网中较为关键的区域的分布情况</td><td>区域实时边界</td><td>依据实时交通状态滚动调整的区域边界</td><td>中心云计算单元</td></tr>
+                <tr><td>当前城市路网中较为关键的区域的分布情况</td><td>区域特征</td><td>区域内端侧或交通流等明显特征，例如高比例自动驾驶车辆区</td><td>中心云计算单元</td></tr>
+                <tr><td>当前城市路网中较为关键的区域的分布情况</td><td>区域自主化构成</td><td>区域内不同自主化水平端侧与边缘的数量及比例</td><td>中心云计算单元</td></tr>
                 <tr><td>当前城市路网中较为关键的区域的分布情况</td><td>区域管理优化建议</td><td>针对不同区域内的情况提出适当的管理方案</td><td>中心云决策单元</td></tr>
                 <tr><td>当前城市路网中较为关键的区域的分布情况</td><td>未来发展</td><td>预测各区域可能的发展变化趋势</td><td>中心云决策单元</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">时空协作域划分</td><td>将城市路网中较为关键的区域根据时空信息进行精细化划分，得到更小的管理单元</td><td>时空协作域位置</td><td>不同时空协作域实时分布位置</td><td>中心云计算单元、中心云决策单元</td></tr>
+                <tr><td>将城市路网中较为关键的区域根据时空信息进行精细化划分，得到更小的管理单元</td><td>时空协作域形范围</td><td>不同时空协作域实时大小形状</td><td>中心云计算单元、中心云决策单元</td></tr>
+                <tr><td>将城市路网中较为关键的区域根据时空信息进行精细化划分，得到更小的管理单元</td><td>时空协作域信控方案</td><td>不同时空协作域内实时信号控制方案</td><td>中心云计算单元、中心云决策单元</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">时空协作域管理策略</td><td>根据实时监测数据调整交通管理策略的建议</td><td>动态管理建议</td><td>根据实时监测数据和协作域分布情况实时调整交通管理策略的建议</td><td>中心云决策单元</td></tr>
+                <tr><td>根据实时监测数据调整交通管理策略的建议</td><td>安全评估</td><td>基于历史事故数据和当前交通状况对当前协作域划分情况的安全性进行实时性评估。</td><td>中心云决策单元</td></tr>
             </tbody>
         </table>
     </div>

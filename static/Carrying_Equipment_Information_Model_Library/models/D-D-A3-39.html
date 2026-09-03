@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MODEL-066 借道会车信息模型 - 详情</title>
+    <title>D-D-A3-39 借道会车信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>借道会车信息模型</h1>
-    <p>模型编号：MODEL-066 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-D-A3-39 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,22 +37,22 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>借道会车信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-066</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>相向车辆无法正常同时通过的会车场景</td></tr>
-            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型、车车通信V2V信息模型、车辆路况感知信息模型、轨迹预测信息模型</td></tr>
-            <tr><th>下游接口模型编号</th><td>车速引导信息模型、车载信息显示信息模型</td></tr>
-            <tr><th>交付时间</th><td></td></tr>
-            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-39</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A3下，车辆在窄路、施工路段等受限空间内，基于本车、对向车辆和道路可通行空间信息生成借道会车决策；系统提出借道、让行与通过时序建议。</td></tr>
+            <tr><th>信息模型服务场景</th><td>相向车辆无法正常同时通过的会车场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A3-1）、车辆路况感知信息模型（P-D-A3-2）、交通参与者感知信息模型（P-E-A3-5）、车辆轨迹预测信息模型（R-E-A3-15）、车车通信V2V信息模型（T-D-A3-17）、车路通信V2I信息模型（T-D-A3-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车速控制信息模型（C-D-A3-33）、车载信息显示信息模型（C-D-A3-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
         </table>
     </div>
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="5" class="text-center highlight">本车状态信息</td><td>由车辆状态感知信息模型提供本车位置、速度、航向和车辆外廓尺寸信息</td><td>车辆ID</td><td>本车唯一身份标识</td><td>车载单元OBU</td></tr>
@@ -65,12 +65,12 @@
                 <tr><td>由车车通信V2V信息模型提供对向车辆状态和会车意图</td><td>速度</td><td>对向车辆当前行驶速度，单位：km/h</td><td>车载单元OBU（经车车通信V2V信息模型）</td></tr>
                 <tr><td>由车车通信V2V信息模型提供对向车辆状态和会车意图</td><td>航向</td><td>对向车辆当前行驶方向</td><td>惯性测量单元IMU（经车车通信V2V信息模型）</td></tr>
                 <tr><td>由车车通信V2V信息模型提供对向车辆状态和会车意图</td><td>对向车辆外廓尺寸</td><td>含后视镜的最大车辆宽度和车辆长度</td><td>车载单元OBU（经车车通信V2V信息模型）</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">会车协调区信息</td><td>由车辆路况感知信息模型提供道路边界、有效通行空间和障碍状态信息。</td><td>道路ID</td><td>发生会车冲突的道路或路段标识</td><td>本地高精度地图</td></tr>
-                <tr><td>由车辆路况感知信息模型提供道路边界、有效通行空间和障碍状态信息。</td><td>空间范围</td><td>会车协调区的长度和宽度</td><td>本地高精度地图、车载感知设备</td></tr>
-                <tr><td>由车辆路况感知信息模型提供道路边界、有效通行空间和障碍状态信息。</td><td>会车协调区位置</td><td>允许临时借用的道路空间起止位置</td><td>本地高精度地图、路侧单元RSU</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">车辆预测轨迹信息</td><td>轨迹预测信息模型预测的到达会车协调区前双方车辆的短时运动轨迹</td><td>预测位置序列</td><td>预测轨迹及其位置序列</td><td>边缘计算单元（经车路通信信息模型）</td></tr>
-                <tr><td>轨迹预测信息模型预测的到达会车协调区前双方车辆的短时运动轨迹</td><td>预测运动状态</td><td>沿预测轨迹的速度、航向等运动状态</td><td>边缘计算单元（经车路通信信息模型）</td></tr>
-                <tr><td>轨迹预测信息模型预测的到达会车协调区前双方车辆的短时运动轨迹</td><td>预测到达时间</td><td>按短时预测轨迹到达会车协调区入口的预计时间</td><td>边缘计算单元（经车路通信信息模型）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">会车协调区信息</td><td>由车辆路况感知信息模型提供道路边界、有效通行空间和障碍状态信息</td><td>道路ID</td><td>发生会车冲突的道路或路段标识</td><td>本地高精度地图</td></tr>
+                <tr><td>由车辆路况感知信息模型提供道路边界、有效通行空间和障碍状态信息</td><td>空间范围</td><td>会车协调区的长度和宽度</td><td>本地高精度地图、车载感知设备</td></tr>
+                <tr><td>由车辆路况感知信息模型提供道路边界、有效通行空间和障碍状态信息</td><td>会车协调区位置</td><td>允许临时借用的道路空间起止位置</td><td>本地高精度地图、路侧单元RSU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">车辆预测轨迹信息</td><td>轨迹预测信息模型预测的到达会车协调区前双方车辆的短时运动轨迹</td><td>预测位置序列</td><td>预测轨迹及其位置序列</td><td>边缘计算单元（经车路V2I通信信息模型）</td></tr>
+                <tr><td>轨迹预测信息模型预测的到达会车协调区前双方车辆的短时运动轨迹</td><td>预测运动状态</td><td>沿预测轨迹的速度、航向等运动状态</td><td>边缘计算单元（经车路通信V2I信息模型）</td></tr>
+                <tr><td>轨迹预测信息模型预测的到达会车协调区前双方车辆的短时运动轨迹</td><td>预测到达时间</td><td>按短时预测轨迹到达会车协调区入口的预计时间</td><td>边缘计算单元（经车路通信V2I信息模型）</td></tr>
                 <tr><td rowspan="3" class="text-center highlight">协同会车决策信息</td><td>在会车协调区的可行会车方案</td><td>通行优先级</td><td>先行、让行或待协商</td><td>车辆决策系统</td></tr>
                 <tr><td>在会车协调区的可行会车方案</td><td>会车角色</td><td>借道车辆、让行车辆及等待车辆</td><td>车辆决策系统</td></tr>
                 <tr><td>在会车协调区的可行会车方案</td><td>通过顺序</td><td>双方进入和离开会车区的时序</td><td>车辆决策系统</td></tr>

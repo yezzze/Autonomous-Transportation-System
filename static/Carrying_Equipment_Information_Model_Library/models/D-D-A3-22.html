@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A3-29 前向碰撞预警信息模型 - 详情</title>
+    <title>D-D-A3-22 前向碰撞预警信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>前向碰撞预警信息模型</h1>
-    <p>模型编号：D-D-A3-29 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-D-A3-22 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>前向碰撞预警信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-29</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市道路跟驰、交叉口冲突、高速公路前车急刹等场景。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-22</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，端侧（车载决策单元）基于自身感知的本车状态信息、边缘补充的前方目标信息，通过风险评估算法计算碰撞概率，生成预警等级与干预建议，支撑局部自主决策（系统主导）与人工接管备份，不涉及感知阶段的数据采集过程。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市道路跟驰、交叉口冲突、高速公路前车急刹等场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>冲突情况检测信息模型（R-D-A3-10）、车辆轨迹预测信息模型（R-E-A3-15）</td></tr>
+            <tr><th>下游信息模型编号</th><td>紧急转向避让信息模型（C-D-A3-32）、车速控制信息模型（C-D-A3-33）、车载信息显示信息模型（C-D-A3-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,16 +52,16 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="3" class="text-center highlight">主车状态信息</td><td>载运装备自身运行的核心动态参数</td><td>位置</td><td>经纬度坐标（误差≤±0.5cm）</td><td>车载单元OBU</td></tr>
-                <tr><td>载运装备自身运行的核心动态参数</td><td>速度</td><td>瞬时速度（误差≤±0.03m/s）</td><td>车载单元OBU</td></tr>
-                <tr><td>载运装备自身运行的核心动态参数</td><td>加速度</td><td>加速度分量（纵向/横向）</td><td>车载单元OBU</td></tr>
-                <tr><td rowspan="4" class="text-center highlight">前方目标状态信息</td><td>路侧设备补充的前方目标动态特征</td><td>目标类型</td><td>车辆、行人、固定障碍物等</td><td>车载单元OBU、路侧单元RSU</td></tr>
-                <tr><td>路侧设备补充的前方目标动态特征</td><td>目标位置</td><td>经纬度坐标（误差≤±0.3m）</td><td>车载单元OBU、路侧单元RSU</td></tr>
-                <tr><td>路侧设备补充的前方目标动态特征</td><td>目标速度</td><td>瞬时速度（误差≤±0.1m/s）</td><td>车载单元OBU、路侧单元RSU</td></tr>
-                <tr><td>路侧设备补充的前方目标动态特征</td><td>目标运动趋势</td><td>直行、转弯、静止等</td><td>车载单元OBU、路侧单元RSU</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">主车状态信息</td><td>端侧自身运行的核心动态参数</td><td>位置</td><td>经纬度坐标（误差≤±0.5cm）</td><td>车载单元OBU</td></tr>
+                <tr><td>端侧自身运行的核心动态参数</td><td>速度</td><td>瞬时速度（误差≤±0.03m/s）</td><td>车载单元OBU</td></tr>
+                <tr><td>端侧自身运行的核心动态参数</td><td>加速度</td><td>加速度分量（纵向/横向）</td><td>车载单元OBU</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">前方目标状态信息</td><td>边缘补充的前方目标动态特征</td><td>目标类型</td><td>车辆、行人、固定障碍物等</td><td>车载单元OBU、路侧单元RSU</td></tr>
+                <tr><td>边缘补充的前方目标动态特征</td><td>目标位置</td><td>经纬度坐标（误差≤±0.3m）</td><td>车载单元OBU、路侧单元RSU</td></tr>
+                <tr><td>边缘补充的前方目标动态特征</td><td>目标速度</td><td>瞬时速度（误差≤±0.1m/s）</td><td>车载单元OBU、路侧单元RSU</td></tr>
+                <tr><td>边缘补充的前方目标动态特征</td><td>目标运动趋势</td><td>直行、转弯、静止等</td><td>车载单元OBU、路侧单元RSU</td></tr>
                 <tr><td rowspan="4" class="text-center highlight">碰撞风险信息</td><td>碰撞风险的核心量化指标</td><td>相对距离</td><td>本车与目标的纵向距离（误差≤±0.3m）</td><td>车载单元OBU、路侧单元RSU</td></tr>
                 <tr><td>碰撞风险的核心量化指标</td><td>相对速度</td><td>接近速率（本车速度-目标速度）</td><td>车载单元OBU、路侧单元RSU</td></tr>
                 <tr><td>碰撞风险的核心量化指标</td><td>碰撞时间（TTC）</td><td>预计碰撞剩余时间（≤3s 触发预警）</td><td>车辆决策系统</td></tr>

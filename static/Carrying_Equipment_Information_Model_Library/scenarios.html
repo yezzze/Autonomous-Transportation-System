@@ -1,11 +1,12 @@
 <!DOCTYPE html>
+
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>典型场景 UML - 自主式交通系统载运装备信息模型库</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>典型场景 UML - 自主式交通系统载运装备信息模型库</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+<style>
         :root {
             --primary: #1a73e8;
             --primary-dark: #0d47a1;
@@ -177,197 +178,163 @@
         }
     </style>
 </head>
-
 <body>
-    <header>
-        <h1>典型场景 UML 模型库</h1>
-        <p>面向“感知—认知—传输—决策—控制”链路的异智交通主体协同信息流场景化表达</p>
-    </header>
-
-    <div class="topbar">
-        <div class="search-box">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input id="searchInput" type="text" placeholder="搜索场景名称、主体或关联模型，例如 公交 / 交叉口 / V2I / Signal...">
-        </div>
-        <a class="nav-btn nav-home" href="index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
-        <a class="nav-btn nav-graph" href="graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
-    </div>
-
-    <main class="container">
-        <h2 class="section-title">场景列表</h2>
-
-        <div class="scenario-grid" id="scenarioGrid">
-            <a class="scenario-card"
-               href="scenarios/bus-priority.html"
-               data-search="公交优先 交通流 协同调控 connected bus connected vehicle edge rsu signal controller regional cloud v2i v2n 公交路径规划 关键交叉口信号控制">
-                <div class="card-top">
-                    <div class="scenario-title">公交优先与交通流协同调控</div>
-                    <span class="status ready">已嵌入 SVG</span>
-                </div>
-                <p class="desc">面向智能公交、社会车辆、边缘计算单元、信号控制机与区域云平台，表达公交优先请求、云端协同决策、信号控制与车辆诱导反馈的完整信息流。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Bus L4、Connected Vehicle L2、Edge RSU、Signal Controller、Regional Cloud</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
-                    <div class="model-tags"><span class="tag">V2I</span><span class="tag">V2N</span><span class="tag">公交路径规划</span><span class="tag">信号控制</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-
-            <a class="scenario-card"
-               href="scenarios/intersection-safety.html"
-               data-search="交叉口 多车 协同 安全通行 cooperative control connected vehicle l4 l3 edge rsu v2v v2i 冲突检测 碰撞预警 紧急制动">
-                <div class="card-top">
-                    <div class="scenario-title">交叉口多车协同安全通行</div>
-                    <span class="status ready">已嵌入 SVG</span>
-                </div>
-                <p class="desc">面向交叉口多智能等级车辆协同避让场景，表达车辆自感知、车车/车路信息共享、边缘端冲突检测与预警指令下发的安全闭环。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle L4、Connected Vehicle L3、Edge RSU</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
-                    <div class="model-tags"><span class="tag">V2V</span><span class="tag">V2I</span><span class="tag">冲突检测</span><span class="tag">碰撞预警</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-
-            <!-- 3. 协作式车辆汇入与变道 -->
-            <a class="scenario-card"
-               href="scenarios/cooperative-merge.html"
-               data-search="协作式车辆汇入与变道 高速公路 城市快速路 匝道 主路 车辆状态感知 车辆轨迹预测 v2v v2i 协作式汇入 协作式变道">
-                <div class="card-top">
-                    <div class="scenario-title">协作式车辆汇入与变道</div>
-                    <span class="status ready">已嵌入 SVG</span>
-                </div>
-                <p class="desc">面向主路车辆与匝道汇入车辆，表达车辆状态感知、轨迹预测、V2V/V2I 信息交互、汇入顺序协商以及纵横向控制形成的协同通行闭环。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Mainline Connected Vehicle、Merging Vehicle、Edge RSU</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
-                    <div class="model-tags"><span class="tag">车辆状态感知</span><span class="tag">车辆轨迹预测</span><span class="tag">V2V</span><span class="tag">协作式车辆汇入</span><span class="tag">协作式变道</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-
-            <!-- 4. 城市路网拥堵识别与协同分流 -->
-            <a class="scenario-card pending"
-               href="scenarios/network-diversion.html"
-               data-search="城市路网 拥堵识别 协同分流 交通流感知 交通流预测 路网区域识别 关键路径 动态通行能力 车辆路径规划">
-                <div class="card-top">
-                    <div class="scenario-title">城市路网拥堵识别与协同分流</div>
-                    <span class="status todo">待绘制</span>
-                </div>
-                <p class="desc">面向区域路网拥堵传播场景，通过路侧交通状态采集、云端信息融合与预测，识别瓶颈和关键路径，并形成区域交通分流与车辆路径调整方案。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle、Edge RSU、Regional Cloud</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span></div>
-                    <div class="model-tags"><span class="tag">交通流感知</span><span class="tag">交通流预测</span><span class="tag">关键路径识别</span><span class="tag">拥堵交通分流</span><span class="tag">车辆路径规划</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-
-            <!-- 5. 紧急任务车辆优先通行协同 -->
-            <a class="scenario-card pending"
-               href="scenarios/emergency-priority.html"
-               data-search="紧急任务车辆 应急车辆 救护车 消防车 优先通行 v2v v2i 交叉口 通行权 信号控制">
-                <div class="card-top">
-                    <div class="scenario-title">紧急任务车辆优先通行协同</div>
-                    <span class="status todo">待绘制</span>
-                </div>
-                <p class="desc">面向救护、消防等紧急任务车辆通行需求，表达任务车辆状态广播、路侧识别、社会车辆提醒、交叉口优先权决策与信号控制协同过程。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Emergency Vehicle、Connected Vehicle、Edge RSU、Signal Controller</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
-                    <div class="model-tags"><span class="tag">紧急任务车辆提醒</span><span class="tag">V2V</span><span class="tag">V2I</span><span class="tag">应急车辆优先</span><span class="tag">信号控制</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-
-            <!-- 6. 道路突发事件协同处置与绕行 -->
-            <a class="scenario-card pending"
-               href="scenarios/incident-response.html"
-               data-search="道路突发事件 交通事故 故障车辆 道路障碍 交通事件感知 道路危险 异常车辆 拥堵提醒 绕行 路径规划 v2i v2n">
-                <div class="card-top">
-                    <div class="scenario-title">道路突发事件协同处置与绕行</div>
-                    <span class="status todo">待绘制</span>
-                </div>
-                <p class="desc">面向交通事故、故障车辆和道路障碍等突发事件，表达事件发现、信息上传、影响范围认知、危险提示以及车辆绕行路径调整的信息流。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle、Edge RSU、Regional Cloud</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span></div>
-                    <div class="model-tags"><span class="tag">交通事件感知</span><span class="tag">道路危险状况提示</span><span class="tag">异常车辆提醒</span><span class="tag">V2N</span><span class="tag">车辆路径规划</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-
-            <!-- 7. 智能泊车与泊位协同引导 -->
-            <a class="scenario-card pending"
-               href="scenarios/smart-parking.html"
-               data-search="智能泊车 自主泊车 泊位 泊位占用 泊位资源调度 停车 v2i 泊车运动控制">
-                <div class="card-top">
-                    <div class="scenario-title">智能泊车与泊位协同引导</div>
-                    <span class="status todo">待绘制</span>
-                </div>
-                <p class="desc">面向车辆进入停车区域后的泊位获取与自主泊车过程，表达泊位状态感知、泊位资源分配、停车引导以及车辆自主泊车控制闭环。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle、Parking Facility、Edge Platform</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
-                    <div class="model-tags"><span class="tag">泊位占用感知</span><span class="tag">泊位资源调度</span><span class="tag">自主泊车</span><span class="tag">泊车运动控制</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-
-            <!-- 8. 干线绿波协同通行 -->
-            <a class="scenario-card pending"
-               href="scenarios/green-wave.html"
-               data-search="干线 绿波 车速引导 信号控制 v2i 交通流感知 交通信号感知 信号协调">
-                <div class="card-top">
-                    <div class="scenario-title">干线绿波协同通行</div>
-                    <span class="status todo">待绘制</span>
-                </div>
-                <p class="desc">面向城市连续信号交叉口，通过交通流与信号状态获取、多交叉口协调以及车速引导，实现车辆与信号系统之间的协同通行。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle、Edge RSU、Signal Controller、Regional Platform</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
-                    <div class="model-tags"><span class="tag">交通信号感知</span><span class="tag">交通流感知</span><span class="tag">绿波车速引导</span><span class="tag">干线信号控制</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-
-            <!-- 9. 公铁联运节点协同衔接 -->
-            <a class="scenario-card pending"
-               href="scenarios/road-rail.html"
-               data-search="公铁联运 公路 铁路 枢纽 到发状态 运力匹配 衔接计划 异常协同">
-                <div class="card-top">
-                    <div class="scenario-title">公铁联运节点协同衔接</div>
-                    <span class="status todo">待绘制</span>
-                </div>
-                <p class="desc">面向公路运输车辆与铁路运输计划在综合运输节点的衔接过程，表达节点状态获取、到发信息交互、运力匹配、衔接计划与异常调整。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Road Vehicle、Rail System、Intermodal Hub、Coordination Platform</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
-                    <div class="model-tags"><span class="tag">节点运行状态感知</span><span class="tag">到发状态交互</span><span class="tag">运力匹配</span><span class="tag">衔接计划</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-
-            <!-- 10. 港口集疏运协同调度 -->
-            <a class="scenario-card pending"
-               href="scenarios/port-intermodal.html"
-               data-search="港口 码头 集疏运 船舶 泊位 港区车辆 进出场 协同调度 船港衔接">
-                <div class="card-top">
-                    <div class="scenario-title">港口集疏运协同调度</div>
-                    <span class="status todo">待绘制</span>
-                </div>
-                <p class="desc">面向船舶、泊位、港区车辆及集疏运系统之间的协同运行，表达船舶到港、泊位资源分配、车辆进出场以及多方式运输衔接过程。</p>
-                <div class="meta-block">
-                    <div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Vessel、Port Terminal、Port Vehicle、Coordination Platform</span></div>
-                    <div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
-                    <div class="model-tags"><span class="tag">港口运行状态感知</span><span class="tag">船舶到离港交互</span><span class="tag">泊位动态调度</span><span class="tag">港区车辆调度</span></div>
-                </div>
-                <div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
-            </a>
-        </div>
-    </main>
-
-    <script>
+<header>
+<h1>典型场景 UML 模型库</h1>
+<p>面向“感知—认知—传输—决策—控制”链路的异智交通主体协同信息流场景化表达 · 已同步最终信息模型索引</p>
+</header>
+<div class="topbar">
+<div class="search-box">
+<i class="fa-solid fa-magnifying-glass"></i>
+<input id="searchInput" placeholder="搜索场景名称、主体或关联模型，例如 公交 / 交叉口 / V2I / Signal..." type="text"/>
+</div>
+<a class="nav-btn nav-home" href="index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
+<a class="nav-btn nav-graph" href="graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
+</div>
+<main class="container">
+<h2 class="section-title">场景列表</h2>
+<div class="scenario-grid" id="scenarioGrid">
+<a class="scenario-card" data-search="公交优先 交通流 协同调控 connected bus connected vehicle edge rsu signal controller regional cloud v2i v2n 路径-信息协同优化 公交信号优先 公交信号优先自适应补偿 公交道路车速引导" href="scenarios/bus-priority.html">
+<div class="card-top">
+<div class="scenario-title">公交优先与交通流协同调控</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向智能公交、社会车辆、边缘计算单元、信号控制机与区域云平台，表达公交运行状态获取、优先需求形成、路径—信息协同优化、公交信号优先及自适应补偿，并形成车辆引导与状态反馈闭环。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Bus L4、Connected Vehicle L2、Edge RSU、Signal Controller、Regional Cloud</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">V2I</span><span class="tag">V2N</span><span class="tag">路径-信息协同优化</span><span class="tag">公交信号优先</span><span class="tag">公交道路车速引导</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<a class="scenario-card" data-search="交叉口 多车 协同 安全通行 connected vehicle l4 l3 edge rsu v2v v2i 车辆状态感知 交通参与者感知 冲突情况检测 前向碰撞预警" href="scenarios/intersection-safety.html">
+<div class="card-top">
+<div class="scenario-title">交叉口多车协同安全通行</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向L4与L3智能网联车辆在交叉口的协同安全通行，表达车辆状态与交通参与者感知、V2V/V2I信息共享、冲突检测与前向碰撞预警，以及车辆控制与执行状态反馈。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle L4、Connected Vehicle L3、Edge RSU</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">车辆状态感知</span><span class="tag">交通参与者感知</span><span class="tag">V2V</span><span class="tag">V2I</span><span class="tag">冲突情况检测</span><span class="tag">前向碰撞预警</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<!-- 3. 协作式车辆汇入与变道 -->
+<a class="scenario-card" data-search="协作式车辆汇入与变道 匝道 主路 车辆状态感知 车辆轨迹预测 v2v v2i 车辆跟驰 协作式车辆汇入 协作式变道" href="scenarios/cooperative-merge.html">
+<div class="card-top">
+<div class="scenario-title">协作式车辆汇入与变道</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向主路协作车与匝道汇入车，表达车辆状态感知、轨迹预测、V2V/V2I信息交互、车辆跟驰纵向决策，以及协作式车辆汇入和协作式变道控制构成的完整协同过程。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Mainline Connected Vehicle L4、Merging Vehicle L4、Edge RSU</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">车辆状态感知</span><span class="tag">车辆轨迹预测</span><span class="tag">V2V/V2I</span><span class="tag">车辆跟驰</span><span class="tag">协作式车辆汇入</span><span class="tag">协作式变道</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<!-- 4. 城市路网拥堵识别与协同分流 -->
+<a class="scenario-card" data-search="城市路网 拥堵识别 路径协同分流 coordinated diversion 交通流感知 交通流预测 路网信息融合 关键路径识别 动态通行能力评估 拥堵交通分流 路网车辆路径负载均衡 车辆路径规划" href="scenarios/coordinated-diversion.html">
+<div class="card-top">
+<div class="scenario-title">城市路网拥堵识别与路径协同分流</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向多区域路网拥堵传播与瓶颈转移，组织区域交通流感知与预测、路网信息融合、关键路径识别和动态通行能力评估，并形成拥堵交通分流、路径负载均衡及车辆路径调整。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Traffic Sensor ×2、Edge RSU ×2、Regional Cloud、Connected Vehicle L4</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">交通流预测</span><span class="tag">路网信息融合</span><span class="tag">关键路径识别</span><span class="tag">动态通行能力评估</span><span class="tag">拥堵交通分流</span><span class="tag">路径负载均衡</span><span class="tag">车辆路径规划</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<!-- 5. 紧急任务车辆优先通行协同 -->
+<a class="scenario-card" data-search="紧急任务车辆 应急车辆 救护车 消防车 emergency priority v2i v2n i2n 交通流预测 路网信息融合 关键路径识别 应急车辆优先 信号控制" href="scenarios/emergency-priority.html">
+<div class="card-top">
+<div class="scenario-title">紧急任务车辆优先通行协同</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向救护、消防等紧急任务车辆连续优先通行，融合沿线交通流与信号状态，识别优先通行关键路径，形成应急车辆优先决策、沿线信号协调及社会车辆协同避让。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Emergency Vehicle L4、Connected Vehicle L2、Traffic Sensor、Edge RSU、Regional Cloud、Signal Controller</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">交通流预测</span><span class="tag">V2I/V2N/I2N</span><span class="tag">路网信息融合</span><span class="tag">关键路径识别</span><span class="tag">应急车辆优先</span><span class="tag">关键/干线信号控制</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<!-- 6. 道路突发事件协同处置与绕行 -->
+<a class="scenario-card" data-search="道路突发事件 事故 故障车辆 incident response 交通事件感知 交通流预测 道路危险状况提示 动态通行能力评估 车道功能调整 拥堵交通分流 车辆路径规划" href="scenarios/incident-response.html">
+<div class="card-top">
+<div class="scenario-title">道路突发事件协同处置与绕行</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向交通事故、故障车辆和道路障碍等突发事件，表达事件与交通流感知、拥堵传播认知、道路危险提示、通行能力评估、车道功能调整、分流决策及车辆绕行。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Incident Vehicle、Impacted Vehicle、Traffic Sensor、Edge RSU、Regional Cloud</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">交通事件感知</span><span class="tag">交通流预测</span><span class="tag">道路危险状况提示</span><span class="tag">动态通行能力评估</span><span class="tag">车道功能调整</span><span class="tag">拥堵交通分流</span><span class="tag">车辆路径规划</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<!-- 7. 智能泊车与泊位协同引导 -->
+<a class="scenario-card" data-search="智能泊车 泊位 smart parking parking vehicle v2i 泊位占用感知 泊位资源调度 自主泊车 泊车运动控制" href="scenarios/smart-parking.html">
+<div class="card-top">
+<div class="scenario-title">智能泊车与泊位协同引导</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向多车辆进入停车区域后的泊位分配与自主泊车，表达车辆和泊位状态获取、泊车环境识别、V2I需求交互、泊位资源调度、自主泊车决策及泊车运动控制。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Parking Vehicle A、Parking Vehicle B、Edge RSU</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">泊位占用感知</span><span class="tag">V2I</span><span class="tag">泊位资源调度</span><span class="tag">自主泊车</span><span class="tag">泊车运动控制</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<!-- 8. 干线绿波协同通行 -->
+<a class="scenario-card" data-search="干线 绿波 green wave connected vehicle traffic camera edge rsu central cloud signal controller 交通信号感知 交通流预测 车辆轨迹预测 v2i i2n 绿波车速引导 干线交叉口信号控制 车速控制" href="scenarios/green-wave.html">
+<div class="card-top">
+<div class="scenario-title">干线绿波协同通行</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向城市连续信号交叉口，通过车辆、交通流和信号状态获取，形成交通流预测、车辆轨迹预测与绿波车速引导，并协同多个交叉口信号控制和车辆车速控制。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Connected Vehicle L4、Traffic Camera、Edge RSU、Central Cloud、Signal Controller ×2</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">交通信号感知</span><span class="tag">交通流预测</span><span class="tag">车辆轨迹预测</span><span class="tag">V2I/I2N</span><span class="tag">绿波车速引导</span><span class="tag">干线信号控制</span><span class="tag">车速控制</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<!-- 9. 公铁联运节点协同衔接 -->
+<a class="scenario-card" data-search="公铁联运 road rail intermodal 公路货运 铁路运输 节点运行状态感知 到发状态交互 运力匹配 衔接计划 异常协同调整" href="scenarios/road-rail.html">
+<div class="card-top">
+<div class="scenario-title">公铁联运节点协同衔接</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向公路货运车辆、铁路运输系统与公铁联运节点的到发衔接，表达节点运行状态感知、到发状态交互、运力匹配、衔接计划形成及异常条件下的协同调整。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Road Freight Vehicle、Rail Transport System、Intermodal Hub、Central Cloud</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">节点运行状态感知</span><span class="tag">到发状态交互</span><span class="tag">公铁联运运力匹配</span><span class="tag">公铁联运衔接计划</span><span class="tag">异常协同调整</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<!-- 10. 港口集疏运协同调度 -->
+<a class="scenario-card" data-search="港口 码头 集疏运 port intermodal vessel port truck rail 泊位 船舶到离港 港区车辆 船港衔接 异常协同调整" href="scenarios/port-intermodal.html">
+<div class="card-top">
+<div class="scenario-title">港口集疏运协同调度</div>
+<span class="status ready">已嵌入 SVG</span>
+</div>
+<p class="desc">面向船舶、港区集卡、铁路集疏运与码头作业协同，表达港口运行状态感知、到离港状态交互、泊位和车辆资源调度、船港集疏运衔接计划及异常协同调整。</p>
+<div class="meta-block">
+<div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Vessel、Port Truck、Rail Transport System、Port Edge Unit、Central Cloud</span></div>
+<div class="stage-tags"><span class="tag p">感知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div>
+<div class="model-tags"><span class="tag">港口运行状态感知</span><span class="tag">船舶到离港交互</span><span class="tag">泊位资源调度</span><span class="tag">港区车辆调度</span><span class="tag">船港集疏运衔接</span><span class="tag">异常协同调整</span></div>
+</div>
+<div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div>
+</a>
+<a class="scenario-card" data-search="城市轨道 道路 rail road coordination 轨道站点客流 列车运行 换乘匹配 接驳需求 客流激增 跨域协同 公交 出租网约 多方式运力" href="scenarios/rail-road-coordination.html"><div class="card-top"><div class="scenario-title">城市轨道—道路运行协同调度</div><span class="status ready">已嵌入 SVG</span></div><p class="desc">面向轨道站点出站客流与道路接驳运力之间的跨方式协同，表达轨道状态感知、换乘匹配、接驳需求预测、客流激增识别、跨域信息交互及公交和出租网约多方式运力协同调度。</p><div class="meta-block"><div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Rail Transit System、Station Edge Unit、Bus Dispatch System、Ride-hailing Dispatch System、Central Cloud</span></div><div class="stage-tags"><span class="tag p">感知</span><span class="tag r">认知</span><span class="tag t">传输</span><span class="tag d">决策</span><span class="tag c">控制</span></div><div class="model-tags"><span class="tag">轨道站点状态感知</span><span class="tag">换乘匹配统计</span><span class="tag">接驳需求预测</span><span class="tag">客流激增识别</span><span class="tag">跨域协同交互</span><span class="tag">多方式运力配置</span><span class="tag">协同调度</span></div></div><div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div></a><a class="scenario-card" data-search="航空枢纽 空地联运 air ground intermodal 航班 地面交通 铁路轨道 机场巴士 出租网约 枢纽综合运行状态认知 旅客换乘需求认知 运力匹配 衔接计划 异常协同调整" href="scenarios/air-ground-intermodal.html"><div class="card-top"><div class="scenario-title">航空枢纽空地联运协同</div><span class="status ready">已嵌入 SVG</span></div><p class="desc">面向航空枢纽航班运行与铁路轨道、机场巴士、出租网约等地面接驳方式之间的协同组织，表达枢纽综合运行状态与旅客换乘需求认知、空地联运运力匹配、衔接计划形成及异常条件下的协同调整。</p><div class="meta-block"><div class="meta-row"><i class="fa-solid fa-users-gear"></i><span>Airport Operation System、Rail Transit System、Airport Bus System、Ride-hailing System、Central Cloud</span></div><div class="stage-tags"><span class="tag r">认知</span><span class="tag d">决策</span></div><div class="model-tags"><span class="tag">枢纽综合运行状态认知</span><span class="tag">旅客换乘需求认知</span><span class="tag">空地联运运力匹配</span><span class="tag">空地联运衔接计划</span><span class="tag">异常协同调整</span></div></div><div class="enter">进入 UML 场景 <i class="fa-solid fa-chevron-right"></i></div></a></div>
+</main>
+<script>
         const searchInput = document.getElementById('searchInput');
         const cards = document.querySelectorAll('.scenario-card');
         searchInput.addEventListener('input', function (e) {
@@ -378,16 +345,9 @@
             });
         });
 
-        // 待绘制场景暂不跳转，避免详情页尚未建立时出现 404。
-        // 后续完成对应 UML 页面后，只需删除卡片上的 pending 类，
+        // 尚未嵌入 SVG 的场景暂不跳转，避免详情页资源未就绪时出现 404。
+        // 后续补齐对应 SVG 与详情页后，只需删除卡片上的 pending 类，
         // 并将 status todo 改为 status ready，即可恢复正常跳转。
-        document.querySelectorAll('.scenario-card.pending').forEach(card => {
-            card.addEventListener('click', function (e) {
-                e.preventDefault();
-                const title = card.querySelector('.scenario-title')?.innerText || '该场景';
-                alert(`“${title}” UML 场景正在完善中。`);
-            });
-        });
-    </script>
+</script>
 </body>
 </html>

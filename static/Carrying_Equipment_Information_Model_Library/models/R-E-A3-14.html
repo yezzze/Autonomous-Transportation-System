@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MODEL-023 交通流预测信息模型 - 详情</title>
+    <title>R-E-A3-14 交通流预测信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>交通流预测信息模型</h1>
-    <p>模型编号：MODEL-023 | 逻辑阶段：认知 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：R-E-A3-14 | 逻辑阶段：认知 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,36 +37,36 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>交通流预测信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>认知</td></tr>
-            <tr><th>实体类别</th><td>边缘</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-023</span></td></tr>
-            <tr><th>信息模型描述</th><td>自主化等级为A3时，道路交通系统包含L3、L4、L5级自动驾驶车辆与人类驾驶车辆，具备车路通信V2I和路网通信I2N，路侧感知与边缘计算可获取更完整的车辆运行信息和影响因素变化。交通流预测信息模型部署于边缘计算单元，综合分析当前流量、速度、气象条件、交通事件和上下游交通流传播关系，形成多路段关联的短时交通流预测结果，并可支撑后续关键交叉口与干线信号控制、排队溢出疏解和拥堵分流。</td></tr>
-            <tr><th>模型服务场景</th><td>关键交叉口与干线信号控制、拥堵交通分流等</td></tr>
-            <tr><th>上游接口模型编号</th><td>交通流感知信息模型、气象条件感知信息模型、交通事件感知信息模型</td></tr>
-            <tr><th>下游接口模型编号</th><td>拥堵提醒信息模型、拥堵交通分流服务信息模型</td></tr>
-            <tr><th>交付时间</th><td></td></tr>
-            <tr><th>责任单位</th><td></td></tr>
+            <tr><th>实体层级</th><td>边缘</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">R-E-A3-14</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，道路交通系统包含L3、L4、L5级自动驾驶车辆与人类驾驶车辆，具备车路通信V2I和路网通信I2N，路侧感知与边缘计算可获取更完整的车辆运行信息和影响因素变化。交通流预测信息模型部署于边缘计算单元，综合分析当前流量、速度、气象条件、交通事件和上下游交通流传播关系，形成多路段关联的短时交通流预测结果，并可支撑后续关键交叉口与干线信号控制、排队溢出疏解和拥堵分流。</td></tr>
+            <tr><th>信息模型服务场景</th><td>关键交叉口与干线信号控制、拥堵交通分流等。</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通流感知信息模型（P-E-A3-4）、交通事件感知信息模型（P-E-A3-6）、气象条件认知信息模型（R-E-A3-7）、车网通信V2N信息模型（T-D-A3-19）、路网通信I2N信息模型（T-E-A3-20）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车路通信V2I信息模型（T-D-A3-18）、路网通信I2N信息模型（T-E-A3-20）、拥堵提醒信息模型（D-D-A3-42）、绿波车速引导信息模型（D-C-A3-49）、车道功能动态调整信息模型（D-C-A3-50）、拥堵交通分流服务信息模型（D-C-A3-51）、路网区域识别信息模型（D-C-A3-52）、路网时空信息整合信息模型（D-C-A3-53）、路网动态通行能力评估信息模型（D-C-A3-61）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
         </table>
     </div>
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="2" class="text-center highlight">当前交通流信息</td><td>由交通流感知信息模型形成的当前道路断面交通流状态</td><td>当前断面流量</td><td>当前统计周期内通过检测断面的车辆数量</td><td>路侧设备（感应线圈）</td></tr>
-                <tr><td>由交通流感知信息模型形成的当前道路断面交通流状态</td><td>当前断面行驶速度</td><td>当前统计周期内通过检测断面的车辆平均速度</td><td>路侧设备（感应线圈）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">当前交通流信息</td><td>由交通流感知信息模型形成的当前道路断面交通流状态</td><td>当前断面流量</td><td>当前统计周期内通过检测断面的车辆数量</td><td>边缘（感应线圈）</td></tr>
+                <tr><td>由交通流感知信息模型形成的当前道路断面交通流状态</td><td>当前断面行驶速度</td><td>当前统计周期内通过检测断面的车辆平均速度</td><td>边缘（感应线圈）</td></tr>
                 <tr><td rowspan="2" class="text-center highlight">历史交通流信息</td><td>由边缘计算单元对交通流感知结果进行本地存储形成的历史序列</td><td>历史流量序列</td><td>按时间顺序记录的断面流量历史值</td><td>边缘计算单元（本地交通流数据库）</td></tr>
                 <tr><td>由边缘计算单元对交通流感知结果进行本地存储形成的历史序列</td><td>历史速度序列</td><td>按时间顺序记录的平均行驶速度历史值</td><td>边缘计算单元（本地交通流数据库）</td></tr>
                 <tr><td rowspan="3" class="text-center highlight">时空基础信息</td><td>由边缘数据库提供的预测对象历史时空信息</td><td>预测对象时空范围</td><td>预测所对应的区域和时段</td><td>边缘计算单元（本地交通流数据库）</td></tr>
                 <tr><td>由边缘数据库提供的预测对象历史时空信息</td><td>道路拓扑关系</td><td>断面之间连接关系</td><td>边缘计算单元（本地道路数据库）</td></tr>
                 <tr><td>由边缘数据库提供的预测对象历史时空信息</td><td>时间特征</td><td>月、天、小时等周期性时间特征</td><td>边缘计算单元（本地交通流数据库）</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">道路气象条件信息</td><td>当前与历史气象条件感知信息模型输出的道路气象条件结果</td><td>天气类型</td><td>晴、雨、雪、雾、霾、大风等天气类型及强度等级</td><td>边缘计算单元（路侧气象数据处理单元）</td></tr>
-                <tr><td>当前与历史气象条件感知信息模型输出的道路气象条件结果</td><td>能见度等级</td><td>按能见度距离划分的能见度等级</td><td>边缘计算单元（路侧气象数据处理单元）</td></tr>
-                <tr><td>当前与历史气象条件感知信息模型输出的道路气象条件结果</td><td>路面状况等级</td><td>路面干燥/潮湿/积水/积雪/结冰状态</td><td>边缘计算单元（路侧气象数据处理单元）</td></tr>
-                <tr><td rowspan="2" class="text-center highlight">交通事件影响信息</td><td>由交通事件感知信息模型输出的道路交通事件及其影响对象</td><td>事件位置与类型</td><td>事故、施工、异常停车、车辆故障或道路拥堵的类型</td><td>路侧设备（交通事件感知设备）</td></tr>
-                <tr><td>由交通事件感知信息模型输出的道路交通事件及其影响对象</td><td>事件与空间影响范围</td><td>事件发生的位置与时刻、受影响车道、事件持续时间</td><td>路侧设备（交通事件感知设备）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">道路气象条件信息</td><td>当前与历史气象条件认知信息模型输出的道路气象条件结果</td><td>天气类型</td><td>晴、雨、雪、雾、霾、大风等天气类型及强度等级</td><td>边缘计算单元（路侧气象数据处理单元）</td></tr>
+                <tr><td>当前与历史气象条件认知信息模型输出的道路气象条件结果</td><td>能见度等级</td><td>按能见度距离划分的能见度等级</td><td>边缘计算单元（路侧气象数据处理单元）</td></tr>
+                <tr><td>当前与历史气象条件认知信息模型输出的道路气象条件结果</td><td>路面状况等级</td><td>路面干燥/潮湿/积水/积雪/结冰状态</td><td>边缘计算单元（路侧气象数据处理单元）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">交通事件影响信息</td><td>由交通事件感知信息模型输出的道路交通事件及其影响对象</td><td>事件位置与类型</td><td>事故、施工、异常停车、车辆故障或道路拥堵的类型</td><td>边缘（交通事件感知设备）</td></tr>
+                <tr><td>由交通事件感知信息模型输出的道路交通事件及其影响对象</td><td>事件与空间影响范围</td><td>事件发生的位置与时刻、受影响车道、事件持续时间</td><td>边缘（交通事件感知设备）</td></tr>
                 <tr><td rowspan="5" class="text-center highlight">交通流预测信息</td><td>边缘计算单元融合多源信息形成的多路段短时预测结果</td><td>预测流量序列</td><td>未来各预测时段的断面车辆流量</td><td>边缘计算单元</td></tr>
                 <tr><td>边缘计算单元融合多源信息形成的多路段短时预测结果</td><td>预测平均速度序列</td><td>未来各预测时段的道路平均行驶速度</td><td>边缘计算单元</td></tr>
                 <tr><td>边缘计算单元融合多源信息形成的多路段短时预测结果</td><td>预测交通状态演化</td><td>缓行或拥堵的预计形成时间、持续趋势及空间传播方向</td><td>边缘计算单元</td></tr>

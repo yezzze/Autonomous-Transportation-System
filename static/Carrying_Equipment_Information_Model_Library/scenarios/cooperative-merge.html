@@ -1,11 +1,12 @@
 <!DOCTYPE html>
+
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>协作式车辆汇入与变道 - UML 场景详情</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>协作式车辆汇入与变道 - UML 场景详情</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+<style>
         :root {
             --primary: #1a73e8;
             --scenario: #13a8a8;
@@ -159,245 +160,136 @@
         }
     </style>
 </head>
-
 <body>
 <header class="page-header">
-    <div class="header-inner">
-        <div class="breadcrumb">
-            <a href="../index.html">模型库首页</a>
-            <i class="fa-solid fa-chevron-right"></i>
-            <a href="../scenarios.html">典型场景 UML</a>
-            <i class="fa-solid fa-chevron-right"></i>
-            <span>协作式车辆汇入与变道</span>
-        </div>
-
-        <h1>协作式车辆汇入与变道 UML 时序图</h1>
-
-        <p>
-            本页面展示主路前车、主路协作车、匝道汇入车与边缘计算单元在协作式汇入场景下的信息交互过程。
-            场景以车辆间 V2V 直接协作为主，以路侧 V2I 增强信息为辅，按照“感知—认知—传输—决策—控制”
-            五阶段组织车辆状态获取、轨迹预测、汇入请求与协作响应、目标间隙确定以及纵横向控制过程。
-        </p>
-    </div>
-</header>
-
-<div class="toolbar">
-    <a class="tool-btn primary" href="../scenarios.html"><i class="fa-solid fa-arrow-left"></i> 返回场景列表</a>
-    <a class="tool-btn" href="../index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
-    <a class="tool-btn" href="../graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
-    <a class="tool-btn" href="../assets/uml/cooperative-merge.svg" download><i class="fa-solid fa-download"></i> 下载 SVG 图</a>
+<div class="header-inner">
+<div class="breadcrumb">
+<a href="../index.html">模型库首页</a>
+<i class="fa-solid fa-chevron-right"></i>
+<a href="../scenarios.html">典型场景 UML</a>
+<i class="fa-solid fa-chevron-right"></i>
+<span>协作式车辆汇入与变道</span>
 </div>
-
+<h1>协作式车辆汇入与变道 UML 时序图</h1>
+<p>本页面展示主路协作车辆、匝道汇入车辆与边缘路侧单元在协作式汇入与变道场景下的信息交互过程。场景按照“感知—认知—传输—决策—控制”五阶段，组织车辆状态与道路环境感知、短时轨迹预测、V2V/V2I信息交互、车辆跟驰纵向决策、汇入窗口构造以及横向变道执行过程。</p>
+</div>
+</header>
+<div class="toolbar">
+<a class="tool-btn primary" href="../scenarios.html"><i class="fa-solid fa-arrow-left"></i> 返回场景列表</a>
+<a class="tool-btn" href="../index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
+<a class="tool-btn" href="../graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
+<a class="tool-btn" download="" href="../assets/uml/cooperative-merge.svg"><i class="fa-solid fa-download"></i> 下载 SVG 图</a>
+</div>
 <main class="container">
-    <div class="layout">
-        <aside class="panel side-panel">
-            <div class="panel-title"><i class="fa-solid fa-circle-info"></i> 场景信息</div>
-            <div class="panel-body">
-                <div class="info-list">
-
-                    <div class="info-item">
-                        <label>场景名称</label>
-                        <div>协作式车辆汇入与变道</div>
-                    </div>
-
-                    <div class="info-item">
-                        <label>场景目标</label>
-                        <p>
-                            通过主路车辆与匝道汇入车辆之间的信息共享和协作响应，
-                            在路侧增强信息支持下主动形成可用汇入间隙，
-                            使汇入车辆安全、连续地完成速度匹配和横向变道。
-                        </p>
-                    </div>
-
-                    <div class="info-item">
-                        <label>参与主体</label>
-                        <div class="pill-list">
-                            <span class="pill">主路前车（端1）</span>
-                            <span class="pill">主路协作车（端2）</span>
-                            <span class="pill">匝道汇入车（端3）</span>
-                            <span class="pill">边缘计算单元（边）</span>
-                        </div>
-                    </div>
-
-                    <div class="info-item">
-                        <label>协同方式</label>
-                        <div class="pill-list">
-                            <span class="pill">端端协同</span>
-                            <span class="pill">端边增强</span>
-                            <span class="pill">V2V</span>
-                            <span class="pill">V2I</span>
-                        </div>
-                    </div>
-
-                    <div class="info-item">
-                        <label>信息流阶段</label>
-                        <div class="pill-list">
-                            <span class="pill p">感知阶段</span>
-                            <span class="pill r">认知阶段</span>
-                            <span class="pill t">传输阶段</span>
-                            <span class="pill d">决策阶段</span>
-                            <span class="pill c">控制阶段</span>
-                        </div>
-                    </div>
-
-                    <div class="info-item">
-                        <label>核心逻辑</label>
-                        <p>
-                            匝道汇入车提出汇入需求，主路协作车返回当前间隙和协作响应；
-                            路侧端提供轨迹预测与目标间隙变化信息。双方确认目标间隙和汇入时机后，
-                            通过纵向速度协同构造汇入空间，满足条件后由汇入车执行横向变道。
-                        </p>
-                    </div>
-
-                </div>
-            </div>
-        </aside>
-
-        <section class="main-content">
-
-            <div class="panel uml-card">
-                <div class="uml-header">
-                    <h2><i class="fa-solid fa-timeline"></i> UML 时序图</h2>
-                    <div class="uml-tools">
-                        <button class="small-btn" onclick="fitWidth()">适应宽度</button>
-                        <button class="small-btn" onclick="fitToView()">适应整图</button>
-                        <button class="small-btn" onclick="zoomOut()">缩小</button>
-                        <button class="small-btn" onclick="zoomIn()">放大</button>
-                        <button class="small-btn" onclick="showOriginal()">原始尺寸</button>
-                    </div>
-                </div>
-
-                <div class="uml-viewport" id="umlViewport">
-                    <div class="uml-image-wrap" id="umlImageWrap">
-                        <img class="uml-image" src="../assets/uml/cooperative-merge.svg" alt="协作式车辆汇入与变道 UML 时序图">
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel section">
-                <h2><i class="fa-solid fa-layer-group"></i> 五阶段信息流说明</h2>
-                <div class="stage-grid">
-                    <div class="stage-card p">
-                        <h3>感知阶段</h3>
-                        <p>主路车辆与汇入车辆生成自身位置、速度和车道状态；汇入车进一步感知汇入车道与目标区域，路侧端感知区域车辆运行状态。</p>
-                    </div>
-                    <div class="stage-card r">
-                        <h3>认知阶段</h3>
-                        <p>路侧端预测主路车辆与汇入车辆的短时轨迹并识别关键交互关系；汇入车辆结合自身状态识别候选目标间隙。</p>
-                    </div>
-                    <div class="stage-card t">
-                        <h3>传输阶段</h3>
-                        <p>汇入车通过 V2V 发送汇入请求并接收主路车辆协作响应，同时通过 V2I 获取关键车辆、预测轨迹和目标间隙增强信息。</p>
-                    </div>
-                    <div class="stage-card d">
-                        <h3>决策阶段</h3>
-                        <p>汇入车辆确定目标汇入间隙和期望汇入时机，主路协作车判断协作需求与间隙调整方式，双方完成协作方案确认。</p>
-                    </div>
-                    <div class="stage-card c">
-                        <h3>控制阶段</h3>
-                        <p>主路协作车调整纵向速度与车间距，汇入车进行速度匹配；安全条件满足后执行横向变道，并更新汇入完成后的车辆状态。</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel section">
-                <h2><i class="fa-solid fa-link"></i> 关联模型清单</h2>
-
-                <div class="model-table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>阶段</th>
-                                <th>模型名称</th>
-                                <th>模型索引</th>
-                                <th>在 UML 中的作用</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><span class="stage-label p">感知</span></td>
-                                <td>车辆状态感知信息模型</td>
-                                <td><a href="../models/P-D-A4-1.html">P-D-A4-1</a></td>
-                                <td>主路车辆与汇入车辆生成位置、速度、车道等自身运行状态。</td>
-                            </tr>
-                            <tr>
-                                <td><span class="stage-label p">感知</span></td>
-                                <td>车辆路况感知信息模型</td>
-                                <td><a href="../models/P-D-A4-2.html">P-D-A4-2</a></td>
-                                <td>用于汇入车辆获取汇入车道、目标汇入区域及道路状态信息。</td>
-                            </tr>
-                            <tr>
-                                <td><span class="stage-label p">感知</span></td>
-                                <td>交通参与者感知信息模型</td>
-                                <td><a href="../models/P-E-A4-5.html">P-E-A4-5</a></td>
-                                <td>边缘计算单元获取区域内相关车辆的位置、速度和车道状态。</td>
-                            </tr>
-                            <tr>
-                                <td><span class="stage-label r">认知</span></td>
-                                <td>车辆轨迹预测信息模型</td>
-                                <td><a href="../models/R-E-A4-15.html">R-E-A4-15</a></td>
-                                <td>预测主路车辆与汇入车辆短时轨迹，用于识别关键交互关系及目标间隙变化。</td>
-                            </tr>
-                            <tr>
-                                <td><span class="stage-label t">传输</span></td>
-                                <td>车车通信 V2V 信息模型</td>
-                                <td><a href="../models/T-D-A4-17.html">T-D-A4-17</a></td>
-                                <td>承载汇入请求、协作响应、前车状态以及汇入完成状态等车辆间直接交互信息。</td>
-                            </tr>
-                            <tr>
-                                <td><span class="stage-label t">传输</span></td>
-                                <td>车路通信 V2I 信息模型</td>
-                                <td><a href="../models/T-D-A3-18.html">T-D-A3-18</a></td>
-                                <td>车辆上传汇入需求，并接收关键车辆、预测轨迹及汇入区域增强信息。</td>
-                            </tr>
-                            <tr>
-                                <td><span class="stage-label c">控制</span></td>
-                                <td>协作式车辆汇入信息模型</td>
-                                <td><a href="../models/C-D-A4-65.html">C-D-A4-65</a></td>
-                                <td>用于主路协作车和汇入车调整纵向速度与车间距，形成并匹配目标汇入窗口。</td>
-                            </tr>
-                            <tr>
-                                <td><span class="stage-label c">控制</span></td>
-                                <td>协作式变道信息模型</td>
-                                <td><a href="../models/C-D-A4-64.html">C-D-A4-64</a></td>
-                                <td>在目标间隙及安全条件满足后，控制汇入车辆执行横向变道进入目标车道。</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="note-box">
-                    决策阶段在本场景中主要体现为“目标间隙确定—汇入时机判断—协作方案确认”。
-                    当前 UML 未显式调用独立的决策类信息模型，因此关联模型清单中不额外虚构决策模型编号。
-                </div>
-            </div>
-
-            <div class="panel section">
-                <h2><i class="fa-solid fa-clipboard-check"></i> 规范性校验说明</h2>
-                <div class="check-list">
-                    <div class="check-item">
-                        <i class="fa-solid fa-check-circle"></i>
-                        <span>场景以车辆间直接协作为主，RSU 主要负责区域感知、轨迹预测和增强信息提供，主体职责边界清晰。</span>
-                    </div>
-                    <div class="check-item">
-                        <i class="fa-solid fa-check-circle"></i>
-                        <span>信息流严格按照“感知—认知—传输—决策—控制”五阶段组织，不再单独设置反馈阶段。</span>
-                    </div>
-                    <div class="check-item">
-                        <i class="fa-solid fa-check-circle"></i>
-                        <span>轨迹预测归入认知阶段，目标间隙与汇入时机属于决策逻辑，纵向调整和横向变道归入控制阶段。</span>
-                    </div>
-                    <div class="check-item">
-                        <i class="fa-solid fa-check-circle"></i>
-                        <span>控制阶段末尾包含汇入完成状态更新和恢复正常跟驰，实现闭环，但不新增独立阶段。</span>
-                    </div>
-                </div>
-            </div>
-
-        </section>
-    </div>
+<div class="layout">
+<aside class="panel side-panel">
+<div class="panel-title"><i class="fa-solid fa-circle-info"></i> 场景信息</div>
+<div class="panel-body">
+<div class="info-list">
+<div class="info-item">
+<label>场景名称</label>
+<div>协作式车辆汇入与变道</div>
+</div>
+<div class="info-item">
+<label>场景目标</label>
+<p>通过主路协作车辆与匝道汇入车辆之间的信息共享和协作响应，在边缘路侧单元的感知与轨迹预测支持下形成可用汇入窗口，使汇入车辆安全、连续地完成纵向速度匹配与横向变道。</p>
+</div>
+<div class="info-item">
+<label>参与主体</label>
+<div class="pill-list"><span class="pill">主路协作车辆</span><span class="pill">匝道汇入车辆</span><span class="pill">边缘路侧单元（Edge RSU）</span></div>
+</div>
+<div class="info-item">
+<label>协同方式</label>
+<div class="pill-list">
+<span class="pill">端端协同</span>
+<span class="pill">端边增强</span>
+<span class="pill">V2V</span>
+<span class="pill">V2I</span>
+</div>
+</div>
+<div class="info-item">
+<label>信息流阶段</label>
+<div class="pill-list">
+<span class="pill p">感知阶段</span>
+<span class="pill r">认知阶段</span>
+<span class="pill t">传输阶段</span>
+<span class="pill d">决策阶段</span>
+<span class="pill c">控制阶段</span>
+</div>
+</div>
+<div class="info-item">
+<label>核心逻辑</label>
+<p>主路协作车辆与匝道汇入车辆通过 V2V/V2I 交换车辆状态和汇入需求，边缘路侧单元形成汇入区域交通参与者感知与车辆短时轨迹预测；车辆跟驰信息模型分别形成建议速度、期望加速度和安全间距等纵向决策结果，协作式车辆汇入信息模型据此协调两车纵向运动、构造并匹配汇入窗口；当横向安全条件满足后，匝道汇入车辆执行协作式变道信息模型进入目标车道。</p>
+</div>
+</div>
+</div>
+</aside>
+<section class="main-content">
+<div class="panel uml-card">
+<div class="uml-header">
+<h2><i class="fa-solid fa-timeline"></i> UML 时序图</h2>
+<div class="uml-tools">
+<button class="small-btn" onclick="fitWidth()">适应宽度</button>
+<button class="small-btn" onclick="fitToView()">适应整图</button>
+<button class="small-btn" onclick="zoomOut()">缩小</button>
+<button class="small-btn" onclick="zoomIn()">放大</button>
+<button class="small-btn" onclick="showOriginal()">原始尺寸</button>
+</div>
+</div>
+<div class="uml-viewport" id="umlViewport">
+<div class="uml-image-wrap" id="umlImageWrap">
+<img alt="协作式车辆汇入与变道 UML 时序图" class="uml-image" src="../assets/uml/cooperative-merge.svg"/>
+</div>
+</div>
+</div>
+<div class="panel section">
+<h2><i class="fa-solid fa-layer-group"></i> 五阶段信息流说明</h2>
+<div class="stage-grid">
+<div class="stage-card p">
+<h3>感知阶段</h3>
+<p>主路协作车辆与匝道汇入车辆生成自身位置、速度、加速度和运行状态；匝道汇入车辆进一步获取目标车道、汇入区域及道路环境信息，边缘路侧单元获取汇入区域交通参与者状态。</p>
+</div>
+<div class="stage-card r">
+<h3>认知阶段</h3>
+<p>边缘路侧单元生成车辆轨迹预测信息，形成主路协作车辆与匝道汇入车辆的短时轨迹和预计到达时间，为汇入窗口判断与纵向协调提供依据。</p>
+</div>
+<div class="stage-card t">
+<h3>传输阶段</h3>
+<p>主路协作车辆与匝道汇入车辆通过 V2V 直接交换车辆状态和协作汇入需求，并通过 V2I 与边缘路侧单元交换车辆状态、汇入需求、预测轨迹和汇入区域状态。</p>
+</div>
+<div class="stage-card d">
+<h3>决策阶段</h3>
+<p>主路协作车辆与匝道汇入车辆分别生成车辆跟驰信息，形成建议速度、期望加速度和安全间距等纵向决策结果，为后续多车协同造隙与窗口匹配提供输入。</p>
+</div>
+<div class="stage-card c">
+<h3>控制阶段</h3>
+<p>主路协作车辆执行协作式车辆汇入信息模型，通过速度与车间距调整构造汇入窗口；匝道汇入车辆同步调整纵向速度匹配窗口，并在安全条件满足后执行协作式变道进入目标车道。</p>
+</div>
+</div>
+</div>
+<div class="panel section">
+<h2><i class="fa-solid fa-link"></i> 关联模型清单</h2>
+<div class="model-table-wrap">
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>模型名称</th>
+<th>模型索引</th>
+<th>在 UML 中的作用</th>
+</tr>
+</thead>
+<tbody><tr><td><span class="stage-label p">感知</span></td><td>车辆状态感知信息模型</td><td><a href="../models/P-D-A4-1.html">P-D-A4-1</a></td><td>主路协作车辆与匝道汇入车辆生成位置、速度、加速度及运行状态等基础信息。</td></tr><tr><td><span class="stage-label p">感知</span></td><td>车辆路况感知信息模型</td><td><a href="../models/P-D-A4-2.html">P-D-A4-2</a></td><td>匝道汇入车辆获取目标车道、汇入区域及道路环境相关信息。</td></tr><tr><td><span class="stage-label p">感知</span></td><td>交通参与者感知信息模型</td><td><a href="../models/P-E-A4-5.html">P-E-A4-5</a></td><td>边缘路侧单元获取汇入区域内相关车辆的位置、速度及运行状态。</td></tr><tr><td><span class="stage-label r">认知</span></td><td>车辆轨迹预测信息模型</td><td><a href="../models/R-E-A4-15.html">R-E-A4-15</a></td><td>预测主路协作车辆与匝道汇入车辆的短时轨迹和预计到达时间，为汇入窗口判断与纵向协调提供依据。</td></tr><tr><td><span class="stage-label t">传输</span></td><td>车车通信 V2V 信息模型</td><td><a href="../models/T-D-A4-17.html">T-D-A4-17</a></td><td>承载主路协作车辆与匝道汇入车辆之间的车辆状态、协作状态和汇入需求等端端直接交互。</td></tr><tr><td><span class="stage-label t">传输</span></td><td>车路通信 V2I 信息模型</td><td><a href="../models/T-D-A4-18.html">T-D-A4-18</a></td><td>承载车辆与边缘路侧单元之间的车辆状态、汇入需求、预测轨迹和汇入区域状态交互。</td></tr><tr><td><span class="stage-label d">决策</span></td><td>车辆跟驰信息模型</td><td><a href="../models/D-D-A4-24.html">D-D-A4-24</a></td><td>分别形成主路协作车辆与匝道汇入车辆的建议速度、期望加速度和安全间距等纵向决策结果。</td></tr><tr><td><span class="stage-label c">控制</span></td><td>协作式车辆汇入信息模型</td><td><a href="../models/C-D-A4-64.html">C-D-A4-64</a></td><td>协调主路协作车辆与匝道汇入车辆的纵向运动，完成汇入窗口构造与匹配。</td></tr><tr><td><span class="stage-label c">控制</span></td><td>协作式变道信息模型</td><td><a href="../models/C-D-A4-63.html">C-D-A4-63</a></td><td>在目标车道、汇入窗口及安全条件满足后，由匝道汇入车辆执行横向变道进入目标车道。</td></tr></tbody>
+</table>
+</div>
+</div>
+<div class="panel section">
+<h2><i class="fa-solid fa-diagram-project"></i> 场景化集成说明</h2>
+<div class="check-list"><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>UML 以主路协作车辆、匝道汇入车辆和边缘路侧单元三类主体组织信息交互，主体数量与实际协同职责保持一致。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>感知、认知、传输、决策和控制五类逻辑功能均有明确承载，其中车辆轨迹预测负责形成边缘侧短时运动认知，车辆跟驰负责形成纵向决策结果。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>车辆跟驰负责决定建议速度、期望加速度和安全间距；协作式车辆汇入负责多车纵向协同与汇入窗口构造；协作式变道负责最终横向进入目标车道。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>场景突出 V2V 直接协同与 V2I 路侧增强关系，不额外引入无独立业务职责的主路前车或云端主体。</span></div></div>
+</div>
+</section>
+</div>
 </main>
-
 <script>
     let zoom = 1;
     let naturalSize = { width: 0, height: 0 };

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>T-DC-A3-13 车网通信信息模型 - 详情</title>
+    <title>T-D-A3-19 车网通信V2N信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -28,23 +28,23 @@
 <body>
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
-    <h1>车网通信信息模型</h1>
-    <p>模型编号：T-DC-A3-13 | 逻辑阶段：传输 | 自主化等级：<span class="badge">A3</span></p>
+    <h1>车网通信V2N信息模型</h1>
+    <p>模型编号：T-D-A3-19 | 逻辑阶段：传输 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
         <table class="meta-table">
-            <tr><th>信息模型名称</th><td>车网通信信息模型</td></tr>
+            <tr><th>信息模型名称</th><td>车网通信V2N信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>传输</td></tr>
-            <tr><th>实体类别</th><td>载运装备-中心云</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">T-DC-A3-13</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应、交叉口粒流协同控制、多车运动控制等。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧-中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">T-D-A3-19</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，车辆自动化等级包含L3、L4、L5。车辆将感知到的整合在车载单元的信息，传输到云端的一体化底座中。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应、交叉口粒流协同控制、多车运动控制等。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A3-1）、公交车内客流感知信息模型（P-D-A3-69）、路网车辆路径负载均衡信息模型（D-C-A3-62）、公交停站方案优化信息模型（D-C-A3-74）</td></tr>
+            <tr><th>下游信息模型编号</th><td>延误情况检测信息模型（R-D-A3-9）、交通流预测信息模型（R-E-A3-14）、高精度地图要素实时检测与更新信息模型（R-C-A3-16）、公交乘客 OD 与乘降需求推断信息模型（R-C-A3-71）、公交进站车速引导信息模型（D-D-A3-76）、应急车辆优先信息模型（D-C-A3-40）、车道功能动态调整信息模型（D-C-A3-50）、路网区域识别信息模型（D-C-A3-52）、路网时空信息整合信息模型（D-C-A3-53）、路网信息融合信息模型（D-C-A3-58）、OD流量估计信息模型（D-C-A3-59）、关键路径识别信息模型（D-C-A3-60）、路网动态通行能力评估信息模型（D-C-A3-61）、路网车辆路径负载均衡信息模型（D-C-A3-62）、公交信号优先信息模型（D-C-A3-67）、公交运力动态调配信息模型（D-C-A3-73）、公交停站方案优化信息模型（D-C-A3-74）、车速控制信息模型（C-D-A3-33）、车载信息显示信息模型（C-D-A3-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="7" class="text-center highlight">车辆实时状态信息</td><td>车辆行驶过程中各种动态特征</td><td>位置</td><td>车辆不同时刻的经纬度坐标</td><td>车载单元OBU</td></tr>

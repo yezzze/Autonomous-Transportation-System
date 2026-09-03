@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A2-36 限速预警信息模型 - 详情</title>
+    <title>D-D-A2-27 限速预警信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>限速预警信息模型</h1>
-    <p>模型编号：D-D-A2-36 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A2</span></p>
+    <p>模型编号：D-D-A2-27 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A2</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>限速预警信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A2</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A2-36</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市主干道/次干道、高速公路固定限速路段，学校/小区/医院等区域限速场景（无临时交通管制）。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A2-27</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A2（L1-L2）下，车载单元（OBU）融合车载摄像头、毫米波雷达与基础高精地图数据，实时识别150m范围内固定限速标志，计算当前车速与限速值的差值；当差值≥5km/h时触发分级预警，辅助驾驶员决策是否减速，需人工确认后执行操作，系统不自主干预。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市主干道/次干道、高速公路固定限速路段，学校/小区/医院等区域限速场景（无临时交通管制）。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆路况感知信息模型（P-D-A2-2）、交通信号感知信息模型（P-E-A2-3）、气象条件认知信息模型（R-E-A2-7）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车载信息显示信息模型（C-D-A2-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="3" class="text-center highlight">限速标志信息</td><td>道路固定限速标识及基础临时限速通知</td><td>限速值</td><td>道路规定的最高行驶速度（km/h）</td><td>摄像头、基础高精地图</td></tr>
@@ -64,6 +64,8 @@
                 <tr><td>影响限速执行的简单环境因素</td><td>天气简况</td><td>晴天（能见度≥200m）、雨天（能见度100-200m），仅影响限速标志识别精度</td><td>车载视觉传感器</td></tr>
                 <tr><td rowspan="2" class="text-center highlight">预警参数信息</td><td>预警触发条件及提示方式</td><td>预警阈值</td><td>当速度差值≥5km/h 时触发预警</td><td>车载控制模块</td></tr>
                 <tr><td>预警触发条件及提示方式</td><td>预警方式</td><td>语音提示（如“您已超速，请减速”）、仪表盘灯光闪烁</td><td>车载交互模块</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">限速预警结果信息</td><td>依据当前车速、道路限速与预警阈值形成的限速预警结果</td><td>是否触发预警</td><td>当前速度超过限速值并达到预警阈值时取是，否则取否</td><td>车载单元OBU</td></tr>
+                <tr><td>依据当前车速、道路限速与预警阈值形成的限速预警结果</td><td>预警内容</td><td>向驾驶员提供的限速值、当前超速程度及减速提示信息</td><td>车载人机交互模块、车载单元OBU</td></tr>
             </tbody>
         </table>
     </div>

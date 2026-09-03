@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A4-73 公交运力动态调配信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>公交运力动态调配信息模型</h1>
+    <p>模型编号：D-C-A4-73 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>公交运力动态调配信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-73</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为 A4 时，道路交通系统中的端侧具备高度自主驾驶能力，路侧形成完善的交通感知与信息发布网络，边缘计算设备能够高效处理交通数据，中心云可对整个路网区域全面管控并跨区域协作。公交运力动态调配信息模型运行于中心云计算单元，对多线路、多方向和多个运营区域的运力供需进行滚动预测与自主匹配。模型在无人干预条件下动态重分配车辆—线路/区段任务，协调跨线路、跨场站备用运力，调整班次、发车间隔和服务任务，调配任务下发给下游模型。</td></tr>
+            <tr><th>信息模型服务场景</th><td>公交运力匹配、车辆调度。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A4-1）、公交车内客流感知信息模型（P-D-A4-69）、站台客流感知信息模型（R-E-A4-70）、公交乘客 OD 与乘降需求推断信息模型（R-C-A4-71）、车网通信V2N信息模型（T-D-A4-19）、路网通信I2N信息模型（T-E-A4-20）</td></tr>
+            <tr><th>下游信息模型编号</th><td>路径-信号协同优化信息模型（D-C-A4-72）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="4" class="text-center highlight">站台客流需求信息</td><td>由站台客流感知信息模型输出、反映各线路和站点当前乘车需求的客流状态</td><td>路线客流量</td><td>各线路候车人数</td><td>边缘计算单元（经路网通信 I2N 信息模型）</td></tr>
+                <tr><td>由站台客流感知信息模型输出、反映各线路和站点当前乘车需求的客流状态</td><td>排队长度</td><td>逐车辆排队队列长度</td><td>边缘计算单元（经路网通信 I2N 信息模型）</td></tr>
+                <tr><td>由站台客流感知信息模型输出、反映各线路和站点当前乘车需求的客流状态</td><td>滞留客流量</td><td>因车辆满载未能上车的滞留乘客数量与线路</td><td>边缘计算单元（经路网通信 I2N 信息模型）</td></tr>
+                <tr><td>由站台客流感知信息模型输出、反映各线路和站点当前乘车需求的客流状态</td><td>短时客流预测</td><td>未来时段候车客流量与乘降需求的预测值</td><td>边缘计算单元（经路网通信 I2N 信息模型）</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">公交车辆在途运力状态信息</td><td>由公交车内客流感知信息模型输出、反映在途车辆实际载客与可用容量的运力状态及变化预测</td><td>车辆载客量与满载率信息</td><td>各公交车辆当前载客人数、满载率和拥挤等级</td><td>端侧（经车网通信 V2N 信息模型）</td></tr>
+                <tr><td>由公交车内客流感知信息模型输出、反映在途车辆实际载客与可用容量的运力状态及变化预测</td><td>车辆剩余容量信息</td><td>各车辆当前及下一站完成下客后可提供的载客容量</td><td>端侧（经车网通信 V2N 信息模型）</td></tr>
+                <tr><td>由公交车内客流感知信息模型输出、反映在途车辆实际载客与可用容量的运力状态及变化预测</td><td>下一站点乘降需求信息</td><td>各车辆下一站预计下车人数和乘降作业需求</td><td>端侧（经车网通信 V2N 信息模型）</td></tr>
+                <tr><td>由公交车内客流感知信息模型输出、反映在途车辆实际载客与可用容量的运力状态及变化预测</td><td>后续站点乘降需求预测信息</td><td>各车辆后续站点下车人数和乘降作业需求预测</td><td>端侧（经车网通信 V2N 信息模型）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">公交乘客 OD 与乘降需求推断信息</td><td>由公交乘客 OD 与乘降需求推断信息模型推断的乘客 OD 与下车需求</td><td>车站-车站OD需求</td><td>车内乘客在后续候选站点下车的概率分布或排序结果</td><td>中心云计算单元</td></tr>
+                <tr><td>由公交乘客 OD 与乘降需求推断信息模型推断的乘客 OD 与下车需求</td><td>上车需求</td><td>下一站及后续站点的预计上车人数、对应站点和可信度</td><td>中心云计算单元</td></tr>
+                <tr><td>由公交乘客 OD 与乘降需求推断信息模型推断的乘客 OD 与下车需求</td><td>下车需求</td><td>下一站及后续站点的预计下车人数、对应站点和可信度</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">公交车辆运行与资源信息</td><td>全车队实时运行状态以及多场站、跨区域可调配车辆资源</td><td>全车队运行状态信息</td><td>各车辆位置、线路、班次、速度、运行方向、运行模式和任务状态</td><td>端侧（车辆状态感知信息模型，经车网通信 V2N 信息模型）</td></tr>
+                <tr><td>全车队实时运行状态以及多场站、跨区域可调配车辆资源</td><td>多场站可用车辆资源信息</td><td>各场站可投入、备用、待回场车辆的类型、容量、位置和可用时间</td><td>中心云数据库（公交车队资源库）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">线路运行计划与服务约束信息</td><td>中心云提供的区域公交计划、服务目标和运力调整约束</td><td>多线路计划班次与发车时刻信息</td><td>各线路当前计划班次、首末班时间和计划发车时刻</td><td>中心云数据库（公交运行计划库）</td></tr>
+                <tr><td>中心云提供的区域公交计划、服务目标和运力调整约束</td><td>目标发车间隔与车头时距信息</td><td>各线路、时段的目标发车间隔和目标车头时距</td><td>中心云数据库（公交运行计划库）</td></tr>
+                <tr><td>中心云提供的区域公交计划、服务目标和运力调整约束</td><td>区域服务保障约束信息</td><td>最低服务频率、重点站点/线路保障、无障碍服务和跨区域协同要求</td><td>中心云数据库（公交运营调度平台）</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">区域级公交运力动态调配决策信息</td><td>中心云对多线路、多场站和跨区域车辆资源进行滚动优化形成的自主调配结果</td><td>区域运力供需缺口识别信息</td><td>各线路、方向和区段的运力不足/富余程度及优先级</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云对多线路、多场站和跨区域车辆资源进行滚动优化形成的自主调配结果</td><td>多车辆—线路/区段任务分配信息</td><td>为区域可用车辆分配的目标线路、运行方向、服务区段和任务类型</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云对多线路、多场站和跨区域车辆资源进行滚动优化形成的自主调配结果</td><td>跨线路与跨场站运力转移信息</td><td>车辆在不同线路、场站或相邻区域间的转移任务、时序与交接条件</td><td>中心云计算单元</td></tr>
+                <tr><td>中心云对多线路、多场站和跨区域车辆资源进行滚动优化形成的自主调配结果</td><td>班次增减与发车间隔调整信息</td><td>新增、取消或调整班次，以及目标发车时刻和发车间隔</td><td>中心云计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

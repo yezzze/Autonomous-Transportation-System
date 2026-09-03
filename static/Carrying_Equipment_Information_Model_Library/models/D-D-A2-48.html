@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-C-A2-38 弱势交通参与者碰撞预警信息模型 - 详情</title>
+    <title>D-D-A2-48 弱势交通参与者碰撞预警信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>弱势交通参与者碰撞预警信息模型</h1>
-    <p>模型编号：D-C-A2-38 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A2</span></p>
+    <p>模型编号：D-D-A2-48 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A2</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>弱势交通参与者碰撞预警信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A2</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A2-38</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市道路无保护过街路段、小区门口、学校周边等行人密集区域（无复杂遮挡场景）。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A2-48</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平 A2（L1-L2）下，车载单元（OBU）通过车载摄像头、毫米波雷达实时检测150m内行人、骑行者等弱势交通参与者；基于相对距离、相对速度计算碰撞时间预测（TTC），当满足预警阈值时触发声光提示，需驾驶员手动接管制动避让，系统不自主干预。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市道路无保护过街路段、小区门口、学校周边等行人密集区域（无复杂遮挡场景）。</td></tr>
+            <tr><th>上游信息模型编号</th><td>冲突情况检测信息模型（R-D-A2-10）</td></tr>
+            <tr><th>下游信息模型编号</th><td>紧急转向避让信息模型（C-D-A2-32）、车载信息显示信息模型（C-D-A2-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,12 +52,12 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="3" class="text-center highlight">弱势交通参与者特征信息</td><td>识别对象的类型及静态属性</td><td>类型</td><td>行人、自行车骑行者、电动自行车骑行者等</td><td>车载摄像头</td></tr>
-                <tr><td>识别对象的类型及静态属性</td><td>位置</td><td>经纬度坐标（误差≤1m）</td><td>车载雷达</td></tr>
-                <tr><td>识别对象的类型及静态属性</td><td>尺寸</td><td>大致轮廓（用于区分成人/儿童、普通自行车/电动自行车）</td><td>车载摄像头</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">弱势交通参与者特征信息</td><td>识别对象的类型及静态信息属性</td><td>类型</td><td>行人、自行车骑行者、电动自行车骑行者等</td><td>车载摄像头</td></tr>
+                <tr><td>识别对象的类型及静态信息属性</td><td>位置</td><td>经纬度坐标（误差≤1m）</td><td>车载雷达</td></tr>
+                <tr><td>识别对象的类型及静态信息属性</td><td>尺寸</td><td>大致轮廓（用于区分成人/儿童、普通自行车/电动自行车）</td><td>车载摄像头</td></tr>
                 <tr><td rowspan="3" class="text-center highlight">相对运动状态信息</td><td>车辆与弱势参与者的动态关系</td><td>相对距离</td><td>两车/人车之间的直线距离（m）</td><td>车载雷达</td></tr>
                 <tr><td>车辆与弱势参与者的动态关系</td><td>相对速度</td><td>两者的速度矢量差（m/s）</td><td>车载雷达</td></tr>
                 <tr><td>车辆与弱势参与者的动态关系</td><td>碰撞时间预测（TTC）</td><td>基于当前运动状态预计的碰撞时间（s）</td><td>车载单元OBU</td></tr>

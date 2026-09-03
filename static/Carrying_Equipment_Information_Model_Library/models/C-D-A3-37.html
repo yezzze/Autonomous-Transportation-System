@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MODEL-036 泊车运动控制信息模型 - 详情</title>
+    <title>C-D-A3-37 泊车运动控制信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>泊车运动控制信息模型</h1>
-    <p>模型编号：MODEL-036 | 逻辑阶段：控制 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：C-D-A3-37 | 逻辑阶段：控制 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,31 +37,30 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>泊车运动控制信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>控制</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-036</span></td></tr>
-            <tr><th>信息模型描述</th><td>自主化等级为A3时，道路交通系统包含L3、L4、L5级自动驾驶车辆与人类驾驶车辆，停车场区内路侧/场端感知设备与边缘计算单元具备一定的决策能力。泊车运动控制信息模型运行于车辆端计算单元（车载域控制器），解算转向、驱动、制动、挡位与驻车执行量，控制车辆完成泊入。A3阶段由驾驶员保持监督，轨迹无法执行或系统异常时输出安全停车、重规划和接管提示。</td></tr>
-            <tr><th>模型服务场景</th><td>自主泊车、人机共驾接管管理等</td></tr>
-            <tr><th>上游接口模型编号</th><td>自主泊车信息模型、车辆状态感知信息模型、车路通信V2I信息模型</td></tr>
-            <tr><th>下游接口模型编号</th><td>无</td></tr>
-            <tr><th>交付时间</th><td></td></tr>
-            <tr><th>责任单位</th><td></td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">C-D-A3-37</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，道路交通系统包含L3、L4、L5级自动驾驶车辆与人类驾驶车辆，停车场区内路侧/场端感知设备与边缘计算单元具备一定的决策能力。泊车运动控制信息模型运行于车辆端计算单元（车载域控制器），解算转向、驱动、制动、挡位与驻车执行量，控制车辆完成泊入。A3阶段由驾驶员保持监督，轨迹无法执行或系统异常时输出安全停车、重规划和接管提示。</td></tr>
+            <tr><th>信息模型服务场景</th><td>自主泊车、人机共驾接管管理等。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A3-1）、自主泊车信息模型（D-D-A3-25）</td></tr>
+            <tr><th>下游信息模型编号</th><td>无（本模型为控制执行或信息输出终端模型）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
         </table>
     </div>
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="4" class="text-center highlight">自主泊车引导信息</td><td>由自主泊车信息模型输出、经车路通信V2I信息模型下发的泊车轨迹、目标姿态和运动约束</td><td>泊车轨迹信息</td><td>从接驳区域或泊位邻近区域至目标泊位的纵横向轨迹、路径点及行驶方向</td><td>边缘计算单元（经车路通信V2I信息模型）</td></tr>
-                <tr><td>由自主泊车信息模型输出、经车路通信V2I信息模型下发的泊车轨迹、目标姿态和运动约束</td><td>目标停车姿态信息</td><td>车辆完成泊入后的目标位置、航向角、车身姿态和泊位对齐要求</td><td>边缘计算单元（经车路通信V2I信息模型）</td></tr>
-                <tr><td>由自主泊车信息模型输出、经车路通信V2I信息模型下发的泊车轨迹、目标姿态和运动约束</td><td>速度与加速度约束信息</td><td>泊车过程的目标速度、加速度、减速度和低速控制范围</td><td>边缘计算单元（经车路通信V2I信息模型）</td></tr>
-                <tr><td>由自主泊车信息模型输出、经车路通信V2I信息模型下发的泊车轨迹、目标姿态和运动约束</td><td>指令有效范围与时域信息</td><td>泊车引导指令的适用区域、生效时刻、持续时间和失效条件</td><td>边缘计算单元（经车路通信V2I信息模型）</td></tr>
-                <tr><td rowspan="3" class="text-center highlight">本车定位、运行与环境感知信息</td><td>车辆端感知设备与车辆状态感知信息模型提供的本车状态、目标泊位和周边环境信息</td><td>车辆位置与姿态信息</td><td>车辆当前位置、航向角、车身姿态及相对目标泊位的位置关系</td><td>GNSS/INS组合导航系统、车载摄像头</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">自主泊车引导信息</td><td>由自主泊车信息模型输出的泊车轨迹、目标姿态和运动约束</td><td>泊车轨迹信息</td><td>从接驳区域或泊位邻近区域至目标泊位的纵横向轨迹、路径点及行驶方向</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>由自主泊车信息模型输出的泊车轨迹、目标姿态和运动约束</td><td>目标停车姿态信息</td><td>车辆完成泊入后的目标位置、航向角、车身姿态和泊位对齐要求</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>由自主泊车信息模型输出的泊车轨迹、目标姿态和运动约束</td><td>速度与加速度约束信息</td><td>泊车过程的目标速度、加速度、减速度和低速控制范围</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td>由自主泊车信息模型输出的泊车轨迹、目标姿态和运动约束</td><td>指令有效范围与时域信息</td><td>泊车引导指令的适用区域、生效时刻、持续时间和失效条件</td><td>端计算单元（车载单元OBU）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">本车定位、运行与环境感知信息</td><td>车辆端感知设备与车辆状态感知信息模型提供的本车状态、目标泊位和周边环境信息</td><td>车辆位置与姿态信息</td><td>车辆当前位置、航向角、车身姿态及相对目标泊位的位置关系</td><td>GNSS/INS组合导航系统、车载摄像头</td></tr>
                 <tr><td>车辆端感知设备与车辆状态感知信息模型提供的本车状态、目标泊位和周边环境信息</td><td>车辆运动与执行系统状态信息</td><td>车辆速度、加速度、轮速、转向角、挡位以及转向、制动、驱动系统状态</td><td>IMU惯性测量单元、轮速传感器、转向角传感器、挡位控制器、制动控制单元、驱动控制单元</td></tr>
-                <tr><td>车辆端感知设备与车辆状态感知信息模型提供的本车状态、目标泊位和周边环境信息</td><td>可通行空间与安全距离信息</td><td>泊车过程可通行自由空间、障碍物距离及应保持的最小安全间距</td><td>车载摄像头、超声波雷达、毫米波雷达</td></tr>
                 <tr><td rowspan="4" class="text-center highlight">泊车运动控制信息</td><td>车载域控制器依据泊车引导、本车状态和环境信息生成的泊车执行指令与状态反馈</td><td>纵向执行指令信息</td><td>目标速度、驱动扭矩或油门开度、制动压力及目标加减速度请求</td><td>端计算单元（车载域控制器）</td></tr>
                 <tr><td>车载域控制器依据泊车引导、本车状态和环境信息生成的泊车执行指令与状态反馈</td><td>横向执行指令信息</td><td>目标转向角、转向角速度、横向偏差和航向偏差修正请求</td><td>端计算单元（车载域控制器）</td></tr>
                 <tr><td>车载域控制器依据泊车引导、本车状态和环境信息生成的泊车执行指令与状态反馈</td><td>挡位与驻车控制信息</td><td>前进/倒车/驻车挡位切换、电子驻车和自动驻车控制指令</td><td>端计算单元（车载域控制器）</td></tr>

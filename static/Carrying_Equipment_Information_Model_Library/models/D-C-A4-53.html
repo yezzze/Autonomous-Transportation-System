@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-C-A4-17 路网时空信息整合信息模型 - 详情</title>
+    <title>D-C-A4-53 路网时空信息整合信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>路网时空信息整合信息模型</h1>
-    <p>模型编号：D-C-A4-17 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A4</span></p>
+    <p>模型编号：D-C-A4-53 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,20 +37,76 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>路网时空信息整合信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>中心云</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-17</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应等。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-53</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在自主化水平为A4的场景中，中心云将端侧和边侧感知和处理得到的数据进行收集整合，用于后续支撑对应的时间和空间特性进行划分。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应等。</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通流预测信息模型（R-E-A4-14）、车网通信V2N信息模型（T-D-A4-19）、路网通信I2N信息模型（T-E-A4-20）、路网区域识别信息模型（D-C-A4-52）</td></tr>
+            <tr><th>下游信息模型编号</th><td>时空协作域划分信息模型（D-C-A4-54）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
     <div class="card">
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
-        <table class="content-table"><thead><tr><th>信息</th><th>信息描述</th><th>属性</th><th>属性描述</th><th>信息来源</th></tr></thead><tbody><tr><td colspan="5">暂无数据</td></tr></tbody></table>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="5" class="text-center highlight">交通参与者运行状况</td><td>路网中交通参与者在运行过程中的实时动态特征。</td><td>位置</td><td>车辆的经度，纬度和高度</td><td>车载终端</td></tr>
+                <tr><td>路网中交通参与者在运行过程中的实时动态特征。</td><td>速度</td><td>车辆位移的快慢程度，单位m/s</td><td>车载终端</td></tr>
+                <tr><td>路网中交通参与者在运行过程中的实时动态特征。</td><td>加速度</td><td>车辆速度变化快慢，单位m/s2</td><td>车载终端</td></tr>
+                <tr><td>路网中交通参与者在运行过程中的实时动态特征。</td><td>航向角</td><td>车辆当前运动方向与正北方向顺时针夹角，单位：1e-4°</td><td>车载终端</td></tr>
+                <tr><td>路网中交通参与者在运行过程中的实时动态特征。</td><td>运行轨迹</td><td>车辆在当前交叉口中的行驶路径，也包含车辆在特定车道上的保持情况。</td><td>车载终端</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">车辆特征信息</td><td>路网中车辆外部特征信息，用于区分不同的车辆</td><td>车型</td><td>车辆外在特征，例如大小，颜色</td><td>车载终端,感应线圈</td></tr>
+                <tr><td>路网中车辆外部特征信息，用于区分不同的车辆</td><td>品牌</td><td>车辆的供应商品牌</td><td>车载终端,路侧摄像头</td></tr>
+                <tr><td>路网中车辆外部特征信息，用于区分不同的车辆</td><td>车身标识</td><td>车辆的品牌标识或车标</td><td>车载终端,路侧摄像头</td></tr>
+                <tr><td>路网中车辆外部特征信息，用于区分不同的车辆</td><td>车牌号码</td><td>车辆的官方注册编号</td><td>车载终端,路侧摄像头</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">延误情况</td><td>由于各种因素导致实时路网中车辆行驶时间超出预期或正常时间的状况</td><td>停车次数</td><td>车辆在特定路段或交叉口停车的次数</td><td>路侧单元RSU、云端一体化底座</td></tr>
+                <tr><td>由于各种因素导致实时路网中车辆行驶时间超出预期或正常时间的状况</td><td>排队长度</td><td>车辆在一个特定路段或交叉口排队等待的总长度</td><td>路侧单元RSU、云端一体化底座</td></tr>
+                <tr><td>由于各种因素导致实时路网中车辆行驶时间超出预期或正常时间的状况</td><td>延误时间</td><td>车辆实际行驶时间与自由流行驶时间的差值，单位：t</td><td>路侧单元RSU、云端一体化底座</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">冲突信息</td><td>路网中交通参与者实时发生的冲突情况。</td><td>冲突位置</td><td>冲突发生的大致位置</td><td>车载感知设备</td></tr>
+                <tr><td>路网中交通参与者实时发生的冲突情况。</td><td>冲突类型</td><td>冲突发生时车辆与障碍物的相互运动关系和轨迹交叉情况</td><td>车载感知设备</td></tr>
+                <tr><td>路网中交通参与者实时发生的冲突情况。</td><td>冲突速度差</td><td>冲突发生时车辆与障碍物之间速度差</td><td>车载感知设备</td></tr>
+                <tr><td>路网中交通参与者实时发生的冲突情况。</td><td>冲突角度</td><td>冲突发生时车辆与障碍物的相对角度，单位：°</td><td>车载感知设备</td></tr>
+                <tr><td>路网中交通参与者实时发生的冲突情况。</td><td>冲突距离</td><td>冲突发生时车辆与障碍物的距离，单位：m</td><td>车载感知设备</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">道路几何信息属性信息</td><td>当前路网中道路的布局特征</td><td>路段编号</td><td>不同路段特有的编号</td><td>中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>车道数</td><td>道路在一个方向上划分的可供车辆独立行驶的通道数量</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>车道宽度</td><td>车辆正常行驶有效宽度部分，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>转弯半径</td><td>道路弯道处的曲线半径，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>路段长度</td><td>路段从起点到终点的实际距离，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中道路的布局特征</td><td>交叉口间距离</td><td>两个相连的交叉口之间的距离，单位：m</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">道路设施位置信息</td><td>当前路网中路侧设施的位置信息</td><td>交通信号灯</td><td>交通信号灯位置</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中路侧设施的位置信息</td><td>道路标志标线</td><td>路段上标志标线位置</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td>当前路网中路侧设施的位置信息</td><td>防护设施</td><td>路段上防护设施位置</td><td>路侧摄像头、中心云数据库</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">交通流感知</td><td>路网中交通流的实时动态特征</td><td>交通流量</td><td>单位时间内通过特定路段的车辆数量</td><td>中心云通信单元</td></tr>
+                <tr><td>路网中交通流的实时动态特征</td><td>平均车速</td><td>特定交叉口中车辆的平均行驶速度。</td><td>中心云通信单元</td></tr>
+                <tr><td>路网中交通流的实时动态特征</td><td>排队长度</td><td>等待通过某个瓶颈点（如收费站或红绿灯）的车辆队伍长度。</td><td>中心云计算单元</td></tr>
+                <tr><td>路网中交通流的实时动态特征</td><td>高峰时段</td><td>交通流量在一天当中最大的时刻</td><td>中心云计算单元</td></tr>
+                <tr><td>路网中交通流的实时动态特征</td><td>流量密度</td><td>在单位长度路段上，一个车道或一个方向上某一瞬时的车辆数。</td><td>中心云计算单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">信号灯状态</td><td>当前路网中所有交叉口的信号灯状态</td><td>周期</td><td>信号灯色按设定的顺序显示一周所需要的时间，单位：t</td><td>路侧通信单元,中心云数据库</td></tr>
+                <tr><td>当前路网中所有交叉口的信号灯状态</td><td>相位方案</td><td>在一个信号周期内，同时获得通行权的一股或多股交通流的信号显示状态</td><td>路侧通信单元,中心云数据库</td></tr>
+                <tr><td>当前路网中所有交叉口的信号灯状态</td><td>当前相位</td><td>信号灯实时相位情况，即所处的相位以及对应的时长</td><td>路侧通信单元,</td></tr>
+                <tr><td>当前路网中所有交叉口的信号灯状态</td><td>绿信比</td><td>一个信号相位的有效绿灯时长与信号周期时长的比值</td><td>路侧通信单元,中心云数据库</td></tr>
+                <tr><td>当前路网中所有交叉口的信号灯状态</td><td>行人信号设置</td><td>行人信号灯的状态</td><td>路侧通信单元,中心云数据库</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">道路环境条件</td><td>当前路网中的道路情况和天气条件</td><td>道路条件</td><td>车辆行驶道路的摩擦系数等参数</td><td>车载终端</td></tr>
+                <tr><td>当前路网中的道路情况和天气条件</td><td>高精度地图</td><td>获取车辆行驶过程中实时周边道路详细情况</td><td>车载终端，路测通信单元</td></tr>
+                <tr><td>当前路网中的道路情况和天气条件</td><td>环境条件</td><td>路网内周边实时天气条件</td><td>车载终端、边缘计算单元、中心云计算单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">路网区域空间信息</td><td>按空间维度实时整合形成的路网状态信息</td><td>道路空间基础信息</td><td>以车道为单元实时整合的道路几何信息属性、设施位置与道路环境条件</td><td>中心云决策单元</td></tr>
+                <tr><td>按空间维度实时整合形成的路网状态信息</td><td>空间交通流分布信息</td><td>按车道、路段实时整合的交通流量、平均车速、流量密度与排队长度的空间分布</td><td>中心云决策单元</td></tr>
+                <tr><td>按空间维度实时整合形成的路网状态信息</td><td>空间冲突与延误分布信息</td><td>冲突点与延误路段在路网空间上的实时分布位置及严重程度</td><td>中心云决策单元</td></tr>
+                <tr><td>按空间维度实时整合形成的路网状态信息</td><td>空间关联关系信息</td><td>路段与交叉口之间的拓扑连接关系及交通流关联关系</td><td>中心云决策单元</td></tr>
+                <tr><td>按空间维度实时整合形成的路网状态信息</td><td>跨区域空间信息拼接结果</td><td>相邻管控区域空间信息在边界处的拼接与坐标一致性对齐结果</td><td>中心云决策单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">路网区域时间信息</td><td>按时间维度实时整合形成的路网状态时序信息</td><td>交通流时序变化信息</td><td>实时滚动更新的交通流量、平均车速与流量密度时间序列</td><td>中心云决策单元</td></tr>
+                <tr><td>按时间维度实时整合形成的路网状态时序信息</td><td>信号控制时序信息</td><td>各交叉口信号周期、相位方案、当前相位与绿信比的实时变化过程</td><td>中心云决策单元</td></tr>
+                <tr><td>按时间维度实时整合形成的路网状态时序信息</td><td>交通参与者运行时序信息</td><td>交通参与者位置、速度、加速度与运行轨迹的实时时序特征</td><td>中心云决策单元</td></tr>
+                <tr><td>按时间维度实时整合形成的路网状态时序信息</td><td>延误时序变化信息</td><td>停车次数、排队长度与延误时间的实时变化过程</td><td>中心云决策单元</td></tr>
+                <tr><td>按时间维度实时整合形成的路网状态时序信息</td><td>路网状态演化趋势信息</td><td>基于实时时序整合结果推算的路网运行状态短时演化趋势</td><td>中心云决策单元</td></tr>
+                <tr><td rowspan="1" class="text-center highlight">时空信息整合信息</td><td>多源数据在实时整合过程中的对齐结果</td><td>时空对齐结果</td><td>多源数据在统一时间基准与空间坐标下的实时对齐结果及整合时间粒度</td><td>中心云计算单元</td></tr>
+            </tbody>
+        </table>
     </div>
 </div>
 </body>

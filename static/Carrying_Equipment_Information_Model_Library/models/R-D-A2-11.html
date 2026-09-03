@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MODEL-001 驾驶行为识别信息模型 - 详情</title>
+    <title>R-D-A2-11 驾驶行为识别信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>驾驶行为识别信息模型</h1>
-    <p>模型编号：MODEL-001 | 逻辑阶段：认知 | 自主化等级：<span class="badge">A2</span></p>
+    <p>模型编号：R-D-A2-11 | 逻辑阶段：认知 | 自主化水平：<span class="badge">A2</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>驾驶行为识别信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>认知</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A2</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">MODEL-001</span></td></tr>
-            <tr><th>信息模型描述</th><td>自主化等级为A2时，道路交通系统包含L1、L2、L3级辅助/自动驾驶车辆与人类驾驶车辆，并出现边缘计算设备与中心云。驾驶行为识别信息模型运行于车辆端计算单元（车载单元OBU），接收车辆状态感知信息模型整合输出的车辆运行状态信息（含位置、轨迹）与驾驶员操作信息，对车辆运动特征与驾驶操作特征进行分析，识别并估计驾驶员的抢行、让行、变道、转向等驾驶意图。</td></tr>
-            <tr><th>模型服务场景</th><td>驾驶辅助预警、车辆轨迹预测、交通态势研判等</td></tr>
-            <tr><th>上游接口模型编号</th><td>车辆状态感知信息模型</td></tr>
-            <tr><th>下游接口模型编号</th><td>车辆轨迹预测信息模型、交叉口车辆通行权决策信息模型</td></tr>
-            <tr><th>交付时间</th><td></td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">R-D-A2-11</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A2时，道路交通系统包含L1、L2、L3级辅助/自动驾驶车辆与人类驾驶车辆，并出现边缘计算设备与中心云。驾驶行为识别信息模型运行于车辆端计算单元（车载单元OBU），接收车辆状态感知信息模型整合输出的车辆运行状态信息（含位置、轨迹）与驾驶员操作信息，对车辆运动特征与驾驶操作特征进行分析，识别并估计驾驶员的抢行、让行、变道、转向等驾驶意图。</td></tr>
+            <tr><th>信息模型服务场景</th><td>驾驶辅助预警、车辆轨迹预测、交通态势研判等。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆状态感知信息模型（P-D-A2-1）</td></tr>
+            <tr><th>下游信息模型编号</th><td>驾驶员状态监测信息模型（R-D-A2-12）、车辆轨迹预测信息模型（R-D-A2-15）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="4" class="text-center highlight">车辆状态信息</td><td>车辆行驶过程中各种动态特征，反映车辆当前的运行情况</td><td>运动状态</td><td>车辆的速度、加速度、航向角等基本运动量</td><td>端计算单元（车载单元OBU）</td></tr>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A2-35 道路危险状况提示信息模型 - 详情</title>
+    <title>D-D-A2-41 道路危险状况提示信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>道路危险状况提示信息模型</h1>
-    <p>模型编号：D-D-A2-35 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A2</span></p>
+    <p>模型编号：D-D-A2-41 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A2</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>道路危险状况提示信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A2</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A2-35</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市主干道/次干道、高速公路正常行驶场景，针对近距离（≤100m）积水、结冰、路面障碍物、局部施工等危险状况的预警提示。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A2</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A2-41</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A2下，车载单元（OBU）融合摄像头、毫米波雷达、激光雷达及环境传感器（湿度、温度）数据，实时识别100m范围内道路危险状况；通过量化指标判定危险严重程度，向驾驶员发出分级视觉与听觉提示，辅助调整车速或车道，系统不执行自主控制操作。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市主干道/次干道、高速公路正常行驶场景，针对近距离（≤100m）积水、结冰、路面障碍物、局部施工等危险状况的预警提示。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车辆路况感知信息模型（P-D-A2-2）、气象条件认知信息模型（R-E-A2-7）、车网通信V2N信息模型（T-D-A2-19）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车载信息显示信息模型（C-D-A2-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="4" class="text-center highlight">道路危险类型信息</td><td>危险状况的具体类别及判定标准</td><td>积水</td><td>路面水层厚度≥5cm，可能导致打滑</td><td>摄像头、激光雷达</td></tr>

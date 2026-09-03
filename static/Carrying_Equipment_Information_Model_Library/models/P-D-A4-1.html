@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>车辆状态感知信息模型</h1>
-    <p>模型编号：P-D-A4-1 | 逻辑阶段：感知 | 自主化等级：<span class="badge">A4</span></p>
+    <p>模型编号：P-D-A4-1 | 逻辑阶段：感知 | 自主化水平：<span class="badge">A4</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>车辆状态感知信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>感知</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A4</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
             <tr><th>信息模型编号</th><td><span class="highlight">P-D-A4-1</span></td></tr>
-            <tr><th>信息模型描述</th><td>自主化等级为A4时，道路交通系统包含L4、L5级自动驾驶车辆以及人类驾驶车辆。车辆借助雷达、传感器等设备监测车辆状态，生成车辆下一步行驶意图，并整合至车载单元(OBU)</td></tr>
-            <tr><th>模型服务场景</th><td></td></tr>
-            <tr><th>上游接口模型编号</th><td></td></tr>
-            <tr><th>下游接口模型编号</th><td></td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A4时，道路交通系统包含L4、L5级自动驾驶车辆以及人类驾驶车辆。车辆借助雷达、传感器等设备监测车辆状态，生成车辆下一步行驶意图，并整合至车载单元(OBU)</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市路网区域协调信号控制、跨域动态需求响应、交叉口粒流协同控制、多车运动控制等</td></tr>
+            <tr><th>上游信息模型编号</th><td>无（本模型为感知源模型）</td></tr>
+            <tr><th>下游信息模型编号</th><td>延误情况检测信息模型（R-D-A4-9）、冲突情况检测信息模型（R-D-A4-10）、车辆轨迹预测信息模型（R-E-A4-15）、公交乘客 OD 与乘降需求推断信息模型（R-C-A4-71）、车车通信V2V信息模型（T-D-A4-17）、车路通信V2I信息模型（T-D-A4-18）、车网通信V2N信息模型（T-D-A4-19）、车辆跟驰信息模型（D-D-A4-24）、自主泊车信息模型（D-D-A4-25）、车辆编队信息模型（D-D-A4-38）、借道会车信息模型（D-D-A4-39）、公交道路车速引导信息模型（D-D-A4-75）、公交进站车速引导信息模型（D-D-A4-76）、公交出站时机优化信息模型（D-D-A4-78）、交叉口车辆通行权决策信息模型（D-E-A4-45）、应急车辆优先信息模型（D-C-A4-40）、公交信号优先信息模型（D-C-A4-67）、公交运力动态调配信息模型（D-C-A4-73）、公交停站方案优化信息模型（D-C-A4-74）、车速控制信息模型（C-D-A4-33）、车辆事故紧急呼叫信息模型（C-D-A4-36）、泊车运动控制信息模型（C-D-A4-37）、公交精准停靠控制信息模型（C-D-A4-77）、协作式变道信息模型（C-D-A4-63）、协作式车辆汇入信息模型表（C-D-A4-64）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="2" class="text-center highlight">车辆特征信息</td><td>当前车辆特征</td><td>车牌号</td><td>车辆的唯一标识符</td><td>车载单元OBU</td></tr>

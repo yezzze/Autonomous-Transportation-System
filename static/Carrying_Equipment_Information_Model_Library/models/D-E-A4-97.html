@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-E-A4-97 泊位资源调度信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>泊位资源调度信息模型</h1>
+    <p>模型编号：D-E-A4-97 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>泊位资源调度信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>边缘</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-E-A4-97</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A4时，边缘形成完善的感知与信息发布网络，边缘计算设备能够高效处理交通数据并快速响应车辆实时需求，并可对跨场区、跨路段泊位资源进行统筹协同。泊位资源调度信息模型运行于边缘计算单元，在A3的基础上，结合历史的泊位占用数据对未来的泊位需求及其时空分布进行预测，对可用泊位进行动态匹配、预约保留、入场路径引导以及跨区域协调。</td></tr>
+            <tr><th>信息模型服务场景</th><td>跨区域泊位资源管理、场区入口分流。</td></tr>
+            <tr><th>上游信息模型编号</th><td>泊位占用感知信息模型（P-E-A4-8）、车路通信V2I信息模型（T-D-A4-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车路通信V2I信息模型（T-D-A4-18）、自主泊车信息模型（D-D-A4-25）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">泊车需求信息</td><td>由车辆提交的停车需求与车辆基本信息</td><td>车辆标识与类型</td><td>车辆唯一标识及车辆类型、车辆尺寸类别</td><td>端侧（车载单元OBU，经车路通信V2I）</td></tr>
+                <tr><td>由车辆提交的停车需求与车辆基本信息</td><td>泊车需求</td><td>车辆当前位置、预计停放时长</td><td>端侧（车载单元OBU，经车路通信V2I）</td></tr>
+                <tr><td>由车辆提交的停车需求与车辆基本信息</td><td>特殊泊位需求</td><td>近入口、充电、无障碍等需求类别</td><td>端侧（车载单元OBU，经车路通信V2I）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">泊位占用状态信息</td><td>由泊位占用感知信息模型输出的逐泊位实时状态</td><td>泊位占用状态</td><td>各泊位空闲、占用、不可用状态及状态置信度</td><td>边缘计算单元</td></tr>
+                <tr><td>由泊位占用感知信息模型输出的逐泊位实时状态</td><td>在位车辆信息</td><td>在位车辆的身份标识、车辆类型及实时位置</td><td>边缘计算单元</td></tr>
+                <tr><td>由泊位占用感知信息模型输出的逐泊位实时状态</td><td>泊位可用性预测</td><td>未来时段各泊位释放时刻和可用泊位数预测</td><td>边缘计算单元</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">泊位静态信息属性信息</td><td>泊位自身固定信息属性、空间位置和使用限制</td><td>泊位编号与类型</td><td>泊位唯一编号及路内、路外、公交停靠、充电等泊位类型</td><td>边缘（泊位基础信息库）</td></tr>
+                <tr><td>泊位自身固定信息属性、空间位置和使用限制</td><td>泊位空间位置</td><td>泊位所在区域、楼层、通道及车道级几何边界</td><td>边缘（泊位基础信息库）</td></tr>
+                <tr><td>泊位自身固定信息属性、空间位置和使用限制</td><td>泊位使用限制</td><td>专用信息属性、开放时段、收费规则和预约限制</td><td>边缘（泊位基础信息库）</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">历史需求信息</td><td>历史泊位需求统计</td><td>历史需求分布统计</td><td>历史泊位需求的时间、区域、来自入口</td><td>边缘（泊位基础信息库）</td></tr>
+                <tr><td>历史泊位需求统计</td><td>历史泊位占用统计</td><td>历史逐泊位占用时间</td><td>边缘（泊位基础信息库）</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">场区路网与管理规则信息</td><td>用于泊位筛选和入场引导的场区基础信息</td><td>场区道路拓扑</td><td>停车场入口、出口、内部通道及可达关系</td><td>边缘计算单元（场区地图数据库）</td></tr>
+                <tr><td>用于泊位筛选和入场引导的场区基础信息</td><td>场区交通运行状态</td><td>入口排队、内部通道占用、拥堵和冲突风险状态</td><td>边缘计算单元（交通流感知信息模型）</td></tr>
+                <tr><td>用于泊位筛选和入场引导的场区基础信息</td><td>预约与保留记录</td><td>已预约、已保留、临时锁定泊位及其有效时间</td><td>边缘计算单元（场区管理平台</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">泊位分配与引导调度信息</td><td>边缘计算单元根据泊位状态与需求生成的辅助调度结果</td><td>目标泊位分配结果</td><td>为请求车辆分配的目标泊位编号、位置和泊位类型</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘计算单元根据泊位状态与需求生成的辅助调度结果</td><td>候选泊位排序</td><td>可选泊位的距离、可用性和适配性排序结果</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘计算单元根据泊位状态与需求生成的辅助调度结果</td><td>预约与保留状态</td><td>目标泊位的保留状态、有效时间及取消条件</td><td>边缘计算单元</td></tr>
+                <tr><td>边缘计算单元根据泊位状态与需求生成的辅助调度结果</td><td>跨区域调度策略</td><td>跨停车区或相邻路段的泊位推荐、分流和协同调度结果</td><td>边缘计算单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

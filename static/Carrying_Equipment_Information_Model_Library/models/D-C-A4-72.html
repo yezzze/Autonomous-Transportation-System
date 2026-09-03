@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-C-A4-72 路径-信号协同优化信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>路径-信号协同优化信息模型</h1>
+    <p>模型编号：D-C-A4-72 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>路径-信号协同优化信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>决策</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A4-72</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在A4场景下，中心云融合城市路网实时及预测交通状态、车辆动态路径需求和关键交叉口信号运行信息，预测不同路径选择对沿线交叉口交通需求的影响，并对车辆路径分配与信号控制参数进行滚动联合优化，提前协调车辆在路网中的时空分布与交叉口通行能力，实现面向未来交通状态的动态路径-信号协同控制。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市区域路网车辆路径与交通信号协同控制、拥堵区域车辆分流、关键路径交通诱导、多交叉口信号协调等场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>公交运力动态调配信息模型（D-C-A4-73）</td></tr>
+            <tr><th>下游信息模型编号</th><td>公交停站方案优化信息模型（D-C-A4-74）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="6" class="text-center highlight">路网预测运行信息</td><td>当前及未来一定时间范围内路网交通状态及演化趋势</td><td>实时交通流量</td><td>当前各关键路段交通流量（pcu/h）</td><td>路侧单元RSU、边缘计算单元</td></tr>
+                <tr><td>当前及未来一定时间范围内路网交通状态及演化趋势</td><td>实时平均速度</td><td>当前关键路段车辆平均运行速度（km/h）</td><td>路侧单元RSU、边缘计算单元</td></tr>
+                <tr><td>当前及未来一定时间范围内路网交通状态及演化趋势</td><td>预测交通流量</td><td>未来一定时间范围内各关键路段预计交通流量</td><td>中心云</td></tr>
+                <tr><td>当前及未来一定时间范围内路网交通状态及演化趋势</td><td>预测通行时间</td><td>未来状态下路段或路径预计通行时间</td><td>中心云</td></tr>
+                <tr><td>当前及未来一定时间范围内路网交通状态及演化趋势</td><td>预测排队状态</td><td>未来关键交叉口预计排队长度或排队车辆数量</td><td>边缘计算单元、中心云</td></tr>
+                <tr><td>当前及未来一定时间范围内路网交通状态及演化趋势</td><td>拥堵演化趋势</td><td>拥堵形成、扩散及消散的趋势和影响范围</td><td>中心云</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">动态路径需求信息</td><td>当前及未来车辆在不同路径上的出行和分配需求</td><td>车辆OD</td><td>当前车辆或车辆群的出行起点和终点</td><td>车载单元OBU</td></tr>
+                <tr><td>当前及未来车辆在不同路径上的出行和分配需求</td><td>候选路径集合</td><td>可供车辆动态选择的路径集合</td><td>中心云</td></tr>
+                <tr><td>当前及未来车辆在不同路径上的出行和分配需求</td><td>当前路径分布</td><td>当前车辆在不同候选路径上的分布状态</td><td>路侧单元RSU、边缘计算单元、中心云</td></tr>
+                <tr><td>当前及未来车辆在不同路径上的出行和分配需求</td><td>预测路径需求</td><td>未来一定时间范围内不同候选路径预计承担的交通需求</td><td>中心云</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">路径-信号关联信息</td><td>未来路径交通需求与沿线关键交叉口信号之间的动态关联</td><td>关键交叉口序列</td><td>当前路径依次经过的关键交叉口</td><td>中心云</td></tr>
+                <tr><td>未来路径交通需求与沿线关键交叉口信号之间的动态关联</td><td>路径-相位对应关系</td><td>不同候选路径依次经过的关键交叉口</td><td>中心云</td></tr>
+                <tr><td>未来路径交通需求与沿线关键交叉口信号之间的动态关联</td><td>预测到达流量</td><td>不同路径车辆未来到达关键交叉口的交通量</td><td>中心云</td></tr>
+                <tr><td>未来路径交通需求与沿线关键交叉口信号之间的动态关联</td><td>预测到达时间</td><td>车辆或车辆群未来到达各关键交叉口的预计时间</td><td>中心云</td></tr>
+                <tr><td>未来路径交通需求与沿线关键交叉口信号之间的动态关联</td><td>路径-相位需求关系</td><td>不同路径交通需求与交叉口放行相位之间的对应关系</td><td>中心云</td></tr>
+                <tr><td>未来路径交通需求与沿线关键交叉口信号之间的动态关联</td><td>预测饱和状态</td><td>路径需求变化条件下关键交叉口未来饱和状态</td><td>中心云</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">路径-信号动态协同优化方案信息</td><td>根据未来交通状态动态形成的车辆路径与信号联合控制方案</td><td>动态推荐路径</td><td>根据实时及预测交通状态生成的目标路径</td><td>中心云</td></tr>
+                <tr><td>根据未来交通状态动态形成的车辆路径与信号联合控制方案</td><td>路径分配比例</td><td>不同候选路径建议承担的车辆或交通需求比例</td><td>中心云</td></tr>
+                <tr><td>根据未来交通状态动态形成的车辆路径与信号联合控制方案</td><td>协同控制交叉口</td><td>参与路径与信号联合优化的关键交叉口集合</td><td>中心云</td></tr>
+                <tr><td>根据未来交通状态动态形成的车辆路径与信号联合控制方案</td><td>动态目标周期</td><td>不同控制时段对应的目标信号周期（s）</td><td>中心云</td></tr>
+                <tr><td>根据未来交通状态动态形成的车辆路径与信号联合控制方案</td><td>动态目标相位差</td><td>多交叉口之间动态调整的目标相位差（s）</td><td>中心云</td></tr>
+                <tr><td>根据未来交通状态动态形成的车辆路径与信号联合控制方案</td><td>优化时间范围</td><td>当前协同方案对应的预测及控制时间范围</td><td>中心云</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">预测效果信息</td><td>动态协同方案对未来路网运行状态的预期影响</td><td>预计平均通行时间</td><td>预测时间范围内区域车辆平均通行时间</td><td>中心云</td></tr>
+                <tr><td>动态协同方案对未来路网运行状态的预期影响</td><td>预计平均延误</td><td>预测时间范围内车辆平均延误时间</td><td>中心云</td></tr>
+                <tr><td>动态协同方案对未来路网运行状态的预期影响</td><td>预计最大排队长度</td><td>关键交叉口未来预计最大排队长度</td><td>中心云</td></tr>
+                <tr><td>动态协同方案对未来路网运行状态的预期影响</td><td>预计拥堵状态</td><td>协同优化后未来路网拥堵程度及影响范围</td><td>中心云</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

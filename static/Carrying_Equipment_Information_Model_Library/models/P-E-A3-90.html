@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P-E-A3-90 轨道站点客流与列车运行状态感知信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>轨道站点客流与列车运行状态感知信息模型</h1>
+    <p>模型编号：P-E-A3-90 | 逻辑阶段：感知 | 自主化水平：<span class="badge">A3</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>轨道站点客流与列车运行状态感知信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>感知</td></tr>
+            <tr><th>实体层级</th><td>边缘</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">P-E-A3-90</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平为A3时，轨道站点客流与列车运行状态感知信息模型接收轨道交通调度系统提供的列车到离站与运营状态数据，形成以车站和出入口为单元、以列车到站时刻为时间锚点的车站客流状态与列车到发运力状态信息。</td></tr>
+            <tr><th>信息模型服务场景</th><td>轨道车站客流与列车运行状态实时监测。</td></tr>
+            <tr><th>上游信息模型编号</th><td>无（本模型为感知源模型）</td></tr>
+            <tr><th>下游信息模型编号</th><td>跨方式换乘匹配统计信息模型（R-E-A3-91）、轨道出站接驳需求预测信息模型（R-E-A3-92）、轨道客流激增态势识别信息模型（R-E-A3-93）、轨道-道路跨域协同交互信息模型（T-E-A3-94）、轨道接驳多方式运力一体化配置信息模型（D-C-A3-95）、轨道激增客流多方式协同调度信息模型（C-C-A3-96）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>中山大学，北京交通大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="3" class="text-center highlight">车站基础信息属性信息</td><td>用于标识客流与列车状态所对应的车站、出入口及其关联接驳区的静态信息</td><td>车站与线路标识</td><td>车站唯一编号、所属线路及运行方向</td><td>车站基础信息库</td></tr>
+                <tr><td>用于标识客流与列车状态所对应的车站、出入口及其关联接驳区的静态信息</td><td>出入口与接驳区标识</td><td>各出入口唯一编号、空间位置及其关联的道路接驳区编号</td><td>车站基础信息库</td></tr>
+                <tr><td>用于标识客流与列车状态所对应的车站、出入口及其关联接驳区的静态信息</td><td>站内设施设计容量</td><td>站厅、站台及换乘通道的设计承载人数与通行能力</td><td>车站基础信息库</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">闸机进出站客流信息</td><td>由车站自动售检票闸机直接采集的乘客进出站刷卡记录</td><td>进站客流量</td><td>各闸机进站刷卡时刻与刷卡人次</td><td>车站自动售检票闸机终端</td></tr>
+                <tr><td>由车站自动售检票闸机直接采集的乘客进出站刷卡记录</td><td>出站客流量</td><td>各闸机出站刷卡时刻与刷卡人次</td><td>车站自动售检票闸机终端</td></tr>
+                <tr><td>由车站自动售检票闸机直接采集的乘客进出站刷卡记录</td><td>脱敏乘客标识</td><td>进出站刷卡记录对应的脱敏乘客唯一标识</td><td>车站自动售检票闸机终端</td></tr>
+                <tr><td>由车站自动售检票闸机直接采集的乘客进出站刷卡记录</td><td>票种类别记录</td><td>按票种区分的普通、优惠及特殊乘客刷卡人次</td><td>车站自动售检票闸机终端</td></tr>
+                <tr><td rowspan="3" class="text-center highlight">站内客流感知信息</td><td>由站内视频与客流探测设备直接采集的区域客流分布状态</td><td>区域人数检测结果</td><td>站厅、站台候车区的实时人数检测与计数结果</td><td>站厅与站台顶置全景摄像机</td></tr>
+                <tr><td>由站内视频与客流探测设备直接采集的区域客流分布状态</td><td>排队长度检测结果</td><td>闸机口、扶梯口及换乘通道的排队队列长度</td><td>通道视频摄像头</td></tr>
+                <tr><td>由站内视频与客流探测设备直接采集的区域客流分布状态</td><td>客流行进速度</td><td>换乘通道内客流的平均行进速度</td><td>毫米波雷达</td></tr>
+                <tr><td rowspan="4" class="text-center highlight">列车到离站状态信息</td><td>由轨道交通调度系统提供的列车到离站时刻与运营状态</td><td>列车标识</td><td>列车编号、所属线路及运行方向</td><td>轨道交通调度系统</td></tr>
+                <tr><td>由轨道交通调度系统提供的列车到离站时刻与运营状态</td><td>实际到离站时刻</td><td>列车实际到站、开门、关门及发车时刻</td><td>轨道交通调度系统</td></tr>
+                <tr><td>由轨道交通调度系统提供的列车到离站时刻与运营状态</td><td>预计到站时刻</td><td>后续列车预计到达本站的时刻序列</td><td>轨道交通调度系统</td></tr>
+                <tr><td>由轨道交通调度系统提供的列车到离站时刻与运营状态</td><td>运营异常状态</td><td>晚点时长、限流、停运、区间中断等运营异常标识及影响范围</td><td>轨道交通调度系统</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">列车载运状态信息</td><td>列车载客能力与实际载客状态</td><td>列车编组定员</td><td>列车编组的额定载客人数</td><td>轨道车辆基础信息库</td></tr>
+                <tr><td>列车载客能力与实际载客状态</td><td>车厢载客人数</td><td>各车厢实时载客人数检测结果</td><td>车厢空气弹簧载荷传感器/车门双目客流计数器</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

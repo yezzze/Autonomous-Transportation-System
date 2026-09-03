@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C-D-A4-32 紧急转向避让信息模型 - 详情</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background-color: var(--bg); color: var(--text); line-height: 1.6; padding-bottom: 50px; }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; padding: 30px 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .nav-back { margin-bottom: 15px; }
+        .nav-back a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; border-radius: 12px; padding: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .section-title { font-size: 1.4rem; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; font-weight: 600; }
+        .section-title i { margin-right: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        .meta-table th { background-color: var(--header-bg); width: 220px; font-weight: 600; color: #555; }
+        .content-table th { background-color: var(--primary); color: white; font-weight: 500; text-align: center; }
+        .badge { padding: 4px 12px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; background: var(--primary); color: white; }
+        .highlight { color: var(--primary-dark); font-weight: 600; }
+        .pre-wrap { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
+    <h1>紧急转向避让信息模型</h1>
+    <p>模型编号：C-D-A4-32 | 逻辑阶段：控制 | 自主化水平：<span class="badge">A4</span></p>
+</header>
+<div class="container">
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-table-list"></i> 5.3.6 信息模型基础属性</div>
+        <table class="meta-table">
+            <tr><th>信息模型名称</th><td>紧急转向避让信息模型</td></tr>
+            <tr><th>逻辑阶段</th><td>控制</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A4</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">C-D-A4-32</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>在A4等级下，车辆根据多主体协同避让目标及动态避让轨迹，自主实施高精度转向控制，并根据周边主体执行状态持续修正控制过程，实现复杂交通环境下的协同紧急避让。</td></tr>
+            <tr><th>信息模型服务场景</th><td>多车协同紧急避让、复杂冲突主动规避、车路协同安全控制及高等级自动驾驶紧急避让等场景。</td></tr>
+            <tr><th>上游信息模型编号</th><td>冲突情况检测信息模型（R-D-A4-10）、车辆轨迹预测信息模型（R-E-A4-15）、前向碰撞预警信息模型（D-D-A4-22）、盲区预警信息模型（D-D-A4-26）、弱势交通参与者碰撞预警信息模型（D-D-A4-48）</td></tr>
+            <tr><th>下游信息模型编号</th><td>无（本模型为控制执行或信息输出终端模型）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
+            <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
+        <table class="content-table">
+            <thead>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
+            </thead>
+            <tbody>
+                <tr><td rowspan="5" class="text-center highlight">协同避让控制目标信息</td><td>车辆参与多主体协同紧急避让所需执行的控制目标</td><td>协同避让对象</td><td>与本车共同参与避让过程的相关交通主体</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆参与多主体协同紧急避让所需执行的控制目标</td><td>目标避让轨迹</td><td>协同决策后确定的本车动态避让轨迹</td><td>自动驾驶域控制器</td></tr>
+                <tr><td>车辆参与多主体协同紧急避让所需执行的控制目标</td><td>目标横向位置</td><td>当前协同方案要求车辆达到的横向位置</td><td>自动驾驶域控制器</td></tr>
+                <tr><td>车辆参与多主体协同紧急避让所需执行的控制目标</td><td>安全横向间距</td><td>避让过程中与相关车辆或障碍物需要保持的安全距离（m）</td><td>自动驾驶域控制器</td></tr>
+                <tr><td>车辆参与多主体协同紧急避让所需执行的控制目标</td><td>协同执行时序</td><td>本车与其他主体实施避让动作的时间协调要求</td><td>车载单元OBU、自动驾驶域控制器</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">车辆动态状态信息</td><td>协同避让执行过程中车辆实时运动状态</td><td>车辆位置</td><td>当前车辆高精度实时位置</td><td>高精度定位系统</td></tr>
+                <tr><td>协同避让执行过程中车辆实时运动状态</td><td>车辆速度</td><td>当前车辆实时运行速度（km/h）</td><td>车载诊断系统OBD</td></tr>
+                <tr><td>协同避让执行过程中车辆实时运动状态</td><td>当前转向角</td><td>当前前轮或方向盘转向角（°）</td><td>电子助力转向系统EPS</td></tr>
+                <tr><td>协同避让执行过程中车辆实时运动状态</td><td>横摆角速度</td><td>当前车辆绕垂直轴旋转速度（°/s）</td><td>惯性测量单元IMU</td></tr>
+                <tr><td>协同避让执行过程中车辆实时运动状态</td><td>横向加速度</td><td>当前车辆横向加速度（m/s²）</td><td>惯性测量单元IMU</td></tr>
+                <tr><td rowspan="6" class="text-center highlight">协同转向控制信息</td><td>车辆执行动态协同避让轨迹的高精度控制参数</td><td>目标转向角序列</td><td>避让过程中随时间变化的目标转向角序列</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆执行动态协同避让轨迹的高精度控制参数</td><td>目标横摆角速度</td><td>避让过程中期望达到的横摆角速度</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆执行动态协同避让轨迹的高精度控制参数</td><td>横向加速度约束</td><td>避让过程中允许的横向加速度范围</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆执行动态协同避让轨迹的高精度控制参数</td><td>轨迹跟踪误差</td><td>车辆实际位置与目标避让轨迹之间的偏差（m）</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆执行动态协同避让轨迹的高精度控制参数</td><td>控制修正量</td><td>根据轨迹误差及协同状态实时生成的转向修正量</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆执行动态协同避让轨迹的高精度控制参数</td><td>控制周期</td><td>转向控制指令的更新周期（s）</td><td>车辆控制单元</td></tr>
+                <tr><td rowspan="5" class="text-center highlight">控制执行反馈信息</td><td>车辆自主避让控制的执行结果</td><td>实际避让轨迹</td><td>车辆紧急避让过程中的实际运行轨迹</td><td>高精度定位系统</td></tr>
+                <tr><td>车辆自主避让控制的执行结果</td><td>本车执行状态</td><td>当前车辆对目标避让轨迹的跟踪情况</td><td>车辆控制单元</td></tr>
+                <tr><td>车辆自主避让控制的执行结果</td><td>协同对象执行状态</td><td>周边协同主体反馈的避让执行状态</td><td>车载单元OBU</td></tr>
+                <tr><td>车辆自主避让控制的执行结果</td><td>安全间距状态</td><td>当前实际间距是否满足协同避让安全要求</td><td>自动驾驶域控制器</td></tr>
+                <tr><td>车辆自主避让控制的执行结果</td><td>协同避让完成状态</td><td>多主体协同紧急避让是否完成</td><td>车辆控制单元</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

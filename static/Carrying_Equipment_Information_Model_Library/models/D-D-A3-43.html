@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-D-A3-33 异常车辆提醒信息模型 - 详情</title>
+    <title>D-D-A3-43 异常车辆提醒信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>异常车辆提醒信息模型</h1>
-    <p>模型编号：D-D-A3-33 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-D-A3-43 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>异常车辆提醒信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>载运装备</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-33</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>高速公路、城市快速路、多车道主干道等场景，针对中远距离（≤500m）异常车辆的协同预警与自主避让辅助。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>端侧</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-D-A3-43</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A3下，通过C-V2X通信融合车载传感器、路侧单元（RSU）及边缘计算单元（MEC）数据，实现500m内异常车辆精准识别与行为预判；可向周边3km内车辆广播异常信息，同时本车系统自主计算减速幅度、推荐安全车道，辅助驾驶员避让，驾驶员可Override取消操作。</td></tr>
+            <tr><th>信息模型服务场景</th><td>高速公路、城市快速路、多车道主干道等场景，针对中远距离（≤500m）异常车辆的协同预警与自主避让辅助。</td></tr>
+            <tr><th>上游信息模型编号</th><td>车车通信V2V信息模型（T-D-A3-17）、车路通信V2I信息模型（T-D-A3-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车载信息显示信息模型（C-D-A3-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,11 +52,11 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
-                <tr><td rowspan="2" class="text-center highlight">路侧协同信息</td><td>路侧设备扩展的异常车辆数据</td><td>远距离异常车辆位置</td><td>500m内异常车辆的经纬度坐标</td><td>路侧单元RSU、激光雷达</td></tr>
-                <tr><td>路侧设备扩展的异常车辆数据</td><td>异常扩散预警</td><td>路侧预测的异常车辆可能影响的区域（如未来10s内的行驶轨迹）</td><td>边缘计算单元MEC</td></tr>
+                <tr><td rowspan="2" class="text-center highlight">路侧协同信息</td><td>边缘扩展的异常车辆数据</td><td>远距离异常车辆位置</td><td>500m内异常车辆的经纬度坐标</td><td>路侧单元RSU、激光雷达</td></tr>
+                <tr><td>边缘扩展的异常车辆数据</td><td>异常扩散预警</td><td>路侧预测的异常车辆可能影响的区域（如未来10s内的行驶轨迹）</td><td>边缘计算单元MEC</td></tr>
                 <tr><td rowspan="2" class="text-center highlight">V2X交互信息</td><td>多车协同的异常信息共享</td><td>异常车辆广播状态</td><td>异常车辆的ID、行为类型及位置（通过V2X实时更新）</td><td>车载单元OBU</td></tr>
                 <tr><td>多车协同的异常信息共享</td><td>周边车辆响应</td><td>其他车辆收到提醒后的减速、避让状态</td><td>车载单元OBU</td></tr>
                 <tr><td rowspan="2" class="text-center highlight">自主避让指令</td><td>系统自主执行的避险操作</td><td>减速幅度</td><td>基于异常车辆距离的建议减速度，单位：m/s²</td><td>车载单元OBU、边缘计算单元MEC</td></tr>

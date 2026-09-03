@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D-C-A3-39 绿波车速引导信息模型 - 详情</title>
+    <title>D-C-A3-49 绿波车速引导信息模型 - 详情</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --primary: #1a73e8; --primary-dark: #0d47a1; --bg: #f5f7fa; --text: #333; --border: #e0e0e0; --header-bg: #f1f3f4; }
@@ -29,7 +29,7 @@
 <header>
     <div class="nav-back"><a href="../index.html"><i class="fa-solid fa-house-chimney"></i> 返回模型库门户</a></div>
     <h1>绿波车速引导信息模型</h1>
-    <p>模型编号：D-C-A3-39 | 逻辑阶段：决策 | 自主化等级：<span class="badge">A3</span></p>
+    <p>模型编号：D-C-A3-49 | 逻辑阶段：决策 | 自主化水平：<span class="badge">A3</span></p>
 </header>
 <div class="container">
     <div class="card">
@@ -37,14 +37,14 @@
         <table class="meta-table">
             <tr><th>信息模型名称</th><td>绿波车速引导信息模型</td></tr>
             <tr><th>逻辑阶段</th><td>决策</td></tr>
-            <tr><th>实体类别</th><td>中心云</td></tr>
-            <tr><th>自主化等级</th><td>A3</td></tr>
-            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-39</span></td></tr>
-            <tr><th>信息模型描述</th><td></td></tr>
-            <tr><th>模型服务场景</th><td>城市主干道绿波带通行、干线道路协同信号控制、交叉口连续通行引导（无突发交通事件场景）。</td></tr>
-            <tr><th>上游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>下游接口模型编号</th><td>[可不写]</td></tr>
-            <tr><th>交付时间</th><td>2025/mm/dd</td></tr>
+            <tr><th>实体层级</th><td>中心云</td></tr>
+            <tr><th>自主化水平</th><td>A3</td></tr>
+            <tr><th>信息模型编号</th><td><span class="highlight">D-C-A3-49</span></td></tr>
+            <tr><th>信息模型功能描述</th><td>自主化水平A3（L3-L4）下，中心云平台融合沿线交叉口信号配时、车辆实时状态及计划路径信息，计算车辆连续通过目标交叉口的可行时间窗口和推荐车速范围，生成绿波车速引导信息，并通过车路通信下发至车辆，辅助车辆实现连续绿灯通行。</td></tr>
+            <tr><th>信息模型服务场景</th><td>城市主干道绿波带通行、干线道路协同信号控制、交叉口连续通行引导（无突发交通事件场景）。</td></tr>
+            <tr><th>上游信息模型编号</th><td>交通信号感知信息模型（P-E-A3-3）、交通流预测信息模型（R-E-A3-14）、车路通信V2I信息模型（T-D-A3-18）</td></tr>
+            <tr><th>下游信息模型编号</th><td>车速控制信息模型（C-D-A3-33）、车载信息显示信息模型（C-D-A3-35）</td></tr>
+            <tr><th>交付时间</th><td>2026/08/21</td></tr>
             <tr><th>责任单位</th><td>北京交通大学，中山大学</td></tr>
         </table>
     </div>
@@ -52,7 +52,7 @@
         <div class="section-title"><i class="fa-solid fa-database"></i> 信息内容定义</div>
         <table class="content-table">
             <thead>
-                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">属性</th><th style="width: 25%;">属性描述</th><th style="width: 25%;">信息来源</th></tr>
+                <tr><th style="width: 15%;">信息</th><th style="width: 20%;">信息描述</th><th style="width: 15%;">信息属性</th><th style="width: 25%;">信息属性描述</th><th style="width: 25%;">信息属性来源</th></tr>
             </thead>
             <tbody>
                 <tr><td rowspan="4" class="text-center highlight">交通信号配时信息</td><td>绿波带覆盖的交叉口信号灯参数</td><td>周期时长</td><td>信号灯完成一次全相位循环的时间，单位为秒（s）</td><td>路侧单元RSU、信号机</td></tr>

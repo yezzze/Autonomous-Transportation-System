@@ -1,11 +1,12 @@
 <!DOCTYPE html>
+
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>交叉口多车协同安全通行 - UML 场景详情</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>交叉口多车协同安全通行 - UML 场景详情</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+<style>
         :root {
             --primary: #1a73e8;
             --scenario: #13a8a8;
@@ -15,6 +16,7 @@
             --card: #ffffff;
             --border: #e5e7eb;
             --p: #bf9000;
+            --r: #722ed1;
             --t: #2e75b6;
             --d: #548235;
             --c: #7c7c7c;
@@ -44,6 +46,7 @@
         .pill-list { display: flex; flex-wrap: wrap; gap: 8px; }
         .pill { border-radius: 999px; padding: 6px 10px; font-size: .76rem; background: #f3f4f6; color: #4b5563; font-weight: 700; }
         .pill.p { background: rgba(191, 144, 0, .14); color: #8a6500; }
+        .pill.r { background: rgba(114,46,209,.12); color: #531dab; }
         .pill.t { background: rgba(46, 117, 182, .13); color: #1d5f9e; }
         .pill.d { background: rgba(84, 130, 53, .15); color: #3f6f24; }
         .pill.c { background: rgba(124, 124, 124, .15); color: #595959; }
@@ -81,11 +84,12 @@
         }
         .section { padding: 20px; }
         .section h2 { color: var(--text); font-size: 1.12rem; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
-        .stage-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        .stage-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
         .stage-card { border-radius: 14px; border: 1px solid var(--border); padding: 15px; background: #fff; }
         .stage-card h3 { font-size: .95rem; margin-bottom: 8px; color: var(--text); }
         .stage-card p { font-size: .85rem; line-height: 1.7; color: var(--muted); }
         .stage-card.p { border-top: 5px solid var(--p); }
+        .stage-card.r { border-top: 5px solid var(--r); }
         .stage-card.t { border-top: 5px solid var(--t); }
         .stage-card.d { border-top: 5px solid var(--d); }
         .stage-card.c { border-top: 5px solid var(--c); }
@@ -111,78 +115,72 @@
 </style>
 </head>
 <body>
-    <header class="page-header">
-        <div class="header-inner">
-            <div class="breadcrumb">
-                <a href="../index.html">模型库首页</a>
-                <i class="fa-solid fa-chevron-right"></i>
-                <a href="../scenarios.html">典型场景 UML</a>
-                <i class="fa-solid fa-chevron-right"></i>
-                <span>交叉口多车协同安全通行</span>
-            </div>
-            <h1>交叉口多车协同安全通行 UML 时序图</h1>
-            <p>本页面展示交叉口多智能等级车辆与边缘计算单元之间的协同安全通行信息流，并将车辆感知、V2V/V2I 通信、冲突检测、碰撞预警与控制反馈过程接入模型库。</p>
-        </div>
-    </header>
-
-    <div class="toolbar">
-        <a class="tool-btn primary" href="../scenarios.html"><i class="fa-solid fa-arrow-left"></i> 返回场景列表</a>
-        <a class="tool-btn" href="../index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
-        <a class="tool-btn" href="../graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
-        <a class="tool-btn" href="../assets/uml/intersection-safety.svg" download><i class="fa-solid fa-download"></i> 下载 SVG 图</a>
-    </div>
-
-    <main class="container">
-        <div class="layout">
-            <aside class="panel side-panel">
-                <div class="panel-title"><i class="fa-solid fa-circle-info"></i> 场景信息</div>
-                <div class="panel-body">
-                    <div class="info-list">
-                        <div class="info-item"><label>场景名称</label><div>交叉口多车协同安全通行</div></div>
-                        <div class="info-item"><label>场景目标</label><p>通过车辆间信息共享和边缘计算单元风险识别，实现交叉口冲突检测、碰撞预警、协同避让与执行状态反馈。</p></div>
-                        <div class="info-item"><label>参与主体</label><div class="pill-list"><span class="pill">Connected Vehicle, L4</span><span class="pill">Connected Vehicle, L3</span><span class="pill">Edge RSU</span></div></div>
-                        <div class="info-item"><label>信息流阶段</label><div class="pill-list"><span class="pill p">感知阶段</span><span class="pill t">传输阶段</span><span class="pill d">决策阶段</span><span class="pill c">控制阶段</span></div></div>
-                        <div class="info-item"><label>页面说明</label><p>当前版本采用 SVG 嵌入方式，支持清晰缩放、横向滚动查看和下载。后续可继续升级为 SVG 热区点击与模型节点联动。</p></div>
-                    </div>
-                </div>
-            </aside>
-
-            <section class="main-content">
-                <div class="panel uml-card">
-                    <div class="uml-header">
-                        <h2><i class="fa-solid fa-timeline"></i> UML 时序图</h2>
-                        <div class="uml-tools"><button class="small-btn" onclick="fitToView()">适应窗口</button><button class="small-btn" onclick="zoomOut()">缩小</button><button class="small-btn" onclick="zoomIn()">放大</button><button class="small-btn" onclick="showOriginal()">原始尺寸</button></div>
-                    </div>
-                    <div class="uml-viewport" id="umlViewport">
-                        <div class="uml-image-wrap" id="umlImageWrap">
-                            <img class="uml-image" src="../assets/uml/intersection-safety.svg" alt="交叉口多车协同安全通行 UML 时序图">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="panel section">
-                    <h2><i class="fa-solid fa-layer-group"></i> 四阶段信息流说明</h2>
-                    <div class="stage-grid"><div class="stage-card p"><h3>感知阶段</h3><p>两辆智能网联车辆分别生成自身状态和周边交通参与者感知信息，形成交叉口冲突识别的基础数据。</p></div><div class="stage-card t"><h3>传输阶段</h3><p>车辆之间通过 V2V 共享感知数据，并通过 V2I 向边缘计算单元上传融合感知信息，形成局部态势汇聚。</p></div><div class="stage-card d"><h3>决策阶段</h3><p>边缘计算单元基于融合数据进行冲突检测和碰撞预警，识别风险等级、冲突点与安全距离。</p></div><div class="stage-card c"><h3>控制阶段</h3><p>边缘计算单元向车辆下发预警或控制建议，车辆执行减速、避让等动作，并通过 V2V/V2I 反馈执行状态。</p></div></div>
-                </div>
-
-                <div class="panel section">
-                    <h2><i class="fa-solid fa-link"></i> 关联模型清单</h2>
-                    <div class="model-table-wrap">
-                        <table>
-                            <thead><tr><th>阶段</th><th>模型名称</th><th>建议链接</th><th>在 UML 中的作用</th></tr></thead>
-                            <tbody><tr><td>感知</td><td>车辆状态感知信息模型</td><td><a href="../models/P-D-A4-1.html">P-D-A4-1</a></td><td>描述 L4 智能网联车辆的位置、速度、加速度与运行状态。</td></tr><tr><td>感知</td><td>车辆状态感知信息模型</td><td><a href="../models/P-D-A3-1.html">P-D-A3-1</a></td><td>描述 L3 智能网联车辆的基础状态信息。</td></tr><tr><td>感知</td><td>交通参与者感知信息模型</td><td><a href="../models/P-E-A4-8.html">P-E-A4-8</a></td><td>用于表征车辆或路端对相邻车辆、行人和非机动车等对象的识别信息。</td></tr><tr><td>感知</td><td>冲突情况检测信息模型</td><td><a href="../models/P-D-A4-5.html">P-D-A4-5</a></td><td>用于识别交叉口冲突点、冲突对象和潜在风险状态。</td></tr><tr><td>传输</td><td>车车通信 V2V 信息模型</td><td><a href="../models/T-D-A4-12.html">T-D-A4-12</a></td><td>当前模型库中可先用高等级车路/车端通信模型承接 V2V 数据共享关系，后续可单独补充 V2V 模型。</td></tr><tr><td>传输</td><td>车路通信 V2I 信息模型</td><td><a href="../models/T-D-A3-12.html">T-D-A3-12</a></td><td>车辆向边缘计算单元上传融合感知数据，或接收边缘端预警指令。</td></tr><tr><td>决策</td><td>交叉口碰撞预警信息模型</td><td><a href="../models/D-C-A4-30.html">D-C-A4-30</a></td><td>边缘计算单元基于融合感知信息生成碰撞风险判断和预警策略。</td></tr><tr><td>决策</td><td>弱势交通参与者避撞信息模型</td><td><a href="../models/D-C-A3-31.html">D-C-A3-31</a></td><td>当交叉口中存在行人或非机动车时，可用于辅助避撞决策。</td></tr><tr><td>控制</td><td>紧急制动信息模型</td><td><a href="../models/C-C-A4-35.html">C-C-A4-35</a></td><td>车辆根据预警指令执行减速或制动控制。</td></tr><tr><td>控制</td><td>紧急转向避让信息模型</td><td><a href="../models/C-C-A4-36.html">C-C-A4-36</a></td><td>车辆根据冲突位置与安全距离执行必要的转向避让。</td></tr></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="panel section">
-                    <h2><i class="fa-solid fa-clipboard-check"></i> 规范性校验说明</h2>
-                    <div class="check-list"><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>参与主体采用 Connected Vehicle L4、Connected Vehicle L3 与 Edge RSU，能够体现不同智能等级车辆的协同差异。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>场景链路包含车辆自感知、V2V/V2I 数据共享、边缘端风险决策和车辆执行反馈，形成完整安全闭环。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>当前模型库如尚未设置独立 V2V 模型，可先以通信类模型临时代替；后续建议新增“车车通信 V2V 信息模型”节点。</span></div></div>
-                </div>
-            </section>
-        </div>
-    </main>
-    <script>
+<header class="page-header">
+<div class="header-inner">
+<div class="breadcrumb">
+<a href="../index.html">模型库首页</a>
+<i class="fa-solid fa-chevron-right"></i>
+<a href="../scenarios.html">典型场景 UML</a>
+<i class="fa-solid fa-chevron-right"></i>
+<span>交叉口多车协同安全通行</span>
+</div>
+<h1>交叉口多车协同安全通行 UML 时序图</h1>
+<p>本页面展示交叉口多智能等级车辆与边缘路侧单元之间的协同安全通行信息流，并按照“感知—认知—传输—决策—控制”五阶段，将多源状态获取、冲突认知、V2V/V2I 交互、通行权与风险决策以及车辆控制过程与最终信息模型建立对应关系。</p>
+</div>
+</header>
+<div class="toolbar">
+<a class="tool-btn primary" href="../scenarios.html"><i class="fa-solid fa-arrow-left"></i> 返回场景列表</a>
+<a class="tool-btn" href="../index.html"><i class="fa-solid fa-house"></i> 返回首页</a>
+<a class="tool-btn" href="../graph.html"><i class="fa-solid fa-diagram-project"></i> 拓扑视图</a>
+<a class="tool-btn" download="" href="../assets/uml/intersection-safety.svg"><i class="fa-solid fa-download"></i> 下载 SVG 图</a>
+</div>
+<main class="container">
+<div class="layout">
+<aside class="panel side-panel">
+<div class="panel-title"><i class="fa-solid fa-circle-info"></i> 场景信息</div>
+<div class="panel-body">
+<div class="info-list">
+<div class="info-item"><label>场景名称</label><div>交叉口多车协同安全通行</div></div>
+<div class="info-item"><label>场景目标</label><p>通过车辆与路侧之间的多源信息共享和协同处理，识别交叉口潜在冲突，形成通行权与风险响应方案，并驱动车辆完成减速或转向避让。</p></div>
+<div class="info-item"><label>参与主体</label><div class="pill-list"><span class="pill">Connected Vehicle, L4</span><span class="pill">Connected Vehicle, L3</span><span class="pill">Edge RSU（含边缘计算）</span></div></div>
+<div class="info-item"><label>信息流阶段</label><div class="pill-list"><span class="pill p">感知阶段</span><span class="pill r">认知阶段</span><span class="pill t">传输阶段</span><span class="pill d">决策阶段</span><span class="pill c">控制阶段</span></div></div>
+<div class="info-item"><label>页面说明</label><p>场景 UML 作为信息模型的场景化集成表达，重点展示主体、处理活动、模型调用与信息交互顺序之间的对应关系。</p></div>
+</div>
+</div>
+</aside>
+<section class="main-content">
+<div class="panel uml-card">
+<div class="uml-header">
+<h2><i class="fa-solid fa-timeline"></i> UML 时序图</h2>
+<div class="uml-tools"><button class="small-btn" onclick="fitToView()">适应窗口</button><button class="small-btn" onclick="zoomOut()">缩小</button><button class="small-btn" onclick="zoomIn()">放大</button><button class="small-btn" onclick="showOriginal()">原始尺寸</button></div>
+</div>
+<div class="uml-viewport" id="umlViewport">
+<div class="uml-image-wrap" id="umlImageWrap">
+<img alt="交叉口多车协同安全通行 UML 时序图" class="uml-image" src="../assets/uml/intersection-safety.svg"/>
+</div>
+</div>
+</div>
+<div class="panel section">
+<h2><i class="fa-solid fa-layer-group"></i> 五阶段信息流说明</h2>
+<div class="stage-grid"><div class="stage-card p"><h3>感知阶段</h3><p>L4/L3 车辆生成自身运行状态，路侧感知交叉口内车辆、行人与非机动车等交通参与者状态。</p></div><div class="stage-card r"><h3>认知阶段</h3><p>车辆与路侧结合多源状态、道路空间及信号信息完成冲突情况检测，并利用轨迹预测形成短时冲突认知结果。</p></div><div class="stage-card t"><h3>传输阶段</h3><p>车辆通过 V2V 共享状态与意图，并通过 V2I 与边缘路侧单元交换车辆、轨迹和冲突相关信息。</p></div><div class="stage-card d"><h3>决策阶段</h3><p>根据冲突认知结果形成交叉口车辆通行权、前向碰撞预警或弱势交通参与者碰撞预警等决策结果。</p></div><div class="stage-card c"><h3>控制阶段</h3><p>车辆根据决策结果执行车速调整、紧急制动或紧急转向避让，并更新执行后的运行状态。</p></div></div>
+</div>
+<div class="panel section">
+<h2><i class="fa-solid fa-link"></i> 关联模型清单</h2>
+<div class="model-table-wrap">
+<table>
+<thead><tr><th>阶段</th><th>模型名称</th><th>建议链接</th><th>在 UML 中的作用</th></tr></thead>
+<tbody><tr><td><span class="stage-label p">感知</span></td><td>车辆状态感知信息模型</td><td><a href="../models/P-D-A4-1.html">P-D-A4-1</a></td><td>描述 L4 车辆的位置、速度、加速度及行驶意图等自身状态。</td></tr><tr><td><span class="stage-label p">感知</span></td><td>车辆状态感知信息模型</td><td><a href="../models/P-D-A3-1.html">P-D-A3-1</a></td><td>描述 L3 车辆的运行状态及车辆行驶意图，为异智车辆交互提供基础信息。</td></tr><tr><td><span class="stage-label p">感知</span></td><td>交通参与者感知信息模型</td><td><a href="../models/P-E-A4-5.html">P-E-A4-5</a></td><td>路侧获取交叉口内车辆、行人和非机动车的实时运动状态。</td></tr><tr><td><span class="stage-label r">认知</span></td><td>冲突情况检测信息模型</td><td><a href="../models/R-D-A4-10.html">R-D-A4-10</a></td><td>融合车辆、路侧与道路空间信息识别当前及短时潜在冲突。</td></tr><tr><td><span class="stage-label r">认知</span></td><td>车辆轨迹预测信息模型</td><td><a href="../models/R-E-A4-15.html">R-E-A4-15</a></td><td>预测相关车辆未来短时轨迹，为冲突位置和通行次序判断提供依据。</td></tr><tr><td><span class="stage-label t">传输</span></td><td>车车通信 V2V 信息模型</td><td><a href="../models/T-D-A4-17.html">T-D-A4-17</a></td><td>车辆之间共享状态、轨迹及协同驾驶意图。</td></tr><tr><td><span class="stage-label t">传输</span></td><td>车路通信 V2I 信息模型</td><td><a href="../models/T-D-A4-18.html">T-D-A4-18</a></td><td>车辆与边缘路侧单元交换车辆状态、轨迹预测及冲突相关信息。</td></tr><tr><td><span class="stage-label d">决策</span></td><td>交叉口车辆通行权决策信息模型</td><td><a href="../models/D-E-A4-45.html">D-E-A4-45</a></td><td>根据冲突关系与预测轨迹形成交叉口通行权和通行次序。</td></tr><tr><td><span class="stage-label d">决策</span></td><td>前向碰撞预警信息模型</td><td><a href="../models/D-D-A4-22.html">D-D-A4-22</a></td><td>基于冲突检测与轨迹预测形成前向碰撞风险判断及干预策略。</td></tr><tr><td><span class="stage-label d">决策</span></td><td>弱势交通参与者碰撞预警信息模型</td><td><a href="../models/D-D-A4-48.html">D-D-A4-48</a></td><td>当场景涉及行人或非机动车时，形成面向弱势交通参与者的碰撞风险决策。</td></tr><tr><td><span class="stage-label c">控制</span></td><td>紧急制动信息模型</td><td><a href="../models/C-D-A3-31.html">C-D-A3-31</a></td><td>用于 L3 车辆在高风险冲突条件下执行紧急纵向制动。</td></tr><tr><td><span class="stage-label c">控制</span></td><td>紧急转向避让信息模型</td><td><a href="../models/C-D-A4-32.html">C-D-A4-32</a></td><td>用于 L4 车辆根据冲突位置与协同避让目标执行紧急转向控制。</td></tr></tbody>
+</table>
+</div>
+</div>
+<div class="panel section">
+<h2><i class="fa-solid fa-diagram-project"></i> 场景化集成说明</h2>
+<div class="check-list"><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>冲突情况检测和车辆轨迹预测均归入认知阶段，通行权、碰撞预警等结果归入决策阶段，车辆减速与转向避让归入控制阶段。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>V2V 与 V2I 均采用最终模型编号 T-D-A4-17、T-D-A4-18，不再使用旧版临时代码。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>场景同时保留 L4 与 L3 车辆，用于体现异智车辆之间在感知、决策与控制能力上的差异。</span></div><div class="check-item"><i class="fa-solid fa-check-circle"></i><span>UML 的作用是将模型调用与主体交互顺序集成为完整场景信息流，并可从模型编号反查对应模型详情。</span></div></div>
+</div>
+</section>
+</div>
+</main>
+<script>
         let zoom = 1;
         let fitZoom = 1;
         let naturalSize = { width: 0, height: 0 };
@@ -280,6 +278,5 @@
             resizeTimer = setTimeout(fitToView, 150);
         });
     </script>
-
 </body>
 </html>
