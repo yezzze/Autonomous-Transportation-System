@@ -1,0 +1,7 @@
+a2a-sdk[fastapi]>=1.1.0,<2.0.0
+fastapi
+uvicorn
+pydantic
+nats-py
+numpy
+prometheus-client

@@ -39,6 +39,12 @@ build/
 dist/
 *.egg-info/
 
+# Compiled native extensions
+*.so
+
+# Local diagnostic artifacts
+error_traceback.txt
+
 # Local environment files
 .env
 .env.*
