@@ -16,3 +16,4 @@ torchvision==0.26.0+cu128
 spconv==2.3.8
 nats-py==2.11.0
 prometheus-client
+protobuf==6.33.6
