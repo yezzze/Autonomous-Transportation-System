@@ -249,6 +249,21 @@ async def run_distributed_workflow(
     if state_callback:
         state_callback(dict(initial_state), "__init__")
 
+    # 给图节点绑定本次运行的精确发布目标。节点内的即时事件（例如执行
+    # 协议决策）通过这里进入当前 workflow_id/state_callback，不再猜测
+    # VizBus 中的 latest_running 工作流。
+    def _publish_current_run(run_state: Dict[str, Any], node_name: str) -> None:
+        if bus and workflow_id:
+            bus.update_state(workflow_id, run_state, node_name=node_name)
+        if state_callback:
+            state_callback(dict(run_state), node_name)
+
+    from src.service.workflow_state_publisher import (
+        bind_workflow_state_publisher,
+        reset_workflow_state_publisher,
+    )
+    publisher_token = bind_workflow_state_publisher(_publish_current_run)
+
     # 执行工作流(改为 astream,逐节点推送 state)
     try:
         config = {"recursion_limit": 50} if orchestration_mode == "magentic" else {}
@@ -265,10 +280,7 @@ async def run_distributed_workflow(
                 # - 不论 viz_enabled, 如果调用方传入了 state_callback（例如
                 #   WorkflowScheduler），都会触发回调以便调度器能把子运行的
                 #  状态合并到 schedule 汇总视图中。
-                if bus and workflow_id:
-                    bus.update_state(workflow_id, last_state, node_name=node_name)
-                if state_callback:
-                    state_callback(dict(last_state), node_name)
+                _publish_current_run(last_state, node_name)
 
         result = last_state
         result["orchestration_mode"] = orchestration_mode
@@ -305,6 +317,8 @@ async def run_distributed_workflow(
             snapshot["error"] = str(e)
             state_callback(snapshot, "__error__")
         raise
+    finally:
+        reset_workflow_state_publisher(publisher_token)
 
 
 def visualize_graph():

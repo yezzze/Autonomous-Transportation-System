@@ -144,16 +144,20 @@ class VizBus:
         new_state = self._snapshot(state)
         # 对调度会话，保留既有的调度标识，避免某次局部状态写入把它们覆盖掉。
         if (
-            new_state.get("view_type") == "schedule"
-            and e.state.get("schedule_workflow_handle")
+            e.state.get("schedule_workflow_handle")
             and e.state.get("view_type") == "schedule"
+            and new_state.get("view_type") in (None, "schedule")
         ):
-            new_state.setdefault("view_type", "schedule")
-            new_state.setdefault("schedule_workflow_handle", e.state.get("schedule_workflow_handle"))
-            new_state.setdefault("app_id", e.state.get("app_id", ""))
-            new_state.setdefault("schedule_total_runs", e.state.get("schedule_total_runs", 0))
-            new_state.setdefault("schedule_active_runs", e.state.get("schedule_active_runs", []))
-            new_state.setdefault("schedule_active_count", e.state.get("schedule_active_count", 0))
+            for key in (
+                "view_type", "app_id", "schedule_workflow_handle",
+                "master_workflow_handle", "schedule_interval_seconds",
+                "schedule_max_parallel", "schedule_started_at", "schedule_status",
+                "schedule_error", "schedule_total_runs", "schedule_failed_runs",
+                "schedule_active_runs", "schedule_active_count", "last_run_id",
+                "last_workflow_handle", "last_run_result_preview", "last_run_error",
+            ):
+                if key in e.state:
+                    new_state.setdefault(key, e.state[key])
         e.state = new_state
         e.updated_at = time.time()
         if node_name:
@@ -278,7 +282,8 @@ class VizBus:
             "view_type", "app_id", "schedule_workflow_handle", "master_workflow_handle",
             "schedule_interval_seconds", "schedule_max_parallel",
             "schedule_started_at", "schedule_status", "schedule_error",
-            "schedule_total_runs", "schedule_active_runs", "schedule_active_count",
+            "schedule_total_runs", "schedule_failed_runs",
+            "schedule_active_runs", "schedule_active_count",
             "last_run_id", "last_workflow_handle", "last_run_result_preview", "last_run_error",
             "run_id", "internal_workflow_handle", "execution_kind",
             "skills_content", "pipeline_topology", "complexity_level",

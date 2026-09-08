@@ -1297,14 +1297,8 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 # 回调：在决策后立即更新 VizBus（写入 execution_plan 的 metadata）
                 def _on_decision(predicted: dict):
                     try:
-                        from src.service.viz_bus import get_viz_bus
-                        bus = get_viz_bus()
-                        entry = bus.latest_running()
-                        if not entry:
-                            return
-                        wid = entry.id
-                        snap = dict(state or {}) if 'state' in locals() else {}
-                        snap = snap or {}
+                        from src.service.workflow_state_publisher import publish_workflow_state
+                        snap = dict(state or {})
                         snap['execution_plan'] = [dict(t) for t in state.get('execution_plan', [])]
                         if 0 <= task_idx < len(snap['execution_plan']):
                             snap['execution_plan'][task_idx].setdefault('metadata', {})
@@ -1312,7 +1306,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                                 'protocol': predicted.get('protocol', 'UNKNOWN'),
                                 'executor': predicted.get('executor', snap['execution_plan'][task_idx].get('assigned_agent_id', 'unknown'))
                             })
-                        bus.update_state(wid, snap, node_name='executor.decision')
+                        publish_workflow_state(snap, 'executor.decision')
                     except Exception:
                         pass
 
@@ -1539,14 +1533,8 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
         # 回调：在决策后立即更新 VizBus（写入 execution_plan 的 metadata）
         def _on_decision_serial(predicted: dict):
             try:
-                from src.service.viz_bus import get_viz_bus
-                bus = get_viz_bus()
-                entry = bus.latest_running()
-                if not entry:
-                    return
-                wid = entry.id
-                snap = dict(state or {}) if 'state' in locals() else {}
-                snap = snap or {}
+                from src.service.workflow_state_publisher import publish_workflow_state
+                snap = dict(state or {})
                 snap['execution_plan'] = [dict(t) for t in state.get('execution_plan', [])]
                 if 0 <= current_index < len(snap['execution_plan']):
                     snap['execution_plan'][current_index].setdefault('metadata', {})
@@ -1554,7 +1542,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                         'protocol': predicted.get('protocol', 'UNKNOWN'),
                         'executor': predicted.get('executor', snap['execution_plan'][current_index].get('assigned_agent_id', 'unknown'))
                     })
-                bus.update_state(wid, snap, node_name='executor.decision')
+                publish_workflow_state(snap, 'executor.decision')
             except Exception:
                 pass
 
