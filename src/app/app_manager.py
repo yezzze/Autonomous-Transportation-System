@@ -355,7 +355,7 @@ class AppManager:
         启动应用的周期调度
 
         从 GuidanceFile.constraints 读取调度配置：
-        - schedule_interval_seconds (必填)
+        - schedule_interval_seconds (可选，默认 0；0 表示串行连续执行)
         - schedule_max_parallel (默认 5)
         - schedule_max_history (默认 100)
 
@@ -395,15 +395,25 @@ class AppManager:
             return False
 
         constraints = app.guidance_file.constraints
-        interval = constraints.get("schedule_interval_seconds")
-        if not interval or int(interval) < 1:
+        try:
+            interval = float(constraints.get("schedule_interval_seconds", 0) or 0)
+        except (TypeError, ValueError):
             logger.error(
                 f"[APPM] start_schedule: app_id={app_id} "
-                f"未配置 schedule_interval_seconds 或值无效"
+                f"schedule_interval_seconds 值无效"
+            )
+            return False
+
+        if interval < 0:
+            logger.error(
+                f"[APPM] start_schedule: app_id={app_id} "
+                f"schedule_interval_seconds 不能小于 0"
             )
             return False
 
         max_parallel = int(constraints.get("schedule_max_parallel", 5))
+        if interval == 0:
+            max_parallel = 1
         max_history = int(constraints.get("schedule_max_history", 100))
 
         # 普通应用的“定时启动”与普通启动共用完整编排部署流程，区别仅在于
@@ -432,7 +442,7 @@ class AppManager:
 
         scheduler = self._get_scheduler()
         success = await scheduler.start_schedule(
-            app_id, int(interval), max_parallel, max_history
+            app_id, interval, max_parallel, max_history
         )
         if not success and deployed_for_schedule:
             await engine.stop_app(app_id)
@@ -515,8 +525,11 @@ class AppManager:
                 continue
             constraints = app.guidance_file.constraints
             auto_restart = constraints.get("schedule_auto_restart", False)
-            interval = constraints.get("schedule_interval_seconds")
-            if auto_restart and interval and int(interval) >= 1:
+            try:
+                interval = float(constraints.get("schedule_interval_seconds", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if auto_restart and interval >= 0:
                 if app.guidance_file.metadata.get("deploy_only"):
                     # Deployment state is process-local and must be recreated
                     # explicitly before scheduled execution can resume.

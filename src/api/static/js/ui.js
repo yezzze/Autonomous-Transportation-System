@@ -252,7 +252,8 @@ function renderApps(apps) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="5">暂无应用，请先安装</td></tr>';
     return;
   }
-  const _hasScheduleConfig = (a) => a.guidance_file && a.guidance_file.constraints && a.guidance_file.constraints.schedule_interval_seconds > 0;
+  const _hasScheduleConfig = (a) => a.guidance_file && a.guidance_file.constraints
+    && Object.prototype.hasOwnProperty.call(a.guidance_file.constraints, 'schedule_interval_seconds');
   tbody.innerHTML = apps.map(a => {
     const hasSched = _hasScheduleConfig(a);
     const schedInterval = hasSched ? a.guidance_file.constraints.schedule_interval_seconds : 0;
@@ -263,7 +264,7 @@ function renderApps(apps) {
     <tr id="app-row-${a.app_id}">
       <td><strong>${escHtml(a.name)}</strong></td>
       <td style="font-family:monospace;font-size:12px;color:#778">${a.app_id}</td>
-      <td>${statusBadge(a.status)}${a.status==='scheduled'?`<div style="font-size:11px;color:#7c3aed;margin-top:2px">每 ${schedInterval}s</div>`:''}</td>
+      <td>${statusBadge(a.status)}${a.status==='scheduled'?`<div style="font-size:11px;color:#7c3aed;margin-top:2px">${schedInterval > 0 ? `每 ${schedInterval}s` : '连续串行执行'}</div>`:''}</td>
       <td style="font-family:monospace;font-size:12px;color:#aaa">${a.workflow_handle||'—'}</td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -412,11 +413,11 @@ async function installApp() {
   const selected = [...document.querySelectorAll('#f-agent-choices input[type="checkbox"]:checked')].map(el => el.value);
   const agents = selected;
   const skillsMd = document.getElementById('f-skills').value.trim() || null;
-  const schedInterval = parseInt(document.getElementById('f-schedule-interval').value)||0;
+  const schedInterval = parseFloat(document.getElementById('f-schedule-interval').value)||0;
   const schedParallel = parseInt(document.getElementById('f-schedule-parallel').value)||5;
   const schedAutoRestart = document.getElementById('f-schedule-autorestart').checked;
   const constraints = { timeout_seconds: parseInt(document.getElementById('f-timeout').value)||120 };
-  if (schedInterval > 0) {
+  if (schedInterval >= 0) {
     constraints.schedule_interval_seconds = schedInterval;
     constraints.schedule_max_parallel = schedParallel;
     constraints.schedule_auto_restart = schedAutoRestart;

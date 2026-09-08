@@ -1540,7 +1540,8 @@ async def start_schedule(app_id: str, request: Optional[StartAppRequest] = None)
     """
     启动应用的周期调度。普通应用会先完成规划、智能体部署和路由冻结，
     再创建周期调度器；deploy_only 应用复用此前显式部署的运行态。
-    需在 GuidanceFile.constraints 中配置 schedule_interval_seconds。
+    schedule_interval_seconds 可选，支持浮点秒数；未配置或为 0 时，
+    每轮执行完成后立即串行启动下一轮。
     可选配置 schedule_max_parallel（默认 5）、schedule_max_history（默认 100）。
     """
     try:
@@ -1570,7 +1571,7 @@ async def start_schedule(app_id: str, request: Optional[StartAppRequest] = None)
 
         success = await manager.start_schedule(app_id, resource_config=resource_config)
         if not success:
-            detail = app.error_message or "应用可能已在调度中或未配置 schedule_interval_seconds"
+            detail = app.error_message or "应用可能已在调度中或调度配置无效"
             raise HTTPException(
                 status_code=400,
                 detail=f"启动调度失败：{detail}",

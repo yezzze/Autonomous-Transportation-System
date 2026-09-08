@@ -70,8 +70,8 @@
           </div>
           <div class="form-group">
             <label>周期调度间隔（秒）</label>
-            <input id="f-schedule-interval" type="number" value="0" min="0" max="86400">
-            <small>0 = 不启用周期调度；>0 = 安装后可启动定时执行</small>
+            <input id="f-schedule-interval" type="number" value="0" min="0" max="86400" step="any">
+            <small>0 = 上一轮完成后立即执行下一轮；>0 = 按秒数定时触发</small>
           </div>
           <div class="form-group">
             <label>最大并行实例</label>

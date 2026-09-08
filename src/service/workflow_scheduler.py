@@ -1,9 +1,9 @@
 """
 周期性工作流调度器 (WorkflowScheduler)
 
-按固定时间间隔自动触发工作流执行，支持并行实例。
+按固定时间间隔或串行连续模式自动触发工作流执行，支持并行实例。
 调度配置存放在 GuidanceFile.constraints 中：
-  - schedule_interval_seconds: int   — 周期间隔（秒）
+  - schedule_interval_seconds: float — 周期间隔（秒）；0 表示串行连续执行
   - schedule_max_parallel: int       — 最大并行实例数（默认 5）
   - schedule_max_history: int        — 保留历史记录数（默认 100）
   - schedule_auto_restart: bool      — 服务重启后自动恢复调度（默认 False）
@@ -38,7 +38,7 @@ class _ScheduleState:
     app_id: str
     schedule_workflow_handle: str
     master_workflow_handle: str
-    interval_seconds: int
+    interval_seconds: float
     max_parallel: int
     max_history: int
     scheduler_task: Optional[asyncio.Task] = field(default=None, repr=False)
@@ -78,7 +78,7 @@ class WorkflowScheduler:
     async def start_schedule(
         self,
         app_id: str,
-        interval_seconds: int,
+        interval_seconds: float,
         max_parallel: int = 5,
         max_history: int = 100,
     ) -> bool:
@@ -87,7 +87,7 @@ class WorkflowScheduler:
 
         Args:
             app_id:            应用 ID
-            interval_seconds:  周期间隔（秒）
+            interval_seconds:  周期间隔（秒）；0 表示串行连续执行
             max_parallel:      最大并行实例数
             max_history:       保留历史记录数
 
@@ -98,9 +98,12 @@ class WorkflowScheduler:
             logger.warning(f"[Scheduler] 应用 {app_id} 已在调度中")
             return False
 
-        if interval_seconds < 1:
-            logger.error(f"[Scheduler] interval_seconds 必须 >= 1，收到 {interval_seconds}")
+        if interval_seconds < 0:
+            logger.error(f"[Scheduler] interval_seconds 必须 >= 0，收到 {interval_seconds}")
             return False
+        # 连续执行模式必须等待上一轮结束，因此不允许并行。
+        if interval_seconds == 0:
+            max_parallel = 1
 
         from src.app.app_logic_engine import get_app_logic_engine
         master_workflow_handle = get_app_logic_engine().get_workflow_handle(app_id)
@@ -242,7 +245,10 @@ class WorkflowScheduler:
         )
         try:
             while True:
-                await asyncio.sleep(state.interval_seconds)
+                # 固定间隔模式先等待再触发；0 间隔模式立即触发首轮，
+                # 并在每轮末尾等待该轮完成后再进入下一轮。
+                if state.interval_seconds > 0:
+                    await asyncio.sleep(state.interval_seconds)
 
                 # 清理已完成的 runs
                 self._cleanup_done_runs(app_id, state)
@@ -293,6 +299,11 @@ class WorkflowScheduler:
                     f"app_id={app_id}, run_id={run_id}, "
                     f"active={len(state.active_runs)}"
                 )
+
+                if state.interval_seconds == 0:
+                    # shield 避免停止调度循环时意外取消正在运行的工作流；
+                    # 是否取消活跃任务仍由 stop_schedule(cancel_active=...) 决定。
+                    await asyncio.shield(task)
 
         except asyncio.CancelledError:
             logger.info(f"[Scheduler] 调度循环已取消: app_id={app_id}")
