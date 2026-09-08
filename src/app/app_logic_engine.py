@@ -166,7 +166,7 @@ class AppLogicEngine:
             register_cross_host_workflows,
         )
 
-        timeout = guidance.constraints.get("timeout_seconds", guidance.constraints.get("max_timeout", 120))
+        timeout = guidance.constraints.get("timeout_seconds", guidance.constraints.get("max_timeout", 6 * 60))
         instance_ids: List[str] = []
         remote_sessions: Dict[str, Dict[str, Any]] = {}
         try:

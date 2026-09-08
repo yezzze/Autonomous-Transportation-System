@@ -162,7 +162,7 @@ class A2AClient:
 
     def __init__(self, sender_id: str = "l2_scheduler"):
         self.sender_id = sender_id
-        self.timeout = httpx.Timeout(60.0, connect=5.0)
+        self.timeout = httpx.Timeout(5 * 60.0, connect=5.0)
         self._legacy_client = _LegacyA2AClient(sender_id=sender_id, timeout=self.timeout)
 
     async def send_task_request(

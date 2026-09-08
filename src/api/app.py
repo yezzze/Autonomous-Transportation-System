@@ -1089,7 +1089,7 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
 
     workflow_handle = workflow["workflow_handle"]
     workflow["status"] = "running"
-    timeout = int(req.timeout_seconds or workflow.get("timeout_seconds", 60))
+    timeout = int(req.timeout_seconds or workflow.get("timeout_seconds", 6 * 60))
 
     workflow_task = asyncio.create_task(
         # The finalized segment already contains its global boundary parameters.

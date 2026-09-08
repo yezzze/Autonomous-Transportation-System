@@ -197,7 +197,7 @@ async def register_subtask_graph_to_remote_aoe(
 async def execute_registered_subworkflow(
     subtask: dict,
     workflow_info: dict,
-    session_timeout: int = 30,
+    session_timeout: int = 6 * 60,
 ) -> dict:
     """运行期：按已注册的子工作流 ID 调用远端执行接口。
 
