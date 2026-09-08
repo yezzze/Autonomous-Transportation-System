@@ -13,7 +13,8 @@ CONDA_ENV="${CONDA_ENV-langmanus}"
 export ENABLE_AOE_GOSSIP=1
 
 usage() {
-    echo "Usage: $0 [start|stop|status|restart]"
+    echo "Usage: $0 {start|restart} [--clear_log]"
+    echo "       $0 {stop|status}"
 }
 
 get_pid() {
@@ -73,6 +74,8 @@ load_local_aoe_url() {
 }
 
 start_server() {
+    local clear_log="${1:-0}"
+
     if is_running; then
         echo "server.py is already running (PID $(get_pid))."
         return 0
@@ -85,6 +88,11 @@ start_server() {
     activate_environment || return 1
     load_local_aoe_url || return 1
     mkdir -p "$(dirname "$PID_FILE")" "$(dirname "$LOG_FILE")"
+
+    if [[ "$clear_log" == "1" ]]; then
+        : >"$LOG_FILE"
+        echo "Cleared log: $LOG_FILE"
+    fi
 
     cd "$ROOT_DIR" || return 1
     nohup python -u server.py >>"$LOG_FILE" 2>&1 &
@@ -138,9 +146,25 @@ status_server() {
     return 3
 }
 
-case "${1:-}" in
+action="${1:-}"
+option="${2:-}"
+
+if (( $# > 2 )) || { [[ -n "$option" ]] && [[ "$option" != "--clear_log" ]]; }; then
+    usage >&2
+    exit 2
+fi
+
+if [[ "$option" == "--clear_log" && "$action" != "start" && "$action" != "restart" ]]; then
+    usage >&2
+    exit 2
+fi
+
+clear_log=0
+[[ "$option" == "--clear_log" ]] && clear_log=1
+
+case "$action" in
     start)
-        start_server
+        start_server "$clear_log"
         ;;
     stop)
         stop_server
@@ -149,7 +173,7 @@ case "${1:-}" in
         status_server
         ;;
     restart)
-        stop_server && start_server
+        stop_server && start_server "$clear_log"
         ;;
     *)
         usage >&2
