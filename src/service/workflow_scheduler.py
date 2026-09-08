@@ -37,6 +37,7 @@ class _ScheduleState:
     """单个应用的调度运行状态"""
     app_id: str
     schedule_workflow_handle: str
+    master_workflow_handle: str
     interval_seconds: int
     max_parallel: int
     max_history: int
@@ -101,19 +102,22 @@ class WorkflowScheduler:
             logger.error(f"[Scheduler] interval_seconds 必须 >= 1，收到 {interval_seconds}")
             return False
 
+        from src.app.app_logic_engine import get_app_logic_engine
+        master_workflow_handle = get_app_logic_engine().get_workflow_handle(app_id)
+        if not master_workflow_handle:
+            logger.error("[Scheduler] 应用 %s 没有主工作流句柄", app_id)
+            return False
+
         state = _ScheduleState(
             app_id=app_id,
             schedule_workflow_handle=f"sched_wf_{app_id}_{uuid.uuid4().hex[:6]}",
+            master_workflow_handle=master_workflow_handle,
             interval_seconds=interval_seconds,
             max_parallel=max_parallel,
             max_history=max_history,
         )
-        # 说明：我们把 schedule_workflow_handle 直接作为可视化工作流 id，
-        # 前端会把它当作一个可选项显示。实际每次调度触发的子运行仍然
-        # 是独立的执行任务（run_id）。调度器会把必要的子运行进度合并
-        # 到此调度会话的 snapshot 中供前端展示，而不必将每个子 run 单独
-        # 注册为 viz workflow（以避免列表泛滥）。
-        # 在 VizBus 中注册该调度会话的可视化入口（用于列表与汇总展示）
+        # schedule_workflow_handle 和 run_id 仅作为内部标识；可视化状态
+        # 统一汇总到应用的 master_workflow_handle。
         self._register_schedule_viz_record(state)
         state.scheduler_task = asyncio.create_task(
             self._schedule_loop(app_id, state),
@@ -201,6 +205,7 @@ class WorkflowScheduler:
         return {
             "app_id": app_id,
             "schedule_workflow_handle": state.schedule_workflow_handle,
+            "master_workflow_handle": state.master_workflow_handle,
             "interval_seconds": state.interval_seconds,
             "max_parallel": state.max_parallel,
             "active_runs": len(state.active_runs),
@@ -436,7 +441,9 @@ class WorkflowScheduler:
 
             bus = get_viz_bus()
             title = f"Schedule {state.app_id}"
-            bus.register(title=title, workflow_id=state.schedule_workflow_handle)
+            if not bus.get(state.master_workflow_handle):
+                bus.register(title=title, workflow_id=state.master_workflow_handle)
+            bus.resume(state.master_workflow_handle)
             self._publish_schedule_viz_state(
                 state,
                 node_name="schedule_started",
@@ -486,10 +493,10 @@ class WorkflowScheduler:
             payload["schedule_active_runs"] = list(current_state.active_runs.keys())
             payload["schedule_active_count"] = len(current_state.active_runs)
             payload["orchestration_mode"] = "schedule"
-            bus.update_state(state.schedule_workflow_handle, payload, node_name=node_name)
+            bus.update_state(state.master_workflow_handle, payload, node_name=node_name)
             if finish_status:
                 bus.finish(
-                    state.schedule_workflow_handle,
+                    state.master_workflow_handle,
                     status=finish_status,
                     final_state=payload,
                     error=error,

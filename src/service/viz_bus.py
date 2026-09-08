@@ -143,7 +143,11 @@ class VizBus:
         # 浅拷贝即可,DistributedState 字段都是 list/dict/标量
         new_state = self._snapshot(state)
         # 对调度会话，保留既有的调度标识，避免某次局部状态写入把它们覆盖掉。
-        if e.state.get("schedule_workflow_handle") and e.state.get("view_type") == "schedule":
+        if (
+            new_state.get("view_type") == "schedule"
+            and e.state.get("schedule_workflow_handle")
+            and e.state.get("view_type") == "schedule"
+        ):
             new_state.setdefault("view_type", "schedule")
             new_state.setdefault("schedule_workflow_handle", e.state.get("schedule_workflow_handle"))
             new_state.setdefault("app_id", e.state.get("app_id", ""))
@@ -163,6 +167,17 @@ class VizBus:
         # 推给该 wf 的订阅者
         self._publish_workflow(workflow_id, {"type": "state_update", "node": node_name})
         # 同时通知全局订阅者(列表里有进度变化)
+        self._publish_global({"type": "workflow_progress", "id": workflow_id})
+
+    def resume(self, workflow_id: str) -> None:
+        """将既有主工作流重新标记为运行中，同时保留其订阅者。"""
+        e = self.workflows.get(workflow_id)
+        if not e:
+            return
+        e.status = "running"
+        e.error = None
+        e.updated_at = time.time()
+        self._publish_workflow(workflow_id, {"type": "workflow_resumed"})
         self._publish_global({"type": "workflow_progress", "id": workflow_id})
 
     def finish(self, workflow_id: str, status: str = "done",
@@ -260,11 +275,12 @@ class VizBus:
         # 也包含 schedule 视图需要的聚合字段。确保 schedule 发布时这些
         # 字段不会被丢弃，从而能让前端识别 view_type 并显示调度汇总。
         keep = (
-            "view_type", "app_id", "schedule_workflow_handle",
+            "view_type", "app_id", "schedule_workflow_handle", "master_workflow_handle",
             "schedule_interval_seconds", "schedule_max_parallel",
             "schedule_started_at", "schedule_status", "schedule_error",
             "schedule_total_runs", "schedule_active_runs", "schedule_active_count",
             "last_run_id", "last_workflow_handle", "last_run_result_preview", "last_run_error",
+            "run_id", "internal_workflow_handle", "execution_kind",
             "skills_content", "pipeline_topology", "complexity_level",
             "orchestration_mode", "agent_registry_cache", "execution_plan",
             "current_task_index", "all_tasks_completed", "failed_tasks",

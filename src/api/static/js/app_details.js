@@ -128,9 +128,8 @@ function setRuntimeInfo(app) {
 }
 
 function preferredWorkflowHandle(app) {
-  if (app?.schedule_active && app?.schedule_workflow_handle) {
-    return app.schedule_workflow_handle;
-  }
+  // 应用详情始终订阅唯一的对外主句柄。周期会话与各次执行使用内部 ID，
+  // 其状态由后端汇总发布到该主句柄。
   return app?.workflow_handle || '';
 }
 

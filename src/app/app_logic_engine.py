@@ -407,7 +407,11 @@ class AppLogicEngine:
 
         from src.distributed_workflow import run_distributed_workflow
 
-        workflow_handle = f"wf_{app_id}_{uuid.uuid4().hex[:6]}"
+        workflow_handle = self._workflow_handles.get(app_id)
+        if not workflow_handle:
+            raise RuntimeError("APP_NOT_DEPLOYED: 应用没有主工作流句柄")
+        run_id = f"run_{uuid.uuid4().hex[:8]}"
+        internal_workflow_handle = f"{workflow_handle}_{run_id}"
         timeout = guidance.constraints.get("timeout_seconds", 120)
 
         logger.info(
@@ -426,6 +430,33 @@ class AppLogicEngine:
             raise RuntimeError("FROZEN_PLAN_MISSING: 应用尚未启动或没有冻结执行计划")
         query_plan = self._inject_query_into_plan(plan, user_input)
 
+        from src.service.viz_bus import get_viz_bus
+        bus = get_viz_bus()
+        if not bus.get(workflow_handle):
+            bus.register(title=guidance.task_description[:60], workflow_id=workflow_handle)
+        bus.resume(workflow_handle)
+
+        def _publish_run_state(run_state: Dict[str, Any], node_name: str) -> None:
+            snapshot = dict(run_state)
+            snapshot.update({
+                "app_id": app_id,
+                "view_type": "workflow",
+                "run_id": run_id,
+                "internal_workflow_handle": internal_workflow_handle,
+                "execution_kind": "explicit",
+            })
+            if node_name == "__finish__":
+                bus.finish(workflow_handle, status="done", final_state=snapshot)
+            elif node_name == "__error__":
+                bus.finish(
+                    workflow_handle,
+                    status="failed",
+                    final_state=snapshot,
+                    error=str(snapshot.get("error") or "执行失败"),
+                )
+            else:
+                bus.update_state(workflow_handle, snapshot, node_name=node_name)
+
         try:
             result = await run_distributed_workflow(
                 user_input=user_input,
@@ -439,17 +470,54 @@ class AppLogicEngine:
                 frozen_plan_signature=signature,
                 execution_plan=query_plan,
                 cross_host_sessions=self._cross_host_sessions.get(app_id, {}),
+                viz_enabled=False,
+                state_callback=_publish_run_state,
             )
+            # 保底结束主视图；正常路径已由 __finish__ 回调完成，此处不会重复。
+            entry = bus.get(workflow_handle)
+            if entry and entry.status == "running":
+                final_state = dict(result) if isinstance(result, dict) else {}
+                final_state.update({
+                    "app_id": app_id,
+                    "view_type": "workflow",
+                    "run_id": run_id,
+                    "internal_workflow_handle": internal_workflow_handle,
+                    "execution_kind": "explicit",
+                })
+                bus.finish(workflow_handle, status="done", final_state=final_state)
             logger.info(f"[ALRE] run_query 完成: app_id={app_id}")
             return {
                 "workflow_handle": workflow_handle,
+                "run_id": run_id,
+                "internal_workflow_handle": internal_workflow_handle,
                 "status": "done",
                 "result": result,
             }
         except Exception as e:
             logger.error(f"[ALRE] run_query 异常: app_id={app_id}, error={e}")
+            # run_distributed_workflow 正常会通过 __error__ 回调结束主视图；
+            # 若异常发生在回调建立之前，也要避免主工作流一直显示 running。
+            entry = bus.get(workflow_handle)
+            if entry and entry.status == "running":
+                error_state = dict(entry.state or {})
+                error_state.update({
+                    "app_id": app_id,
+                    "view_type": "workflow",
+                    "run_id": run_id,
+                    "internal_workflow_handle": internal_workflow_handle,
+                    "execution_kind": "explicit",
+                    "error": str(e),
+                })
+                bus.finish(
+                    workflow_handle,
+                    status="failed",
+                    final_state=error_state,
+                    error=str(e),
+                )
             return {
                 "workflow_handle": workflow_handle,
+                "run_id": run_id,
+                "internal_workflow_handle": internal_workflow_handle,
                 "status": "error",
                 "error": str(e),
             }

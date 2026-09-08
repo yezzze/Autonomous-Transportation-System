@@ -18,10 +18,11 @@ def _with_runtime_state(app, data: Dict) -> Dict:
     from src.app.app_logic_engine import get_app_logic_engine
     from src.service.workflow_scheduler import get_workflow_scheduler
 
+    engine = get_app_logic_engine()
     schedule = get_workflow_scheduler().get_schedule_status(app.app_id)
     return {
         **data,
-        "deployed": get_app_logic_engine().is_deployed(app.app_id),
+        "deployed": engine.is_deployed(app.app_id),
         "schedule_active": schedule is not None,
         "schedule_workflow_handle": (
             schedule.get("schedule_workflow_handle") if schedule else None

@@ -444,7 +444,6 @@ class AppManager:
         if success:
             schedule_status = scheduler.get_schedule_status(app_id) or {}
             if not deploy_only:
-                app.workflow_handle = schedule_status.get("schedule_workflow_handle")
                 app.update_status("scheduled")
             else:
                 app.update_status("running")
