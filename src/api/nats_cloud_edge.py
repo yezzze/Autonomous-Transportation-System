@@ -13,11 +13,15 @@ import re
 import socket
 import subprocess
 import uuid
+from pathlib import Path
+from typing import IO
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 _PORT_FORWARD_PROC: Optional[subprocess.Popen] = None
+_PORT_FORWARD_LOG: Optional[IO[str]] = None
+_PORT_FORWARD_LOG_PATH = Path(__file__).resolve().parents[2] / "logs" / "nats-forward.log"
 
 _AGENT_DEPLOY_PREFIXES = ("agent-", "agent_")
 
@@ -72,7 +76,7 @@ def _local_port_from_servers(servers: List[str]) -> Optional[int]:
 
 
 def stop_nats_port_forward() -> None:
-    global _PORT_FORWARD_PROC
+    global _PORT_FORWARD_LOG, _PORT_FORWARD_PROC
     if _PORT_FORWARD_PROC is not None:
         _PORT_FORWARD_PROC.terminate()
         try:
@@ -80,11 +84,14 @@ def stop_nats_port_forward() -> None:
         except subprocess.TimeoutExpired:
             _PORT_FORWARD_PROC.kill()
         _PORT_FORWARD_PROC = None
+    if _PORT_FORWARD_LOG is not None:
+        _PORT_FORWARD_LOG.close()
+        _PORT_FORWARD_LOG = None
 
 
 def maybe_start_nats_port_forward() -> None:
     """若 NATS_SERVERS 指向本机端口且未监听，则 kubectl port-forward。"""
-    global _PORT_FORWARD_PROC
+    global _PORT_FORWARD_LOG, _PORT_FORWARD_PROC
 
     flag = os.getenv("AUTO_NATS_PORT_FORWARD", "1").strip().lower()
     if flag in {"0", "false", "no", "off"}:
@@ -127,22 +134,28 @@ def maybe_start_nats_port_forward() -> None:
         f"{local_port}:4222",
     ]
     logger.info("[NATS UI] 启动: %s", " ".join(cmd))
-    _PORT_FORWARD_PROC = subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-    )
+    _PORT_FORWARD_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _PORT_FORWARD_LOG = _PORT_FORWARD_LOG_PATH.open("a", encoding="utf-8", buffering=1)
+    try:
+        _PORT_FORWARD_PROC = subprocess.Popen(
+            cmd,
+            stdout=_PORT_FORWARD_LOG,
+            stderr=subprocess.STDOUT,
+        )
+    except (OSError, subprocess.SubprocessError):
+        _PORT_FORWARD_LOG.close()
+        _PORT_FORWARD_LOG = None
+        raise
 
     for _ in range(40):
         if _port_open(local_port):
             logger.info("[NATS UI] port-forward 就绪: %s", servers[0])
             return
         if _PORT_FORWARD_PROC.poll() is not None:
-            err = (_PORT_FORWARD_PROC.stderr.read() if _PORT_FORWARD_PROC.stderr else b"").decode(
-                errors="replace"
-            )
-            logger.error("[NATS UI] port-forward 退出: %s", err.strip())
+            logger.error("[NATS UI] port-forward 已退出")
             _PORT_FORWARD_PROC = None
+            _PORT_FORWARD_LOG.close()
+            _PORT_FORWARD_LOG = None
             return
         import time
 

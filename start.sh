@@ -5,6 +5,8 @@ set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="${ROOT_DIR}/run/server.pid"
 LOG_FILE="${ROOT_DIR}/logs/server.log"
+NATS_FORWARD_LOG_FILE="${ROOT_DIR}/logs/nats-forward.log"
+PROMETHEUS_FORWARD_LOG_FILE="${ROOT_DIR}/logs/prometheus-forward.log"
 CONFIG_FILE="${ROOT_DIR}/config/aoe_cluster_config.json"
 # Conda 环境名称，设为空则不使用虚拟环境
 CONDA_ENV="${CONDA_ENV-langmanus}"
@@ -90,8 +92,11 @@ start_server() {
     mkdir -p "$(dirname "$PID_FILE")" "$(dirname "$LOG_FILE")"
 
     if [[ "$clear_log" == "1" ]]; then
-        : >"$LOG_FILE"
-        echo "Cleared log: $LOG_FILE"
+        local log_file
+        for log_file in "$LOG_FILE" "$NATS_FORWARD_LOG_FILE" "$PROMETHEUS_FORWARD_LOG_FILE"; do
+            : >"$log_file"
+            echo "Cleared log: $log_file"
+        done
     fi
 
     cd "$ROOT_DIR" || return 1
