@@ -682,6 +682,13 @@ class A2AClient:
             "[A2A QoS] %s",
             json.dumps(qos, ensure_ascii=False, sort_keys=True),
         )
+        logger.debug(
+            "[A2A 调用完成] task_id=%s status=%s transport=%s result=%s",
+            request.task_id,
+            response.state,
+            transport,
+            json.dumps(response.result, ensure_ascii=False, default=str),
+        )
         return _copy_response(response, metadata)
 
     def _safe_float(self, value: Any) -> Optional[float]:
