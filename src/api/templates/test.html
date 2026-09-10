@@ -26,6 +26,7 @@
       Agent 实例测试
     </button>
     <button class="tab-btn" type="button" role="tab" data-test-tab="orchestration" aria-selected="false">智能体编排测试</button>
+    <button class="tab-btn" type="button" role="tab" data-test-tab="prometheus" aria-selected="false">Prometheus测试</button>
   </div>
   <section id="test-panel-instances" class="tab-panel active" role="tabpanel">
     <div class="toolbar">
@@ -128,6 +129,66 @@
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="test-panel-prometheus" class="tab-panel" role="tabpanel">
+    <div class="card prometheus-query-card">
+      <div class="card-title">PromQL 即时查询</div>
+      <form id="prometheus-query-form">
+        <div class="form-group">
+          <label for="prometheus-query">PromQL</label>
+          <textarea id="prometheus-query" required placeholder="输入 PromQL，例如：up">sum by (instance_id) (agent_calls_total)</textarea>
+        </div>
+        <div class="prometheus-query-actions">
+          <button class="btn btn-primary" id="run-prometheus-query" type="submit">查询</button>
+          <label class="prometheus-range-label" for="prometheus-range">时间范围</label>
+          <select id="prometheus-range">
+            <option value="900">15 分钟</option>
+            <option value="3600" selected>1 小时</option>
+            <option value="21600">6 小时</option>
+            <option value="86400">24 小时</option>
+          </select>
+          <span id="prometheus-query-state" class="test-call-state"></span>
+        </div>
+      </form>
+      <div id="prometheus-query-result" class="test-table-wrap prometheus-result" hidden>
+        <table aria-label="Prometheus 查询结果">
+          <thead><tr><th>标签</th><th>值</th><th>采样时间</th></tr></thead>
+          <tbody id="prometheus-query-body"></tbody>
+        </table>
+      </div>
+      <div id="prometheus-chart-panel" class="prometheus-chart-panel" hidden>
+        <div class="prometheus-chart-header">
+          <strong>近期趋势</strong>
+          <span id="prometheus-chart-state" class="test-call-state"></span>
+        </div>
+        <div id="prometheus-chart-legend" class="prometheus-chart-legend"></div>
+        <div id="prometheus-chart" class="prometheus-chart" role="img" aria-label="Prometheus 指标近期趋势图"></div>
+        <div id="prometheus-chart-tooltip" class="prometheus-chart-tooltip" hidden></div>
+      </div>
+    </div>
+
+    <div class="toolbar prometheus-metrics-toolbar">
+      <div>
+        <div class="toolbar-title">Agent实例指标</div>
+        <div class="test-help">显示所有运行中 Agent 实例最近 5 分钟的 Prometheus 指标。</div>
+      </div>
+      <div class="toolbar-right">
+        <fieldset class="prometheus-aggregation-toggle" aria-label="耗时指标统计方式">
+          <legend>统计方式</legend>
+          <label><input type="radio" name="prometheus-aggregation" value="average">平均值</label>
+          <label><input type="radio" name="prometheus-aggregation" value="p95" checked>p95</label>
+        </fieldset>
+        <span class="refresh-hint" id="prometheus-metrics-refresh-hint"></span>
+        <button class="btn btn-ghost btn-sm" id="refresh-prometheus-metrics" type="button">刷新</button>
+      </div>
+    </div>
+    <div class="test-table-wrap">
+      <table aria-label="Agent 实例 Prometheus 指标">
+        <thead><tr><th>名称</th><th>状态</th><th>实例 ID</th><th>累计调用次数</th><th id="prometheus-queue-heading">排队等待 p95</th><th id="prometheus-execution-heading">执行耗时 p95</th><th id="prometheus-server-heading">服务端总耗时 p95</th><th>操作</th></tr></thead>
+        <tbody id="prometheus-metrics-body"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
+      </table>
     </div>
   </section>
 </main>

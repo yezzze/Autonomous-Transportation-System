@@ -110,6 +110,32 @@ histogram_quantile(
 )
 ```
 
+## 宿主机 API 自动转发 Prometheus
+
+编排 API 运行在 Kubernetes 外部时，FastAPI 启动钩子默认会在
+`PROMETHEUS_URL` 未设置的情况下执行 Prometheus Service 的端口转发，关闭时
+自动清理子进程。默认配置等价于：
+
+```bash
+AUTO_PROMETHEUS_PORT_FORWARD=1
+PROMETHEUS_FORWARD_ADDRESS=127.0.0.1
+PROMETHEUS_LOCAL_PORT=9090
+PROMETHEUS_NAMESPACE=monitoring
+PROMETHEUS_SERVICE_NAME=monitoring-kube-prometheus-prometheus
+PROMETHEUS_SERVICE_PORT=9090
+```
+
+需要让同一局域网中的另一台主机访问时，将监听地址设置为本机实际的局域网 IP：
+
+```bash
+export PROMETHEUS_FORWARD_ADDRESS=10.x.x.x
+```
+
+此时本机 API 自动使用 `http://10.x.x.x:9090`，远端主机也通过该地址访问。
+应同时使用防火墙限制允许访问 9090 端口的源地址。若显式设置了非本机的
+`PROMETHEUS_URL`，自动转发会跳过；设置 `AUTO_PROMETHEUS_PORT_FORWARD=0`
+可完全禁用该功能。
+
 ## 验证 webhook
 
 先直接模拟 Alertmanager 请求：

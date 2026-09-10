@@ -30,6 +30,10 @@ from src.api.nats_cloud_edge import (
     stop_nats_port_forward,
     ui_config_defaults,
 )
+from src.api.prometheus_port_forward import (
+    maybe_start_prometheus_port_forward,
+    stop_prometheus_port_forward,
+)
 from src.config import TEAM_MEMBERS
 from src.service.workflow_service import run_agent_workflow
 from src.service.aoe_config import (
@@ -132,6 +136,18 @@ class _AgentTestCallRequest(BaseModel):
     task_description: str = Field(..., min_length=1)
     parameters: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class _PrometheusQueryRequest(BaseModel):
+    """Prometheus 测试页发起的即时 PromQL 查询。"""
+
+    query: str = Field(..., min_length=1)
+
+
+class _PrometheusRangeQueryRequest(_PrometheusQueryRequest):
+    """Prometheus 趋势图使用的区间 PromQL 查询。"""
+
+    range_seconds: int = Field(3600, ge=300, le=86400)
 
 
 class _OrchestrationPlanPreviewRequest(BaseModel):
@@ -1187,8 +1203,9 @@ async def close_orchestration_session(session_id: str):
 
 @app.on_event("startup")
 async def _on_startup():
-    """启动 NATS port-forward（可选）与 ARDC gossip（可选）。"""
+    """启动本机端口转发（可选）与 ARDC gossip（可选）。"""
     maybe_start_nats_port_forward()
+    maybe_start_prometheus_port_forward()
 
     if os.getenv("ENABLE_AOE_GOSSIP", "0").strip().lower() in {"1", "true", "yes", "on"}:
         import re
@@ -1216,6 +1233,7 @@ async def _on_startup():
 @app.on_event("shutdown")
 async def _on_shutdown():
     stop_nats_port_forward()
+    stop_prometheus_port_forward()
 
 
 @app.on_event("startup")
@@ -1945,6 +1963,301 @@ async def test_call_agent(request: _AgentTestCallRequest):
         "result": response.result,
         "error_message": response.error_message,
         "metadata": response.metadata,
+    }
+
+
+_DEFAULT_PROMETHEUS_URL = (
+    "http://127.0.0.1:9090"
+)
+
+
+async def _query_prometheus(query: str) -> Dict[str, Any]:
+    """执行一次固定目标的 Prometheus 即时查询并规范化上游错误。"""
+    import httpx
+
+    prometheus_url = os.getenv("PROMETHEUS_URL", _DEFAULT_PROMETHEUS_URL).strip().rstrip("/")
+    if not prometheus_url:
+        raise HTTPException(status_code=503, detail="Prometheus 服务未配置")
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                f"{prometheus_url}/api/v1/query",
+                params={"query": query},
+            )
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="Prometheus 查询超时") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=503, detail="无法连接 Prometheus 服务") from exc
+
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="Prometheus 返回了无效响应") from exc
+
+    if response.status_code >= 400 or payload.get("status") != "success":
+        message = payload.get("error") or payload.get("errorType") or "Prometheus 查询失败"
+        status_code = 422 if response.status_code < 500 else 502
+        raise HTTPException(status_code=status_code, detail=str(message))
+    return payload
+
+
+async def _query_prometheus_range(
+    query: str,
+    range_seconds: int,
+    end_time: Optional[float] = None,
+) -> Dict[str, Any]:
+    """执行区间查询；步长限制在约 240 个数据点以内。"""
+    import httpx
+    import time
+
+    prometheus_url = os.getenv("PROMETHEUS_URL", _DEFAULT_PROMETHEUS_URL).strip().rstrip("/")
+    if not prometheus_url:
+        raise HTTPException(status_code=503, detail="Prometheus 服务未配置")
+    end = end_time if end_time is not None else time.time()
+    params = {
+        "query": query,
+        "start": end - range_seconds,
+        "end": end,
+        "step": max(range_seconds // 240, 1),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{prometheus_url}/api/v1/query_range", params=params)
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="Prometheus 区间查询超时") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=503, detail="无法连接 Prometheus 服务") from exc
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="Prometheus 返回了无效响应") from exc
+    if response.status_code >= 400 or payload.get("status") != "success":
+        message = payload.get("error") or payload.get("errorType") or "Prometheus 区间查询失败"
+        raise HTTPException(
+            status_code=422 if response.status_code < 500 else 502,
+            detail=str(message),
+        )
+    payload["query_range"] = {
+        "start": params["start"],
+        "end": params["end"],
+        "step": params["step"],
+    }
+    return payload
+
+
+@app.post("/tests/prometheus/query", summary="执行 Prometheus 即时查询")
+async def test_prometheus_query(request: _PrometheusQueryRequest):
+    query = request.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="PromQL 查询不能为空")
+    payload = await _query_prometheus(query)
+    data = payload.get("data") or {}
+    return {
+        "result_type": data.get("resultType"),
+        "result": data.get("result", []),
+        "warnings": payload.get("warnings", []),
+    }
+
+
+@app.post("/tests/prometheus/query-range", summary="执行 Prometheus 区间查询")
+async def test_prometheus_query_range(request: _PrometheusRangeQueryRequest):
+    query = request.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="PromQL 查询不能为空")
+    payload = await _query_prometheus_range(query, request.range_seconds)
+    data = payload.get("data") or {}
+    return {
+        "result_type": data.get("resultType"),
+        "result": data.get("result", []),
+        "warnings": payload.get("warnings", []),
+        "query_range": payload.get("query_range", {}),
+    }
+
+
+_AGENT_P95_METRIC_QUERIES = {
+    "total_calls": "sum by (instance_id) (agent_calls_total)",
+    "queue_wait_p95": (
+        "histogram_quantile(0.95, sum by (le, instance_id) "
+        "(rate(agent_queue_wait_seconds_bucket[5m])))"
+    ),
+    "execution_p95": (
+        "histogram_quantile(0.95, sum by (le, instance_id) "
+        "(rate(agent_execution_seconds_bucket[5m])))"
+    ),
+    "server_total_p95": (
+        "histogram_quantile(0.95, sum by (le, instance_id) "
+        "(rate(agent_server_total_seconds_bucket[5m])))"
+    ),
+}
+
+
+def _agent_metric_queries(aggregation: str) -> Dict[str, str]:
+    if aggregation == "p95":
+        return _AGENT_P95_METRIC_QUERIES
+    if aggregation != "average":
+        raise HTTPException(status_code=422, detail="aggregation 必须为 p95 或 average")
+
+    def average(metric: str) -> str:
+        return (
+            f"sum by (instance_id) (rate({metric}_sum[5m])) / "
+            f"sum by (instance_id) (rate({metric}_count[5m]))"
+        )
+
+    return {
+        "total_calls": "sum by (instance_id) (agent_calls_total)",
+        "queue_wait_p95": average("agent_queue_wait_seconds"),
+        "execution_p95": average("agent_execution_seconds"),
+        "server_total_p95": average("agent_server_total_seconds"),
+    }
+
+
+def _prometheus_label_value(value: str) -> str:
+    """转义 PromQL 字符串标签值。"""
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+def _agent_metric_history_queries(instance_id: str, aggregation: str = "p95") -> Dict[str, str]:
+    matcher = f'instance_id="{_prometheus_label_value(instance_id)}"'
+    if aggregation == "average":
+        def average(metric: str) -> str:
+            return (
+                f"sum(rate({metric}_sum{{{matcher}}}[5m])) / "
+                f"sum(rate({metric}_count{{{matcher}}}[5m]))"
+            )
+
+        return {
+            "total_calls": f"sum(agent_calls_total{{{matcher}}})",
+            "queue_wait_p95": average("agent_queue_wait_seconds"),
+            "execution_p95": average("agent_execution_seconds"),
+            "server_total_p95": average("agent_server_total_seconds"),
+        }
+    if aggregation != "p95":
+        raise HTTPException(status_code=422, detail="aggregation 必须为 p95 或 average")
+    return {
+        "total_calls": f"sum(agent_calls_total{{{matcher}}})",
+        "queue_wait_p95": (
+            "histogram_quantile(0.95, sum by (le) "
+            f"(rate(agent_queue_wait_seconds_bucket{{{matcher}}}[5m])))"
+        ),
+        "execution_p95": (
+            "histogram_quantile(0.95, sum by (le) "
+            f"(rate(agent_execution_seconds_bucket{{{matcher}}}[5m])))"
+        ),
+        "server_total_p95": (
+            "histogram_quantile(0.95, sum by (le) "
+            f"(rate(agent_server_total_seconds_bucket{{{matcher}}}[5m])))"
+        ),
+    }
+
+
+def _prometheus_vector_by_instance(payload: Dict[str, Any]) -> Dict[str, float]:
+    values: Dict[str, float] = {}
+    for item in (payload.get("data") or {}).get("result", []):
+        instance_id = (item.get("metric") or {}).get("instance_id")
+        sample = item.get("value") or []
+        if not instance_id or len(sample) < 2:
+            continue
+        try:
+            value = float(sample[1])
+            if value == value and value not in (float("inf"), float("-inf")):
+                values[instance_id] = value
+        except (TypeError, ValueError):
+            continue
+    return values
+
+
+@app.get("/tests/prometheus/agent-metrics", summary="获取运行中 Agent 实例的 Prometheus 指标")
+async def test_prometheus_agent_metrics(aggregation: str = "p95"):
+    from src.runtime.lifecycle_manager import get_lifecycle_manager
+
+    queries = _agent_metric_queries(aggregation)
+    instances = [
+        instance for instance in get_lifecycle_manager().list_instances()
+        if instance.status == "running"
+    ]
+    if not instances:
+        return {"instances": []}
+
+    results = await asyncio.gather(
+        *(_query_prometheus(query) for query in queries.values()),
+        return_exceptions=True,
+    )
+    metric_values: Dict[str, Dict[str, float]] = {}
+    errors: List[str] = []
+    for name, result in zip(queries, results):
+        if isinstance(result, Exception):
+            metric_values[name] = {}
+            errors.append(name)
+        else:
+            metric_values[name] = _prometheus_vector_by_instance(result)
+
+    rows = []
+    for instance in instances:
+        instance_id = instance.instance_id
+        rows.append({
+            "agent_id": instance.agent_id,
+            "instance_id": instance_id,
+            "status": instance.status,
+            "total_calls": metric_values["total_calls"].get(instance_id),
+            "queue_wait_p95_seconds": metric_values["queue_wait_p95"].get(instance_id),
+            "execution_p95_seconds": metric_values["execution_p95"].get(instance_id),
+            "server_total_p95_seconds": metric_values["server_total_p95"].get(instance_id),
+        })
+    return {"instances": rows, "unavailable_metrics": errors, "aggregation": aggregation}
+
+
+@app.get(
+    "/tests/prometheus/agent-metrics/{instance_id}/history",
+    summary="获取运行中 Agent 实例最近一小时的指标曲线",
+)
+async def test_prometheus_agent_metric_history(instance_id: str, aggregation: str = "p95"):
+    import time
+
+    from src.runtime.lifecycle_manager import get_lifecycle_manager
+
+    instance = get_lifecycle_manager().get_instance(instance_id)
+    if instance is None:
+        raise HTTPException(status_code=404, detail=f"实例 {instance_id} 不存在")
+    if instance.status != "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"实例 {instance_id} 当前状态为 {instance.status}",
+        )
+
+    queries = _agent_metric_history_queries(instance_id, aggregation)
+    end_time = time.time()
+    results = await asyncio.gather(
+        *(
+            _query_prometheus_range(query, 3600, end_time=end_time)
+            for query in queries.values()
+        ),
+        return_exceptions=True,
+    )
+    metrics: Dict[str, Dict[str, Any]] = {}
+    unavailable_metrics: List[str] = []
+    query_range: Dict[str, Any] = {}
+    for name, result in zip(queries, results):
+        if isinstance(result, Exception):
+            unavailable_metrics.append(name)
+            metrics[name] = {"result_type": "matrix", "result": []}
+            continue
+        data = result.get("data") or {}
+        if not query_range:
+            query_range = result.get("query_range", {})
+        metrics[name] = {
+            "result_type": data.get("resultType"),
+            "result": data.get("result", []),
+            "warnings": result.get("warnings", []),
+        }
+    return {
+        "agent_id": instance.agent_id,
+        "instance_id": instance.instance_id,
+        "range_seconds": 3600,
+        "query_range": query_range,
+        "metrics": metrics,
+        "unavailable_metrics": unavailable_metrics,
+        "aggregation": aggregation,
     }
 
 
