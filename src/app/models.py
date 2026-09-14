@@ -5,7 +5,7 @@
 - AgentImage:    智能体镜像（AW 仓库存储单元）
 - GuidanceFile:  编排指导文件（ALRE 存储的应用执行逻辑）
 - AppInfo:       应用完整信息（APPM 管理的应用实体）
-- AppStatus:     应用生命周期状态枚举
+- DeploymentStatus / RunStatus: 应用部署与运行生命周期状态枚举
 """
 from __future__ import annotations
 
@@ -19,7 +19,18 @@ from typing import Any, Dict, List, Literal, Optional
 # 应用状态
 # ======================================================================
 
-AppStatus = Literal["idle", "starting", "running", "stopping", "stopped", "error", "scheduled"]
+DeploymentStatus = Literal[
+    "undeployed", "deploying", "deployed", "undeploying", "deployment_error"
+]
+RunStatus = Literal[
+    "not_running", "starting", "running", "stopping", "stopped", "completed", "run_error"
+]
+DEPLOYMENT_STATUSES = {
+    "undeployed", "deploying", "deployed", "undeploying", "deployment_error"
+}
+RUN_STATUSES = {
+    "not_running", "starting", "running", "stopping", "stopped", "completed", "run_error"
+}
 AgentType = Literal["business", "resource"]
 
 
@@ -144,7 +155,8 @@ class AppInfo:
     """
     app_id: str
     name: str
-    status: AppStatus = "idle"
+    deployment_status: DeploymentStatus = "undeployed"
+    run_status: RunStatus = "not_running"
     # 关联的镜像 ID 列表（一个应用可能包含多个 Agent 镜像）
     image_ids: List[str] = field(default_factory=list)
     # 关联的指导文件（ALRE 存储）
@@ -153,31 +165,58 @@ class AppInfo:
     workflow_handle: Optional[str] = None
     # 应用对外暴露的接口 URL（编排成功后填充）
     app_interface_url: Optional[str] = None
-    # 错误信息
-    error_message: Optional[str] = None
+    deployment_error_message: Optional[str] = None
+    run_error_message: Optional[str] = None
+    # 标记进程停止前是否启用了周期调度，供显式自动恢复使用。
+    schedule_enabled: bool = False
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+
+    def __post_init__(self):
+        self._validate_deployment_status(self.deployment_status)
+        self._validate_run_status(self.run_status)
 
     @classmethod
     def create(cls, name: str, guidance_file: Optional[GuidanceFile] = None) -> "AppInfo":
         app_id = f"app_{uuid.uuid4().hex[:8]}"
         return cls(app_id=app_id, name=name, guidance_file=guidance_file)
 
-    def update_status(self, status: AppStatus, error: Optional[str] = None):
-        self.status = status
+    @staticmethod
+    def _validate_deployment_status(status: str) -> None:
+        if status not in DEPLOYMENT_STATUSES:
+            raise ValueError(f"invalid deployment_status: {status!r}")
+
+    @staticmethod
+    def _validate_run_status(status: str) -> None:
+        if status not in RUN_STATUSES:
+            raise ValueError(f"invalid run_status: {status!r}")
+
+    def update_deployment_status(
+        self, status: DeploymentStatus, error: Optional[str] = None
+    ) -> None:
+        self._validate_deployment_status(status)
+        self.deployment_status = status
         self.updated_at = datetime.utcnow().isoformat()
-        if error:
-            self.error_message = error
+        self.deployment_error_message = error if status == "deployment_error" else None
+
+    def update_run_status(self, status: RunStatus, error: Optional[str] = None) -> None:
+        self._validate_run_status(status)
+        self.run_status = status
+        self.updated_at = datetime.utcnow().isoformat()
+        self.run_error_message = error if status == "run_error" else None
 
     def to_dict(self) -> Dict:
         d = {
             "app_id": self.app_id,
             "name": self.name,
-            "status": self.status,
+            "deployment_status": self.deployment_status,
+            "run_status": self.run_status,
             "image_ids": self.image_ids,
             "workflow_handle": self.workflow_handle,
             "app_interface_url": self.app_interface_url,
-            "error_message": self.error_message,
+            "deployment_error_message": self.deployment_error_message,
+            "run_error_message": self.run_error_message,
+            "schedule_enabled": self.schedule_enabled,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }

@@ -117,8 +117,20 @@ function setLogicForm(app) {
   byId('e-skills').value = guidance.skills_content || '';
 }
 
+function appStatusLabel(status) {
+  const labels = {
+    undeployed: '未部署', deploying: '部署中', deployed: '已部署',
+    undeploying: '取消部署中', deployment_error: '部署错误',
+    not_running: '未运行', starting: '启动中', running: '运行中',
+    stopping: '停止中', stopped: '已停止', completed: '运行完成',
+    run_error: '运行错误',
+  };
+  return labels[status] || status || '—';
+}
+
 function setRuntimeInfo(app) {
-  byId('toolbar-status').textContent = app?.status || '—';
+  byId('toolbar-deployment-status').textContent = appStatusLabel(app?.deployment_status);
+  byId('toolbar-run-status').textContent = appStatusLabel(app?.run_status);
   byId('toolbar-workflow-handle').textContent = preferredWorkflowHandle(app) || '—';
 
   const agentsHost = byId('agents-host');
@@ -739,7 +751,8 @@ async function refreshRuntimeBinding(appId) {
 
     const previousWorkflowId = vizState.workflowId;
     currentApp = nextApp;
-    byId('toolbar-status').textContent = currentApp.status || '—';
+    byId('toolbar-deployment-status').textContent = appStatusLabel(currentApp.deployment_status);
+    byId('toolbar-run-status').textContent = appStatusLabel(currentApp.run_status);
     byId('toolbar-workflow-handle').textContent = preferredWorkflowHandle(currentApp) || '—';
 
     const nextWorkflowId = await resolveVizWorkflowId(currentApp);
@@ -771,7 +784,8 @@ document.addEventListener('DOMContentLoaded', () => {
     byId('e-task').value = '';
     byId('e-mode').value = 'adaptive';
     byId('e-skills').value = '';
-    byId('toolbar-status').textContent = '—';
+    byId('toolbar-deployment-status').textContent = '—';
+    byId('toolbar-run-status').textContent = '—';
     byId('toolbar-workflow-handle').textContent = '—';
     byId('agents-host').textContent = '加载失败';
     clearVizPanels(`加载失败：${error.message}`);

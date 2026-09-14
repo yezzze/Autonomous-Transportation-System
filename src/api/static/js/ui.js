@@ -11,7 +11,14 @@ function showAlert(id, type, msg, duration=4000) {
 }
 
 function statusBadge(s) {
-  return `<span class="badge-status s-${s}">${s}</span>`;
+  const labels = {
+    undeployed: '未部署', deploying: '部署中', deployed: '已部署',
+    undeploying: '取消部署中', deployment_error: '部署错误',
+    not_running: '未运行', starting: '启动中', running: '运行中',
+    stopping: '停止中', stopped: '已停止', completed: '运行完成',
+    run_error: '运行错误',
+  };
+  return `<span class="badge-status s-${s}">${labels[s] || s}</span>`;
 }
 
 function fmtTime() {
@@ -71,7 +78,7 @@ const _panelInput = {};              // app_id → 查询输入框内容
 const _panelResult = {};             // app_id → 查询结果
 const _pendingQueries = new Set();   // app_id → 查询请求进行中
 const _openStartPanels = new Set();  // app_id → 启动面板 open
-const _openScheduleStartPanels = new Set(); // app_id → 定时启动面板 open
+const _openScheduleStartPanels = new Set(); // app_id → 周期启动面板 open
 const _openExecutePanels = new Set(); // app_id → 结构化应用执行参数面板 open
 const _executeSkills = {};            // app_id → 本次执行的 Skills.md 内容
 const _pendingExecutions = new Set(); // app_id → 显式执行请求进行中
@@ -120,7 +127,7 @@ function _saveQueryState() {
     if (el.classList.contains('open')) _openStartPanels.add(appId);
     else _openStartPanels.delete(appId);
   });
-  // 保存定时启动面板状态
+  // 保存周期启动面板状态
   document.querySelectorAll('[id^="ssp-"]').forEach(el => {
     const appId = el.id.slice(4);
     if (el.classList.contains('open')) _openScheduleStartPanels.add(appId);
@@ -270,7 +277,7 @@ function renderAgentChoices(images) {
 function renderApps(apps) {
   const tbody = document.getElementById('apps-tbody');
   if (!apps.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">暂无应用，请先安装</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无应用，请先安装</td></tr>';
     return;
   }
   const _hasScheduleConfig = (a) => a.guidance_file && a.guidance_file.constraints
@@ -283,22 +290,31 @@ function renderApps(apps) {
     const structuredDeployOnly = deployOnly && /^##\s+Pipeline\s*$/im.test(skillsContent);
     const deployed = !!a.deployed;
     const scheduleActive = !!a.schedule_active;
+    const deploymentStatus = a.deployment_status;
+    const runStatus = a.run_status;
+    const deploymentBusy = deploymentStatus === 'deploying' || deploymentStatus === 'undeploying';
+    const runBusy = runStatus === 'starting' || runStatus === 'running' || runStatus === 'stopping';
+    const canDeploy = !deploymentBusy && !runBusy
+      && (deploymentStatus === 'undeployed' || deploymentStatus === 'deployment_error');
+    const canExecute = deploymentStatus === 'deployed'
+      && ['not_running', 'stopped', 'completed', 'run_error'].includes(runStatus);
     return `
     <tr id="app-row-${a.app_id}">
       <td><strong>${escHtml(a.name)}</strong></td>
       <td style="font-family:monospace;font-size:12px;color:#778">${a.app_id}</td>
-      <td>${statusBadge(a.status)}${a.status==='scheduled'?`<div style="font-size:11px;color:#7c3aed;margin-top:2px">${schedInterval > 0 ? `每 ${schedInterval}s` : '连续串行执行'}</div>`:''}</td>
+      <td>${statusBadge(deploymentStatus)}${a.deployment_error_message ? `<div class="status-error-detail">${escHtml(a.deployment_error_message)}</div>` : ''}</td>
+      <td>${statusBadge(runStatus)}${scheduleActive ? `<div style="font-size:11px;color:#7c3aed;margin-top:2px">${schedInterval > 0 ? `每 ${schedInterval}s` : '连续串行执行'}</div>` : ''}${a.run_error_message ? `<div class="status-error-detail">${escHtml(a.run_error_message)}</div>` : ''}</td>
       <td style="font-family:monospace;font-size:12px;color:#aaa">${a.workflow_handle||'—'}</td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${(deployOnly && !deployed) || (!deployOnly && (a.status==='idle'||a.status==='stopped'||a.status==='error'))
+          ${canDeploy
             ? `<button class="btn btn-success btn-sm" onclick="toggleStart('${a.app_id}')">▶ ${deployOnly ? '部署' : '启动'}</button>`
             // ? `<button class="btn btn-success btn-sm" onclick="startApp('${a.app_id}')">▶ 启动</button>`
             : ''}
-          ${ (a.status==='idle'||a.status==='stopped') && hasSched && !deployOnly
-            ? `<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="toggleScheduleStart('${a.app_id}')">⏱ 定时启动</button>`
+          ${ canDeploy && hasSched && !deployOnly
+            ? `<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="toggleScheduleStart('${a.app_id}')">⏱ 周期启动</button>`
             : ''}
-          ${!deployOnly && a.status==='scheduled'
+          ${!deployOnly && scheduleActive
             ? `<button class="btn btn-danger btn-sm" onclick="stopSchedule('${a.app_id}')">⏹ 停止调度</button>
                <button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>`
             : ''}
@@ -309,11 +325,11 @@ function renderApps(apps) {
                ${hasSched ? `<button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>` : ''}
                <button class="btn btn-danger btn-sm" onclick="stopApp('${a.app_id}')">⏹ 停止</button>`
             : ''}
-          ${a.status==='running' && !deployOnly
+          ${deploymentStatus === 'deployed' && !deployOnly && !scheduleActive
             ? `<button class="btn btn-warning btn-sm" onclick="toggleQuery('${a.app_id}')">💬 查询</button>
                <button class="btn btn-danger btn-sm" onclick="stopApp('${a.app_id}')">⏹ 停止</button>`
             : ''}
-          ${hasSched && (a.status==='idle'||a.status==='stopped') && !deployOnly
+          ${hasSched && !scheduleActive && (canDeploy || canExecute) && !deployOnly
             ? `<button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>`
             : ''}
           <button class="btn btn-ghost btn-sm" onclick="toggleEdit('${a.app_id}')">✏️</button>
@@ -365,7 +381,7 @@ function renderApps(apps) {
             </div>
           </div>
         </div>
-        <!-- 定时启动面板（资源配置，仅普通应用） -->
+        <!-- 周期启动面板（资源配置，仅普通应用） -->
         <div class="query-panel" id="ssp-${a.app_id}" ${deployOnly ? 'style="display:none"' : ''}>
           <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#445">
@@ -392,7 +408,7 @@ function renderApps(apps) {
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end">
               <button class="btn btn-ghost btn-sm" onclick="toggleScheduleStart('${a.app_id}')">取消</button>
-              <button class="btn btn-success btn-sm" onclick="startScheduleWithResource('${a.app_id}')">确认定时启动</button>
+              <button class="btn btn-success btn-sm" onclick="startScheduleWithResource('${a.app_id}')">确认周期启动</button>
             </div>
           </div>
         </div>
@@ -566,12 +582,12 @@ async function startScheduleWithResource(appId) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
-    showAlert('apps-alert','success','⏱ 定时启动已创建');
+    showAlert('apps-alert','success','⏱ 周期启动已创建');
     document.getElementById(`ssp-${appId}`)?.classList.remove('open');
     _openScheduleStartPanels.delete(appId);
     loadApps();
   } catch(e) {
-    showAlert('apps-alert','error',`❌ 定时启动失败：${e.message}`);
+    showAlert('apps-alert','error',`❌ 周期启动失败：${e.message}`);
   }
 }
 

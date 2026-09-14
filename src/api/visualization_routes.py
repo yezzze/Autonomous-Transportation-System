@@ -175,7 +175,7 @@ async def ws_workflow_state(ws: WebSocket, wf_id: str):
                     "summary": e.to_summary(),
                     "ts": time.time(),
                 })
-                if e.status in {"done", "failed", "cancelled"}:
+                if e.status in {"completed", "run_error", "stopped"}:
                     # 推完最后一帧后保持连接,前端可以继续观察其他工作流
                     pass
             except asyncio.TimeoutError:
@@ -218,7 +218,7 @@ async def demo_start():
                 i += 1
         state["all_tasks_completed"] = True
         state["current_task_index"] = len(plan)
-        bus.finish(wf_id, status="done", final_state=state)
+        bus.finish(wf_id, status="completed", final_state=state)
 
     asyncio.create_task(run())
     return {"workflow_id": wf_id, "status": "started"}

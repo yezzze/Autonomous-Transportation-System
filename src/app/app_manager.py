@@ -55,15 +55,26 @@ class AppManager:
             with open(self._store_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             for app_id, app_dict in data.items():
+                if "status" in app_dict:
+                    raise ValueError(
+                        f"应用 {app_id} 包含已废弃字段 status={app_dict['status']!r}"
+                    )
+                for field_name in ("deployment_status", "run_status"):
+                    if field_name not in app_dict:
+                        raise ValueError(f"应用 {app_id} 缺少必需字段 {field_name}")
                 gf_dict = app_dict.pop("guidance_file", None)
                 guidance_file = None
                 if gf_dict:
                     guidance_file = GuidanceFile(**gf_dict)
-                app = AppInfo(**app_dict, guidance_file=guidance_file)
-                # 重启后将运行中/启动中状态重置为 stopped
-                if app.status in ("running", "starting", "stopping", "scheduled"):
-                    app.status = "stopped"
-                    app.workflow_handle = None
+                try:
+                    app = AppInfo(**app_dict, guidance_file=guidance_file)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"应用 {app_id} 配置无效: {exc}") from exc
+                # 部署资源和工作流任务均为进程内状态，重启后不能沿用磁盘快照。
+                app.deployment_status = "undeployed"
+                if app.run_status in {"starting", "running", "stopping"}:
+                    app.run_status = "stopped"
+                app.workflow_handle = None
                 self._apps[app_id] = app
                 # 同步恢复 ALRE 的指导文件内存字典
                 if guidance_file:
@@ -71,7 +82,8 @@ class AppManager:
                     engine.install_app_logic(guidance_file)
             logger.info(f"[APPM] 从磁盘恢复 {len(self._apps)} 个应用")
         except Exception as e:
-            logger.warning(f"[APPM] 恢复应用列表失败: {e}")
+            logger.error(f"[APPM] 恢复应用列表失败: {e}")
+            raise
 
     def _save_to_disk(self):
         """将应用列表持久化到磁盘"""
@@ -211,7 +223,7 @@ class AppManager:
             logger.warning(f"[APPM] uninstall: app_id={app_id} 未找到")
             return False
 
-        if app.status == "running":
+        if app.run_status in {"starting", "running", "stopping"}:
             logger.warning(
                 f"[APPM] uninstall: app_id={app_id} 正在运行，建议先调用 stop()"
             )
@@ -265,13 +277,12 @@ class AppManager:
             app.guidance_file
             and app.guidance_file.metadata.get("deploy_only")
         )
-        if app.status == "running" and (
-            not deploy_only or engine.is_deployed(app_id)
-        ):
+        if app.deployment_status == "deployed" and engine.is_deployed(app_id):
             logger.warning(f"[APPM] start: app_id={app_id} 已在运行中")
             return app.workflow_handle
 
-        app.update_status("starting")
+        app.update_deployment_status("deploying")
+        app.update_run_status("not_running" if deploy_only else "starting")
 
         try:
             handle = await engine.start_app(app_id, resource_config=resource_config)
@@ -279,17 +290,20 @@ class AppManager:
             if handle:
                 app.workflow_handle = handle
                 app.app_interface_url = f"/api/apps/{app_id}/interface"
-                app.update_status("running")
+                app.update_deployment_status("deployed")
+                app.update_run_status("not_running" if deploy_only else "running")
                 logger.info(f"[APPM] ✅ 启动成功: app_id={app_id}, handle={handle}")
             else:
-                app.update_status("error", "ALRE 未能启动工作流")
+                app.update_deployment_status("deployment_error", "ALRE 未能启动工作流")
+                app.update_run_status("not_running")
                 logger.error(f"[APPM] 启动失败: app_id={app_id}")
 
             self._save_to_disk()
             return handle
 
         except Exception as e:
-            app.update_status("error", str(e))
+            app.update_deployment_status("deployment_error", str(e))
+            app.update_run_status("not_running")
             logger.error(f"[APPM] 启动异常: app_id={app_id}, error={e}")
             return None
 
@@ -313,13 +327,16 @@ class AppManager:
             logger.warning(f"[APPM] stop: app_id={app_id} 未找到")
             return False
 
-        if app.status not in ("running", "starting"):
+        if app.deployment_status not in {"deploying", "deployed", "deployment_error"}:
             logger.warning(
-                f"[APPM] stop: app_id={app_id} 当前状态 {app.status}，无需停止"
+                f"[APPM] stop: app_id={app_id} 当前部署状态 "
+                f"{app.deployment_status}，无需停止"
             )
             return False
 
-        app.update_status("stopping")
+        app.update_run_status("stopping")
+        app.update_deployment_status("undeploying")
+        app.schedule_enabled = False
 
         try:
             engine = self._get_engine()
@@ -328,17 +345,20 @@ class AppManager:
             if success:
                 app.workflow_handle = None
                 app.app_interface_url = None
-                app.update_status("stopped")
+                app.update_deployment_status("undeployed")
+                app.update_run_status("stopped")
                 logger.info(f"[APPM] ✅ 停止成功: app_id={app_id}")
             else:
-                app.update_status("stopped")  # 无论如何标记为 stopped
+                app.update_deployment_status("undeployed")
+                app.update_run_status("stopped")
                 logger.warning(f"[APPM] stop: ALRE 未找到运行工作流，标记为 stopped")
 
             self._save_to_disk()
             return True
 
         except Exception as e:
-            app.update_status("error", str(e))
+            app.update_deployment_status("deployment_error", str(e))
+            app.update_run_status("stopped")
             logger.error(f"[APPM] 停止异常: app_id={app_id}, error={e}")
             return False
 
@@ -370,7 +390,7 @@ class AppManager:
             logger.error(f"[APPM] start_schedule: app_id={app_id} 未找到")
             return False
 
-        if app.status == "scheduled":
+        if app.schedule_enabled:
             logger.warning(f"[APPM] start_schedule: app_id={app_id} 已在调度中")
             return False
 
@@ -380,11 +400,11 @@ class AppManager:
 
         deploy_only = bool(app.guidance_file.metadata.get("deploy_only"))
         engine = self._get_engine()
-        if not deploy_only and app.status not in {"idle", "stopped", "error"}:
+        if not deploy_only and app.run_status in {"starting", "running", "stopping"}:
             logger.error(
-                "[APPM] start_schedule: 普通应用 %s 当前状态 %s，不能定时启动",
+                "[APPM] start_schedule: 普通应用 %s 当前状态 %s，不能周期启动",
                 app_id,
-                app.status,
+                app.run_status,
             )
             return False
         if deploy_only and not engine.is_deployed(app_id):
@@ -416,11 +436,12 @@ class AppManager:
             max_parallel = 1
         max_history = int(constraints.get("schedule_max_history", 100))
 
-        # 普通应用的“定时启动”与普通启动共用完整编排部署流程，区别仅在于
+        # 普通应用的“周期启动”与普通启动共用完整编排部署流程，区别仅在于
         # 冻结计划后不立即执行，而是交给调度器按周期触发。
         deployed_for_schedule = False
         if not deploy_only and not engine.is_deployed(app_id):
-            app.update_status("starting")
+            app.update_deployment_status("deploying")
+            app.update_run_status("starting")
             try:
                 handle = await engine.start_app(
                     app_id,
@@ -428,12 +449,14 @@ class AppManager:
                     auto_execute=False,
                 )
             except Exception as exc:
-                app.update_status("error", str(exc))
+                app.update_deployment_status("deployment_error", str(exc))
+                app.update_run_status("not_running")
                 self._save_to_disk()
-                logger.error("[APPM] 定时启动部署失败: app_id=%s, error=%s", app_id, exc)
+                logger.error("[APPM] 周期启动部署失败: app_id=%s, error=%s", app_id, exc)
                 return False
             if not handle:
-                app.update_status("error", "ALRE 未能完成定时启动部署")
+                app.update_deployment_status("deployment_error", "ALRE 未能完成周期启动部署")
+                app.update_run_status("not_running")
                 self._save_to_disk()
                 return False
             deployed_for_schedule = True
@@ -448,15 +471,16 @@ class AppManager:
             await engine.stop_app(app_id)
             app.workflow_handle = None
             app.app_interface_url = None
-            app.update_status("error", "部署完成，但周期调度器启动失败，已回滚部署")
+            app.update_deployment_status(
+                "deployment_error", "部署完成，但周期调度器启动失败，已回滚部署"
+            )
+            app.update_run_status("not_running")
             self._save_to_disk()
             return False
         if success:
-            schedule_status = scheduler.get_schedule_status(app_id) or {}
-            if not deploy_only:
-                app.update_status("scheduled")
-            else:
-                app.update_status("running")
+            app.schedule_enabled = True
+            app.update_deployment_status("deployed")
+            app.update_run_status("running")
             self._save_to_disk()
             logger.info(
                 f"[APPM] 周期调度已启动: app_id={app_id}, "
@@ -490,24 +514,27 @@ class AppManager:
         deploy_only_scheduled = bool(
             deploy_only and scheduler.get_schedule_status(app_id)
         )
-        if app.status != "scheduled" and not deploy_only_scheduled:
+        if not app.schedule_enabled and not deploy_only_scheduled:
             logger.warning(
                 f"[APPM] stop_schedule: app_id={app_id} "
-                f"当前状态 {app.status}，非 scheduled"
+                "当前未启用周期调度"
             )
             return False
 
         success = await scheduler.stop_schedule(app_id, cancel_active=not deploy_only)
         if success:
+            app.schedule_enabled = False
             if deploy_only and self._get_engine().is_deployed(app_id):
-                app.update_status("running")
+                app.update_deployment_status("deployed")
+                app.update_run_status("stopped")
             else:
-                # 普通“定时启动”的部署由调度生命周期持有；停止调度时同时
+                # 普通“周期启动”的部署由调度生命周期持有；停止调度时同时
                 # 释放本地实例、远端会话和冻结计划。
                 await self._get_engine().stop_app(app_id)
                 app.workflow_handle = None
                 app.app_interface_url = None
-                app.update_status("stopped")
+                app.update_deployment_status("undeployed")
+                app.update_run_status("stopped")
             self._save_to_disk()
             logger.info(f"[APPM] 周期调度已停止: app_id={app_id}")
         return success
@@ -521,7 +548,7 @@ class AppManager:
         """
         restored = 0
         for app in self._apps.values():
-            if app.status != "stopped" or not app.guidance_file:
+            if not app.schedule_enabled or not app.guidance_file:
                 continue
             constraints = app.guidance_file.constraints
             auto_restart = constraints.get("schedule_auto_restart", False)
@@ -533,7 +560,10 @@ class AppManager:
                 if app.guidance_file.metadata.get("deploy_only"):
                     # Deployment state is process-local and must be recreated
                     # explicitly before scheduled execution can resume.
+                    app.schedule_enabled = False
                     continue
+                # 清除磁盘恢复出的意图标记，再通过正常启动路径重新建立调度。
+                app.schedule_enabled = False
                 success = await self.start_schedule(app.app_id)
                 if success:
                     restored += 1
@@ -554,7 +584,7 @@ class AppManager:
 
     def list_running_apps(self) -> List[AppInfo]:
         """列出所有运行中的应用"""
-        return [a for a in self._apps.values() if a.status == "running"]
+        return [a for a in self._apps.values() if a.run_status == "running"]
 
     def update(
         self,

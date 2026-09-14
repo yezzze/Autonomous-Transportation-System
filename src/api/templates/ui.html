@@ -71,7 +71,7 @@
           <div class="form-group">
             <label>周期调度间隔（秒）</label>
             <input id="f-schedule-interval" type="number" value="0" min="0" max="86400" step="any">
-            <small>0 = 上一轮完成后立即执行下一轮；>0 = 按秒数定时触发</small>
+            <small>0 = 上一轮完成后立即执行下一轮；>0 = 按秒数周期触发</small>
           </div>
           <div class="form-group">
             <label>最大并行实例</label>
@@ -106,10 +106,10 @@
     <div id="apps-alert" class="alert"></div>
     <table id="apps-table">
       <thead><tr>
-        <th>名称</th><th>应用 ID</th><th>状态</th><th>Workflow Handle</th><th>操作</th>
+        <th>名称</th><th>应用 ID</th><th>部署状态</th><th>运行状态</th><th>Workflow Handle</th><th>操作</th>
       </tr></thead>
       <tbody id="apps-tbody">
-        <tr class="empty-row"><td colspan="5">加载中...</td></tr>
+        <tr class="empty-row"><td colspan="6">加载中...</td></tr>
       </tbody>
     </table>
   </div>

@@ -128,7 +128,7 @@ class AppLogicEngine:
         Args:
             app_id: 应用 ID
             resource_config: 启动时为每个 Agent 实例申请的资源
-            auto_execute: 部署冻结完成后是否立即执行；定时启动传 False
+            auto_execute: 部署冻结完成后是否立即执行；周期启动传 False
 
         Returns:
             workflow_handle（str），失败返回 None
@@ -224,7 +224,7 @@ class AppLogicEngine:
             raise
 
         if guidance.metadata.get("deploy_only") or not auto_execute:
-            logger.info("[ALRE] ✅ 编排部署完成（等待显式或定时执行）: %s", workflow_handle)
+            logger.info("[ALRE] ✅ 编排部署完成（等待显式或周期执行）: %s", workflow_handle)
             return workflow_handle
 
         # 启动后台工作流任务
@@ -387,7 +387,7 @@ class AppLogicEngine:
         bus = get_viz_bus()
         bus.register(title=guidance.task_description[:60], workflow_id=workflow_handle)
         bus.update_state(workflow_handle, state, node_name="deployment_planned")
-        bus.finish(workflow_handle, status="done", final_state=state)
+        bus.finish(workflow_handle, status="completed", final_state=state)
 
     async def run_query(
         self,
@@ -429,6 +429,14 @@ class AppLogicEngine:
                 f"app_id={app_id}, skills_len={len(guidance.skills_content)}"
             )
 
+        from src.app.app_manager import get_app_manager
+
+        app = get_app_manager().get_app(app_id)
+        if app:
+            app.update_run_status("starting")
+            app.update_run_status("running")
+            get_app_manager()._save_to_disk()
+
         try:
             result = await self._run_workflow(
                 app_id,
@@ -441,6 +449,9 @@ class AppLogicEngine:
                 aggregate_to_master=True,
             )
             logger.info(f"[ALRE] run_query 完成: app_id={app_id}")
+            if app:
+                app.update_run_status("completed")
+                get_app_manager()._save_to_disk()
             return {
                 "workflow_handle": workflow_handle,
                 "run_id": run_id,
@@ -450,6 +461,9 @@ class AppLogicEngine:
             }
         except Exception as e:
             logger.error(f"[ALRE] run_query 异常: app_id={app_id}, error={e}")
+            if app:
+                app.update_run_status("run_error", str(e))
+                get_app_manager()._save_to_disk()
             return {
                 "workflow_handle": workflow_handle,
                 "run_id": run_id,
@@ -638,11 +652,11 @@ class AppLogicEngine:
                         "execution_kind": execution_kind,
                     })
                     if node_name == "__finish__":
-                        bus.finish(workflow_handle, status="done", final_state=snapshot)
+                        bus.finish(workflow_handle, status="completed", final_state=snapshot)
                     elif node_name == "__error__":
                         bus.finish(
                             workflow_handle,
-                            status="failed",
+                            status="run_error",
                             final_state=snapshot,
                             error=str(snapshot.get("error") or "执行失败"),
                         )
@@ -686,7 +700,7 @@ class AppLogicEngine:
                         "internal_workflow_handle": internal_workflow_handle,
                         "execution_kind": execution_kind,
                     })
-                    bus.finish(workflow_handle, status="done", final_state=final_state)
+                    bus.finish(workflow_handle, status="completed", final_state=final_state)
 
             logger.info(
                 f"[ALRE] ✅ 工作流完成: app_id={app_id}, "
@@ -713,7 +727,7 @@ class AppLogicEngine:
                     })
                     bus.finish(
                         workflow_handle,
-                        status="failed",
+                        status="run_error",
                         final_state=error_state,
                         error=str(e),
                     )
@@ -725,14 +739,7 @@ class AppLogicEngine:
             return
 
         exc = task.exception()
-        if exc is None:
-            return
-
-        logger.warning(f"[ALRE] 工作流失败回调: app_id={app_id}, error={exc}")
-        self._unsubscribe_instances(app_id, workflow_handle)
         self._running_tasks.pop(app_id, None)
-        if self._workflow_handles.get(app_id) == workflow_handle:
-            self._workflow_handles.pop(app_id, None)
 
         try:
             from src.app.app_manager import get_app_manager
@@ -740,9 +747,14 @@ class AppLogicEngine:
             manager = get_app_manager()
             app = manager.get_app(app_id)
             if app:
-                app.workflow_handle = None
-                app.app_interface_url = None
-                app.update_status("error", str(exc))
+                if exc is None:
+                    app.update_run_status("completed")
+                else:
+                    logger.warning(
+                        f"[ALRE] 工作流失败回调: app_id={app_id}, error={exc}"
+                    )
+                    # 工作流执行错误不撤销已经成功完成的部署，允许再次执行。
+                    app.update_run_status("run_error", str(exc))
                 manager._save_to_disk()
         except Exception as callback_exc:
             logger.warning(f"[ALRE] 回写应用错误状态失败: app_id={app_id}, error={callback_exc}")

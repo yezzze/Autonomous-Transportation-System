@@ -10,7 +10,7 @@
   WorkflowEntry:
     id            : str
     title         : str            (用户输入摘要 / 应用名)
-    status        : running | done | failed
+    status        : 与应用 RunStatus 对齐
     started_at    : float
     updated_at    : float
     state         : dict           DistributedState 浅拷贝(含 execution_plan 等)
@@ -28,6 +28,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
+from src.app.models import RUN_STATUSES, RunStatus
+
 logger = logging.getLogger(__name__)
 
 MAX_HISTORY = 200
@@ -37,7 +39,7 @@ MAX_HISTORY = 200
 class WorkflowEntry:
     id: str
     title: str = ""
-    status: str = "running"          # running | done | failed | cancelled
+    status: RunStatus = "running"
     started_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     state: Dict[str, Any] = field(default_factory=dict)
@@ -45,6 +47,10 @@ class WorkflowEntry:
     error: Optional[str] = None
     # WebSocket 订阅队列
     subscribers: Set[asyncio.Queue] = field(default_factory=set)
+
+    def __post_init__(self) -> None:
+        if self.status not in RUN_STATUSES:
+            raise ValueError(f"invalid WorkflowEntry.status: {self.status!r}")
 
     def to_summary(self) -> Dict[str, Any]:
         # 如果 entry 是一个调度会话的 view（view_type == 'schedule'），
@@ -184,12 +190,14 @@ class VizBus:
         self._publish_workflow(workflow_id, {"type": "workflow_resumed"})
         self._publish_global({"type": "workflow_progress", "id": workflow_id})
 
-    def finish(self, workflow_id: str, status: str = "done",
+    def finish(self, workflow_id: str, status: RunStatus = "completed",
                final_state: Optional[Dict[str, Any]] = None,
                error: Optional[str] = None) -> None:
         e = self.workflows.get(workflow_id)
         if not e:
             return
+        if status not in RUN_STATUSES:
+            raise ValueError(f"invalid WorkflowEntry.status: {status!r}")
         if final_state is not None:
             e.state = self._snapshot(final_state)
         e.status = status
@@ -202,7 +210,7 @@ class VizBus:
     def cancel(self, workflow_id: str) -> bool:
         if workflow_id not in self.workflows:
             return False
-        self.finish(workflow_id, status="cancelled")
+        self.finish(workflow_id, status="stopped")
         return True
 
     def get(self, workflow_id: str) -> Optional[WorkflowEntry]:

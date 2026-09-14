@@ -178,7 +178,7 @@ class WorkflowScheduler:
                 "schedule_stopped_at": datetime.utcnow().isoformat(),
                 "schedule_status": "stopped",
             },
-            finish_status="cancelled",
+            finish_status="stopped",
         )
         logger.info(
             f"[Scheduler] 周期调度已停止: app_id={app_id}, "
@@ -312,7 +312,7 @@ class WorkflowScheduler:
                 state,
                 node_name="schedule_failed",
                 extra={"schedule_status": "failed", "schedule_error": str(e)},
-                finish_status="failed",
+                finish_status="run_error",
                 error=str(e),
             )
             logger.error(f"[Scheduler] 调度循环异常退出: app_id={app_id}, error={e}")

@@ -524,6 +524,29 @@ header .badge {
   background: #ede9fe; 
   color: #7c3aed; 
 }
+.s-undeployed, .s-not_running, .s-stopped {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.s-deploying, .s-undeploying, .s-starting, .s-stopping {
+  background: #fef3c7;
+  color: #b45309;
+}
+.s-deployed, .s-running, .s-completed {
+  background: #dcfce7;
+  color: #15803d;
+}
+.s-deployment_error, .s-run_error {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.status-error-detail {
+  max-width: 240px;
+  margin-top: 3px;
+  color: #b91c1c;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
 table {
   width: 100%;
   border-collapse: collapse;

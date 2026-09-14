@@ -1286,12 +1286,12 @@ async def _restore_scheduled_apps():
     """
     服务启动时，自动恢复配置了 schedule_auto_restart: true 的周期调度应用。
     """
-    try:
-        from src.app.app_manager import get_app_manager
-        manager = get_app_manager()
-        await manager.restore_schedules()
-    except Exception as e:
-        logger.warning(f"[Startup] 恢复周期调度失败（非关键）: {e}")
+    from src.app.app_manager import get_app_manager
+
+    # apps_store.json 是应用生命周期的权威数据。旧字段、缺失字段或非法状态
+    # 必须阻止服务启动，不能在这里按“非关键恢复异常”吞掉。
+    manager = get_app_manager()
+    await manager.restore_schedules()
 
 
 class ContentItem(BaseModel):
@@ -1406,7 +1406,8 @@ class InstallAppRequest(BaseModel):
 class InstallAppResponse(BaseModel):
     app_id: str
     name: str
-    status: str
+    deployment_status: str
+    run_status: str
     message: str
 
 
@@ -1514,7 +1515,8 @@ async def install_app(request: InstallAppRequest):
         return InstallAppResponse(
             app_id=app_info.app_id,
             name=app_info.name,
-            status=app_info.status,
+            deployment_status=app_info.deployment_status,
+            run_status=app_info.run_status,
             message="安装成功",
         )
     except Exception as e:
@@ -1545,7 +1547,9 @@ async def start_app(app_id: str, request: Optional[StartAppRequest] = None):
                 raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
             raise HTTPException(
                 status_code=500,
-                detail=f"启动失败: {app.error_message or '未知错误'}",
+                detail=(
+                    f"启动失败: {app.deployment_error_message or app.run_error_message or '未知错误'}"
+                ),
             )
 
         app = manager.get_app(app_id)
@@ -1558,7 +1562,8 @@ async def start_app(app_id: str, request: Optional[StartAppRequest] = None):
         return {
             "app_id": app_id,
             "workflow_handle": handle,
-            "status": "running",
+            "deployment_status": app.deployment_status if app else "deployed",
+            "run_status": app.run_status if app else "running",
             "resource_config": resource_config.to_dict() if resource_config else None,
             "app_interface_url": f"/api/apps/{app_id}/interface",
             "message": "部署成功" if deploy_only else "启动成功",
@@ -1587,7 +1592,13 @@ async def stop_app(app_id: str):
             if not app:
                 raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
 
-        return {"app_id": app_id, "status": "stopped", "message": "停止成功"}
+        app = manager.get_app(app_id)
+        return {
+            "app_id": app_id,
+            "deployment_status": app.deployment_status,
+            "run_status": app.run_status,
+            "message": "停止成功",
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -1634,7 +1645,11 @@ async def start_schedule(app_id: str, request: Optional[StartAppRequest] = None)
 
         success = await manager.start_schedule(app_id, resource_config=resource_config)
         if not success:
-            detail = app.error_message or "应用可能已在调度中或调度配置无效"
+            detail = (
+                app.deployment_error_message
+                or app.run_error_message
+                or "应用可能已在调度中或调度配置无效"
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"启动调度失败：{detail}",
@@ -1642,7 +1657,8 @@ async def start_schedule(app_id: str, request: Optional[StartAppRequest] = None)
 
         return {
             "app_id": app_id,
-            "status": "scheduled",
+            "deployment_status": app.deployment_status,
+            "run_status": app.run_status,
             "message": "周期调度已启动",
         }
     except HTTPException:
@@ -1675,7 +1691,8 @@ async def stop_schedule(app_id: str):
 
         return {
             "app_id": app_id,
-            "status": "stopped",
+            "deployment_status": app.deployment_status,
+            "run_status": app.run_status,
             "message": "周期调度已停止",
         }
     except HTTPException:
@@ -1806,7 +1823,12 @@ async def update_app(app_id: str, request: UpdateAppRequest):
         if app is None:
             raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
 
-        return {"app_id": app_id, "status": app.status, "message": "更新成功"}
+        return {
+            "app_id": app_id,
+            "deployment_status": app.deployment_status,
+            "run_status": app.run_status,
+            "message": "更新成功",
+        }
     except HTTPException:
         raise
     except Exception as e:

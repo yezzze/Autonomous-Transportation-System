@@ -40,8 +40,8 @@ def _dedupe_apps(apps: List[Dict]) -> List[Dict]:
             best_by_name[name] = app
             continue
 
-        current_running = current.get("status") == "running"
-        app_running = app.get("status") == "running"
+        current_running = current.get("run_status") == "running"
+        app_running = app.get("run_status") == "running"
         if app_running and not current_running:
             best_by_name[name] = app
             continue
@@ -60,10 +60,11 @@ def get_running_app_list() -> List[Dict]:
     """
     获取当前运行中的应用列表
 
-    供 UI 层调用，过滤出 status=running 的应用。
+    供 UI 层调用，过滤出 run_status=running 的应用。
 
     Returns:
-        List[Dict]，每项包含 app_id, name, status, app_interface_url, workflow_handle
+        List[Dict]，每项包含 app_id、name、deployment_status、run_status、
+        app_interface_url 和 workflow_handle。
     """
     from src.app.app_manager import get_app_manager
 
@@ -76,7 +77,8 @@ def get_running_app_list() -> List[Dict]:
             {
                 "app_id": app.app_id,
                 "name": app.name,
-                "status": app.status,
+                "deployment_status": app.deployment_status,
+                "run_status": app.run_status,
                 "app_interface_url": app.app_interface_url,
                 "workflow_handle": app.workflow_handle,
             }
@@ -116,7 +118,8 @@ def get_app_interface(app_id: str) -> Optional[Dict]:
         {
             "app_id": str,
             "name": str,
-            "status": str,
+            "deployment_status": str,
+            "run_status": str,
             "app_interface_url": str | None,
             "workflow_handle": str | None,
             "input_schema": {...},    # 当前仅占位
@@ -134,7 +137,10 @@ def get_app_interface(app_id: str) -> Optional[Dict]:
     return _with_runtime_state(app, {
         "app_id": app.app_id,
         "name": app.name,
-        "status": app.status,
+        "deployment_status": app.deployment_status,
+        "run_status": app.run_status,
+        "deployment_error_message": app.deployment_error_message,
+        "run_error_message": app.run_error_message,
         "app_interface_url": app.app_interface_url,
         "workflow_handle": app.workflow_handle,
         # 输入 Schema 占位（生产环境从指导文件中解析）
