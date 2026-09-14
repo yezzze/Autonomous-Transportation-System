@@ -198,6 +198,7 @@ async def execute_registered_subworkflow(
     subtask: dict,
     workflow_info: dict,
     session_timeout: int = 6 * 60,
+    runtime_parameters: dict[str, dict] | None = None,
 ) -> dict:
     """运行期：按已注册的子工作流 ID 调用远端执行接口。
 
@@ -244,6 +245,8 @@ async def execute_registered_subworkflow(
                     "source_aoe_url": os.getenv("LOCAL_AOE_URL", "http://localhost:8000"),
                     # 会话超时沿用编排期配置，避免远端长期挂起。
                     "timeout_seconds": session_timeout,
+                    # 仅传本次运行的任务参数；远端仍会使用冻结签名校验路由。
+                    "runtime_parameters": runtime_parameters or {},
                 },
             )
             response.raise_for_status()
@@ -1432,6 +1435,11 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 },
                 workflow_info=remote_info,
                 session_timeout=session_timeout,
+                runtime_parameters={
+                    str(task.get("task_id")): dict(task.get("parameters") or {})
+                    for task in execution_plan
+                    if task.get("task_id") in set(remote_info.get("segment_task_ids") or [])
+                },
             )
         else:
             xh_result = {

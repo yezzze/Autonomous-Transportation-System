@@ -120,6 +120,7 @@ class _ExecuteSubWorkflowRequest(BaseModel):
     session_id: str
     source_aoe_url: str = ""
     timeout_seconds: int = 60
+    runtime_parameters: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
 
 class _FinalizeSubWorkflowRequest(BaseModel):
@@ -1065,7 +1066,9 @@ async def finalize_subworkflow(sub_workflow_id: str, req: _FinalizeSubWorkflowRe
             "target_port": endpoint[1],
         })
     workflow["finalized_tasks"] = finalized_tasks
-    workflow["frozen_signature"] = [list(item) for item in req.frozen_signature]
+    # 请求携带的是全局计划签名；完成上面的逐任务校验后，仅保存本远端
+    # 子图对应的签名，供每次运行时参数覆盖后再次校验。
+    workflow["frozen_signature"] = [list(item) for item in plan_signature(finalized_tasks)]
     workflow["pipeline_topology"] = [
         {
             **dict(step),
@@ -1103,6 +1106,48 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
             "result": "远端子工作流尚未完成路由冻结",
         }
 
+    finalized_tasks = [dict(task) for task in workflow.get("finalized_tasks", [])]
+    known_task_ids = {str(task.get("task_id", "")) for task in finalized_tasks}
+    unknown_task_ids = set(req.runtime_parameters) - known_task_ids
+    if unknown_task_ids:
+        return {
+            "status": "invalid_runtime_parameters",
+            "sub_workflow_id": sub_workflow_id,
+            "session_id": req.session_id,
+            "result": f"运行时参数包含子工作流之外的任务: {sorted(unknown_task_ids)}",
+        }
+    route_keys = {
+        "source_cluster", "target_cluster", "target_agent_id", "target_instance_id"
+    }
+    for task in finalized_tasks:
+        task_id = str(task.get("task_id", ""))
+        if task_id in req.runtime_parameters:
+            frozen_parameters = dict(task.get("parameters") or {})
+            submitted = dict(req.runtime_parameters[task_id])
+            for key in route_keys & submitted.keys():
+                if submitted[key] != frozen_parameters.get(key):
+                    return {
+                        "status": "frozen_route_changed",
+                        "sub_workflow_id": sub_workflow_id,
+                        "session_id": req.session_id,
+                        "result": f"运行时参数修改了冻结路由字段 parameters.{key}",
+                    }
+            task["parameters"] = {
+                key: value for key, value in frozen_parameters.items() if key in route_keys
+            }
+            task["parameters"].update({
+                key: value for key, value in submitted.items() if key not in route_keys
+            })
+    if plan_signature(finalized_tasks) != tuple(
+        tuple(item) for item in workflow.get("frozen_signature", [])
+    ):
+        return {
+            "status": "frozen_route_changed",
+            "sub_workflow_id": sub_workflow_id,
+            "session_id": req.session_id,
+            "result": "运行时参数修改了冻结路由，拒绝执行",
+        }
+
     workflow_handle = workflow["workflow_handle"]
     workflow["status"] = "running"
     timeout = int(req.timeout_seconds or workflow.get("timeout_seconds", 6 * 60))
@@ -1116,7 +1161,7 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
             workflow_id=workflow_handle,
             route_instances=workflow.get("route_instances", []),
             route_prevalidated=True,
-            execution_plan=[dict(task) for task in workflow.get("finalized_tasks", [])],
+            execution_plan=finalized_tasks,
             frozen_plan_signature=[
                 list(item) for item in plan_signature(workflow.get("finalized_tasks", []))
             ],
@@ -2424,8 +2469,17 @@ class AppQueryRequest(BaseModel):
     query: str = Field(..., description="用户输入的查询内容")
 
 
+class ExecuteDeployedAppRequest(BaseModel):
+    skills_content: Optional[str] = Field(
+        None, description="结构化 deploy_only 应用本次执行使用的 Skills.md 内容"
+    )
+
+
 @app.post("/api/apps/{app_id}/execute", summary="执行已部署应用的冻结计划")
-async def execute_deployed_app(app_id: str):
+async def execute_deployed_app(
+    app_id: str,
+    request: Optional[ExecuteDeployedAppRequest] = None,
+):
     """Explicitly execute a deploy_only app without planning or deployment."""
     from src.app.app_logic_engine import get_app_logic_engine
     from src.app.app_manager import get_app_manager
@@ -2437,24 +2491,43 @@ async def execute_deployed_app(app_id: str):
         raise HTTPException(status_code=400, detail="该接口仅用于 deploy_only 应用的显式执行")
     if not get_app_logic_engine().is_deployed(app_id):
         raise HTTPException(status_code=409, detail="APP_NOT_DEPLOYED: 请先部署应用")
-    return await query_app_interface(
+    return await _query_app_interface(
         app_id,
         AppQueryRequest(query=app_info.guidance_file.task_description),
+        runtime_skills_content=request.skills_content if request else None,
     )
 
 
 @app.post("/api/apps/{app_id}/interface", summary="向应用发送查询")
 async def query_app_interface(app_id: str, request: AppQueryRequest):
+    return await _query_app_interface(app_id, request)
+
+
+async def _query_app_interface(
+    app_id: str, request: AppQueryRequest, runtime_skills_content: Optional[str] = None
+):
     """
     DISP: 应用运行时交互接口
     接收用户输入，使用应用配置的编排模式执行一次工作流，返回结果。
     对应接口文档 §4 交互呈现
     """
     try:
-        from src.app.app_logic_engine import get_app_logic_engine
+        from src.app.app_logic_engine import (
+            PipelineRuntimeValidationError,
+            get_app_logic_engine,
+        )
 
         engine = get_app_logic_engine()
-        result = await engine.run_query(app_id=app_id, user_input=request.query)
+        execution_plan_override = None
+        if runtime_skills_content is not None:
+            execution_plan_override = engine.build_runtime_pipeline_plan(
+                app_id, runtime_skills_content
+            )
+        result = await engine.run_query(
+            app_id=app_id,
+            user_input=request.query,
+            execution_plan_override=execution_plan_override,
+        )
 
         # 序列化 result 内部的 LangChain 消息对象，避免 JSON 序列化失败
         if isinstance(result.get("result"), dict):
@@ -2475,6 +2548,8 @@ async def query_app_interface(app_id: str, request: AppQueryRequest):
             }
 
         return result
+    except PipelineRuntimeValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

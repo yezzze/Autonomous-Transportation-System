@@ -24,6 +24,10 @@ from src.runtime.models import ResourceConfig
 logger = logging.getLogger(__name__)
 
 
+class PipelineRuntimeValidationError(ValueError):
+    """运行时 Pipeline 修改超出 parameters 范围。"""
+
+
 class AppLogicEngine:
     """
     应用逻辑执行引擎（ALRE）
@@ -385,7 +389,12 @@ class AppLogicEngine:
         bus.update_state(workflow_handle, state, node_name="deployment_planned")
         bus.finish(workflow_handle, status="done", final_state=state)
 
-    async def run_query(self, app_id: str, user_input: str) -> dict:
+    async def run_query(
+        self,
+        app_id: str,
+        user_input: str,
+        execution_plan_override: Optional[List[Dict[str, Any]]] = None,
+    ) -> dict:
         """
         向已安装的应用发送一次查询，立即执行并返回结果。
 
@@ -405,15 +414,11 @@ class AppLogicEngine:
         if not guidance:
             raise ValueError(f"应用 {app_id} 未安装")
 
-        from src.distributed_workflow import run_distributed_workflow
-
         workflow_handle = self._workflow_handles.get(app_id)
         if not workflow_handle:
             raise RuntimeError("APP_NOT_DEPLOYED: 应用没有主工作流句柄")
         run_id = f"run_{uuid.uuid4().hex[:8]}"
         internal_workflow_handle = f"{workflow_handle}_{run_id}"
-        timeout = guidance.constraints.get("timeout_seconds", 120)
-
         logger.info(
             f"[ALRE] run_query: app_id={app_id}, "
             f"mode={guidance.orchestration_mode}, query={user_input[:60]}"
@@ -424,67 +429,17 @@ class AppLogicEngine:
                 f"app_id={app_id}, skills_len={len(guidance.skills_content)}"
             )
 
-        plan = self._execution_plans.get(app_id)
-        signature = self._frozen_plan_signatures.get(app_id)
-        if not plan or not signature:
-            raise RuntimeError("FROZEN_PLAN_MISSING: 应用尚未启动或没有冻结执行计划")
-        query_plan = self._inject_query_into_plan(plan, user_input)
-
-        from src.service.viz_bus import get_viz_bus
-        bus = get_viz_bus()
-        if not bus.get(workflow_handle):
-            bus.register(title=guidance.task_description[:60], workflow_id=workflow_handle)
-        bus.resume(workflow_handle)
-
-        def _publish_run_state(run_state: Dict[str, Any], node_name: str) -> None:
-            snapshot = dict(run_state)
-            snapshot.update({
-                "app_id": app_id,
-                "view_type": "workflow",
-                "run_id": run_id,
-                "internal_workflow_handle": internal_workflow_handle,
-                "execution_kind": "explicit",
-            })
-            if node_name == "__finish__":
-                bus.finish(workflow_handle, status="done", final_state=snapshot)
-            elif node_name == "__error__":
-                bus.finish(
-                    workflow_handle,
-                    status="failed",
-                    final_state=snapshot,
-                    error=str(snapshot.get("error") or "执行失败"),
-                )
-            else:
-                bus.update_state(workflow_handle, snapshot, node_name=node_name)
-
         try:
-            result = await run_distributed_workflow(
+            result = await self._run_workflow(
+                app_id,
+                guidance,
+                workflow_handle,
                 user_input=user_input,
-                adaptive_mode=False,
-                replanning_enabled=False,
-                max_retries=guidance.constraints.get("max_retries", 3),
-                timeout_seconds=timeout,
-                skills_content=guidance.skills_content or "",
-                route_instances=self._runtime_route_instances(app_id),
-                route_prevalidated=True,
-                frozen_plan_signature=signature,
-                execution_plan=query_plan,
-                cross_host_sessions=self._cross_host_sessions.get(app_id, {}),
-                viz_enabled=False,
-                state_callback=_publish_run_state,
+                execution_plan_override=execution_plan_override,
+                run_id=run_id,
+                execution_kind="explicit",
+                aggregate_to_master=True,
             )
-            # 保底结束主视图；正常路径已由 __finish__ 回调完成，此处不会重复。
-            entry = bus.get(workflow_handle)
-            if entry and entry.status == "running":
-                final_state = dict(result) if isinstance(result, dict) else {}
-                final_state.update({
-                    "app_id": app_id,
-                    "view_type": "workflow",
-                    "run_id": run_id,
-                    "internal_workflow_handle": internal_workflow_handle,
-                    "execution_kind": "explicit",
-                })
-                bus.finish(workflow_handle, status="done", final_state=final_state)
             logger.info(f"[ALRE] run_query 完成: app_id={app_id}")
             return {
                 "workflow_handle": workflow_handle,
@@ -495,25 +450,6 @@ class AppLogicEngine:
             }
         except Exception as e:
             logger.error(f"[ALRE] run_query 异常: app_id={app_id}, error={e}")
-            # run_distributed_workflow 正常会通过 __error__ 回调结束主视图；
-            # 若异常发生在回调建立之前，也要避免主工作流一直显示 running。
-            entry = bus.get(workflow_handle)
-            if entry and entry.status == "running":
-                error_state = dict(entry.state or {})
-                error_state.update({
-                    "app_id": app_id,
-                    "view_type": "workflow",
-                    "run_id": run_id,
-                    "internal_workflow_handle": internal_workflow_handle,
-                    "execution_kind": "explicit",
-                    "error": str(e),
-                })
-                bus.finish(
-                    workflow_handle,
-                    status="failed",
-                    final_state=error_state,
-                    error=str(e),
-                )
             return {
                 "workflow_handle": workflow_handle,
                 "run_id": run_id,
@@ -521,6 +457,74 @@ class AppLogicEngine:
                 "status": "error",
                 "error": str(e),
             }
+
+    def build_runtime_pipeline_plan(
+        self, app_id: str, runtime_skills_content: str
+    ) -> List[Dict[str, Any]]:
+        """仅将结构不变的 Pipeline parameters 覆盖到冻结计划。"""
+        guidance = self._guidance_files.get(app_id)
+        frozen_plan = self._execution_plans.get(app_id)
+        if not guidance or not frozen_plan:
+            raise PipelineRuntimeValidationError("应用尚未形成冻结执行计划")
+
+        from src.app.pipeline_parser import parse_pipeline
+
+        try:
+            original_topology = parse_pipeline(guidance.skills_content or "")
+            runtime_topology = parse_pipeline(runtime_skills_content or "")
+        except ValueError as exc:
+            raise PipelineRuntimeValidationError(f"Pipeline 语法错误: {exc}") from exc
+        if not original_topology:
+            raise PipelineRuntimeValidationError("该应用不是结构化 Pipeline 应用")
+        if not runtime_topology:
+            raise PipelineRuntimeValidationError("运行时内容中缺少有效的 ## Pipeline")
+
+        def without_parameters(value):
+            if isinstance(value, list):
+                return [without_parameters(item) for item in value]
+            return {
+                key: copy.deepcopy(item)
+                for key, item in value.items()
+                if key != "parameters"
+            }
+
+        if without_parameters(original_topology) != without_parameters(runtime_topology):
+            raise PipelineRuntimeValidationError(
+                "PIPELINE_STRUCTURE_CHANGED: 仅允许修改 parameters，任务、顺序、"
+                "并行关系、Agent、能力和描述均不可修改"
+            )
+
+        def flatten(topology):
+            return [
+                item
+                for step in topology
+                for item in (step if isinstance(step, list) else [step])
+            ]
+
+        runtime_steps = flatten(runtime_topology)
+        if len(runtime_steps) != len(frozen_plan):
+            raise PipelineRuntimeValidationError("PIPELINE_STRUCTURE_CHANGED: 任务数量发生变化")
+
+        route_keys = {
+            "source_cluster", "target_cluster", "target_agent_id", "target_instance_id"
+        }
+        updated_plan = [copy.deepcopy(task) for task in frozen_plan]
+        for task, step in zip(updated_plan, runtime_steps):
+            submitted = copy.deepcopy(step.get("parameters") or {})
+            frozen_parameters = dict(task.get("parameters") or {})
+            for key in route_keys & submitted.keys():
+                if submitted[key] != frozen_parameters.get(key):
+                    raise PipelineRuntimeValidationError(
+                        f"FROZEN_ROUTE_CHANGED: parameters.{key} 属于冻结路由字段，不允许修改"
+                    )
+            parameters = {
+                key: value for key, value in frozen_parameters.items() if key in route_keys
+            }
+            parameters.update({
+                key: value for key, value in submitted.items() if key not in route_keys
+            })
+            task["parameters"] = parameters
+        return updated_plan
 
     # ------------------------------------------------------------------
     # 供外部调度器调用的单次执行入口
@@ -577,6 +581,11 @@ class AppLogicEngine:
         workflow_handle: str,
         viz_enabled: bool = True,
         state_callback=None,
+        user_input: Optional[str] = None,
+        execution_plan_override: Optional[List[Dict[str, Any]]] = None,
+        run_id: Optional[str] = None,
+        execution_kind: str = "automatic",
+        aggregate_to_master: bool = False,
     ):
         """
         实际调用编排层运行工作流
@@ -593,24 +602,66 @@ class AppLogicEngine:
                 guidance.constraints.get("max_timeout", 120),
             )
 
+            effective_input = user_input if user_input is not None else guidance.task_description
             logger.info(
                 f"[ALRE] 开始执行工作流: app_id={app_id}, "
-                f"task={guidance.task_description[:80]}..."
+                f"task={effective_input[:80]}..."
             )
 
-            plan = self._execution_plans.get(app_id)
+            plan = execution_plan_override or self._execution_plans.get(app_id)
             signature = self._frozen_plan_signatures.get(app_id)
             if not plan or not signature:
                 raise RuntimeError("FROZEN_PLAN_MISSING: 应用没有冻结执行计划")
 
+            execution_plan = self._inject_query_into_plan(plan, effective_input)
+            effective_viz_enabled = viz_enabled
+            effective_state_callback = state_callback
+            bus = None
+            internal_workflow_handle = (
+                f"{workflow_handle}_{run_id}" if run_id else workflow_handle
+            )
+            if aggregate_to_master:
+                from src.service.viz_bus import get_viz_bus
+
+                bus = get_viz_bus()
+                if not bus.get(workflow_handle):
+                    bus.register(title=guidance.task_description[:60], workflow_id=workflow_handle)
+                bus.resume(workflow_handle)
+
+                def _publish_master_state(run_state: Dict[str, Any], node_name: str) -> None:
+                    snapshot = dict(run_state)
+                    snapshot.update({
+                        "app_id": app_id,
+                        "view_type": "workflow",
+                        "run_id": run_id or "",
+                        "internal_workflow_handle": internal_workflow_handle,
+                        "execution_kind": execution_kind,
+                    })
+                    if node_name == "__finish__":
+                        bus.finish(workflow_handle, status="done", final_state=snapshot)
+                    elif node_name == "__error__":
+                        bus.finish(
+                            workflow_handle,
+                            status="failed",
+                            final_state=snapshot,
+                            error=str(snapshot.get("error") or "执行失败"),
+                        )
+                    else:
+                        bus.update_state(workflow_handle, snapshot, node_name=node_name)
+                    if state_callback:
+                        state_callback(dict(run_state), node_name)
+
+                effective_viz_enabled = False
+                effective_state_callback = _publish_master_state
+
             result = await run_distributed_workflow(
-                user_input=guidance.task_description,
+                user_input=effective_input,
                 adaptive_mode=False,
                 replanning_enabled=False,
                 max_retries=guidance.constraints.get("max_retries", 3),
                 timeout_seconds=timeout,
                 skills_content=guidance.skills_content or "",
-                execution_plan=[copy.deepcopy(task) for task in plan],
+                execution_plan=execution_plan,
                 cross_host_sessions=self._cross_host_sessions.get(app_id, {}),
                 route_prevalidated=True,
                 frozen_plan_signature=signature,
@@ -618,11 +669,24 @@ class AppLogicEngine:
                 # - viz_enabled 控制是否在 VizBus 中注册/推送逐节点更新
                 # - state_callback 是一个可选回调（由上层传入），用于把逐节点
                 #   更新回传给调用方（例如 WorkflowScheduler），以便合并调度视图
-                viz_enabled=viz_enabled,
+                viz_enabled=effective_viz_enabled,
                 workflow_id=workflow_handle,
-                state_callback=state_callback,
+                state_callback=effective_state_callback,
                 route_instances=self._runtime_route_instances(app_id),
             )
+
+            if aggregate_to_master and bus:
+                entry = bus.get(workflow_handle)
+                if entry and entry.status == "running":
+                    final_state = dict(result) if isinstance(result, dict) else {}
+                    final_state.update({
+                        "app_id": app_id,
+                        "view_type": "workflow",
+                        "run_id": run_id or "",
+                        "internal_workflow_handle": internal_workflow_handle,
+                        "execution_kind": execution_kind,
+                    })
+                    bus.finish(workflow_handle, status="done", final_state=final_state)
 
             logger.info(
                 f"[ALRE] ✅ 工作流完成: app_id={app_id}, "
@@ -635,6 +699,24 @@ class AppLogicEngine:
             raise
         except Exception as e:
             logger.error(f"[ALRE] 工作流异常: app_id={app_id}, error={e}")
+            if aggregate_to_master and 'bus' in locals() and bus:
+                entry = bus.get(workflow_handle)
+                if entry and entry.status == "running":
+                    error_state = dict(entry.state or {})
+                    error_state.update({
+                        "app_id": app_id,
+                        "view_type": "workflow",
+                        "run_id": run_id or "",
+                        "internal_workflow_handle": internal_workflow_handle,
+                        "execution_kind": execution_kind,
+                        "error": str(e),
+                    })
+                    bus.finish(
+                        workflow_handle,
+                        status="failed",
+                        final_state=error_state,
+                        error=str(e),
+                    )
             raise
 
     def _on_workflow_done(self, app_id: str, workflow_handle: str, task: asyncio.Task) -> None:

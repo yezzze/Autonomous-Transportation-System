@@ -72,6 +72,9 @@ const _panelResult = {};             // app_id → 查询结果
 const _pendingQueries = new Set();   // app_id → 查询请求进行中
 const _openStartPanels = new Set();  // app_id → 启动面板 open
 const _openScheduleStartPanels = new Set(); // app_id → 定时启动面板 open
+const _openExecutePanels = new Set(); // app_id → 结构化应用执行参数面板 open
+const _executeSkills = {};            // app_id → 本次执行的 Skills.md 内容
+const _pendingExecutions = new Set(); // app_id → 显式执行请求进行中
 // 编辑面板状态
 const _openEditPanels = new Set();   // app_id → 编辑面板 open
 const _editName = {};                // app_id → 名称输入内容
@@ -123,6 +126,16 @@ function _saveQueryState() {
     if (el.classList.contains('open')) _openScheduleStartPanels.add(appId);
     else _openScheduleStartPanels.delete(appId);
   });
+  document.querySelectorAll('[id^="xp-"]').forEach(el => {
+    const appId = el.id.slice(3);
+    if (el.classList.contains('open')) {
+      _openExecutePanels.add(appId);
+      const skillsEl = document.getElementById('xi-' + appId);
+      if (skillsEl) _executeSkills[appId] = skillsEl.value;
+    } else {
+      _openExecutePanels.delete(appId);
+    }
+  });
 }
 
 function _restoreQueryState() {
@@ -164,19 +177,27 @@ function _restoreQueryState() {
     const panel = document.getElementById('ssp-' + appId);
     if (panel) panel.classList.add('open');
   });
+  _openExecutePanels.forEach(appId => {
+    const panel = document.getElementById('xp-' + appId);
+    if (panel) {
+      panel.classList.add('open');
+      const skillsEl = document.getElementById('xi-' + appId);
+      if (skillsEl && _executeSkills[appId] != null) skillsEl.value = _executeSkills[appId];
+    }
+  });
 }
 
 async function loadApps() {
   // 如果有查询面板正在展开，先保存状态
   _saveQueryState();
   // 查询请求执行期间暂停自动刷新，避免重绘后结果写回旧 DOM 节点
-  if (_pendingQueries.size > 0) {
-    document.getElementById('apps-refresh-hint').textContent = `(查询执行中，刷新暂停) ${fmtTime()}`;
+  if (_pendingQueries.size > 0 || _pendingExecutions.size > 0) {
+    document.getElementById('apps-refresh-hint').textContent = `(任务执行中，刷新暂停) ${fmtTime()}`;
     return;
   }
   // 如果有面板展开且用户正在交互（输入框有焦点），跳过本次刷新避免打断
   const _activeId = document.activeElement && document.activeElement.id;
-  if (_activeId && (_activeId.startsWith('qi-') || _activeId.startsWith('en-') || _activeId.startsWith('es-'))) {
+  if (_activeId && (_activeId.startsWith('qi-') || _activeId.startsWith('en-') || _activeId.startsWith('es-') || _activeId.startsWith('xi-'))) {
     document.getElementById('apps-refresh-hint').textContent = `(编辑中，刷新暂停) ${fmtTime()}`;
     return;
   }
@@ -258,6 +279,8 @@ function renderApps(apps) {
     const hasSched = _hasScheduleConfig(a);
     const schedInterval = hasSched ? a.guidance_file.constraints.schedule_interval_seconds : 0;
     const deployOnly = !!(a.guidance_file && a.guidance_file.metadata && a.guidance_file.metadata.deploy_only);
+    const skillsContent = (a.guidance_file && a.guidance_file.skills_content) || '';
+    const structuredDeployOnly = deployOnly && /^##\s+Pipeline\s*$/im.test(skillsContent);
     const deployed = !!a.deployed;
     const scheduleActive = !!a.schedule_active;
     return `
@@ -280,7 +303,7 @@ function renderApps(apps) {
                <button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>`
             : ''}
           ${deployOnly && deployed
-            ? `<button id="exec-${a.app_id}" class="btn btn-primary btn-sm" onclick="executeDeployedApp('${a.app_id}')">▶ 执行</button>
+            ? `<button id="exec-${a.app_id}" class="btn btn-primary btn-sm" onclick="${structuredDeployOnly ? `toggleExecutePanel('${a.app_id}')` : `executeDeployedApp('${a.app_id}')`}">▶ 执行</button>
                ${hasSched && !scheduleActive ? `<button id="period-${a.app_id}" class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="startSchedule('${a.app_id}')">⏱ 周期执行</button>` : ''}
                ${scheduleActive ? `<button id="period-stop-${a.app_id}" class="btn btn-danger btn-sm" onclick="stopSchedule('${a.app_id}')">⏹ 停止周期执行</button>` : ''}
                ${hasSched ? `<button class="btn btn-ghost btn-sm" onclick="toggleScheduleHistory('${a.app_id}')">📋 历史</button>` : ''}
@@ -297,6 +320,20 @@ function renderApps(apps) {
           <button class="btn btn-ghost btn-sm" onclick="uninstallApp('${a.app_id}')">🗑</button>
           <button class="btn btn-ghost btn-sm" onclick="openAppDetails('${a.app_id}')">📄 应用详情</button>
         </div>
+        <!-- 结构化 deploy_only 应用的运行时参数面板 -->
+        ${structuredDeployOnly ? `<div class="query-panel" id="xp-${a.app_id}">
+          <div style="display:flex;flex-direction:column;gap:8px;padding-top:8px">
+            <div>
+              <label style="font-size:12px;color:#778">Skills.md 内容（仅允许修改 Pipeline parameters）</label>
+              <textarea id="xi-${a.app_id}" style="width:100%;border:1px solid #d0d6e0;border-radius:6px;padding:8px;font-size:12px;font-family:monospace;resize:vertical;min-height:140px">${escHtml(skillsContent)}</textarea>
+            </div>
+            <div style="font-size:11px;color:#b45309">任务、顺序、并行关系、Agent、能力和描述不可修改。</div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button class="btn btn-ghost btn-sm" onclick="toggleExecutePanel('${a.app_id}')">取消</button>
+              <button id="exec-confirm-${a.app_id}" class="btn btn-primary btn-sm" onclick="executeDeployedApp('${a.app_id}', true)">确认执行</button>
+            </div>
+          </div>
+        </div>` : ''}
         <!-- 编辑面板 -->
         <div class="query-panel" id="sp-${a.app_id}">
           <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
@@ -660,20 +697,40 @@ async function sendQuery(appId) {
   }
 }
 
-async function executeDeployedApp(appId) {
-  const btn = document.getElementById(`exec-${appId}`);
+function toggleExecutePanel(appId) {
+  const panel = document.getElementById(`xp-${appId}`);
+  if (!panel) return;
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) _openExecutePanels.add(appId);
+  else _openExecutePanels.delete(appId);
+}
+
+async function executeDeployedApp(appId, useRuntimeSkills=false) {
+  const btn = document.getElementById(useRuntimeSkills ? `exec-confirm-${appId}` : `exec-${appId}`);
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> 执行中';
   }
+  _pendingExecutions.add(appId);
   try {
-    const res = await fetch(`${API}/api/apps/${appId}/execute`, {method:'POST'});
+    const options = {method:'POST', headers:{'Content-Type':'application/json'}};
+    if (useRuntimeSkills) {
+      const skillsContent = document.getElementById(`xi-${appId}`)?.value || '';
+      _executeSkills[appId] = skillsContent;
+      options.body = JSON.stringify({skills_content: skillsContent});
+    } else {
+      options.body = JSON.stringify({});
+    }
+    const res = await fetch(`${API}/api/apps/${appId}/execute`, options);
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
     showAlert('apps-alert','success','✅ 任务执行完成');
+    document.getElementById(`xp-${appId}`)?.classList.remove('open');
+    _openExecutePanels.delete(appId);
   } catch(e) {
     showAlert('apps-alert','error',`❌ 执行失败：${e.message}`);
   } finally {
+    _pendingExecutions.delete(appId);
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = '▶ 执行';
