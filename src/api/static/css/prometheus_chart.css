@@ -1,0 +1,75 @@
+.prometheus-chart-panel {
+  position: relative;
+}
+
+.prometheus-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+  color: #475569;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.prometheus-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prometheus-legend-swatch {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.prometheus-chart {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.prometheus-chart svg {
+  display: block;
+  width: max(100%, 720px);
+  height: auto;
+  aspect-ratio: 3 / 1;
+}
+
+.prometheus-chart-tooltip {
+  position: absolute;
+  z-index: 2;
+  width: max-content;
+  max-width: min(900px, calc(100vw - 32px));
+  pointer-events: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .14);
+  padding: 8px 10px;
+  white-space: pre;
+  overflow-x: auto;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.prometheus-tooltip-time {
+  margin-bottom: 6px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.prometheus-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.prometheus-tooltip-row + .prometheus-tooltip-row {
+  margin-top: 3px;
+}
+
+.prometheus-tooltip-swatch {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+}

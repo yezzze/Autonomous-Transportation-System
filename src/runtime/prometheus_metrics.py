@@ -50,6 +50,15 @@ ORCHESTRATION_TASK_LATENCY = Histogram(
     buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120),
 )
 
+# 一次完整应用工作流从进入冻结计划执行到成功、失败或取消的端到端耗时。
+# app_id 用于区分应用；deployment_mode 与 execution_mode 均为受控低基数标签。
+APPLICATION_WORKFLOW_DURATION = Histogram(
+    "application_workflow_duration_seconds",
+    "完整应用工作流执行时延，不包含规划、部署和调度等待时间。",
+    ("app_id", "deployment_mode", "execution_mode", "status"),
+    buckets=(0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600, 1800, 3600),
+)
+
 
 def observe_agent_call(agent_id: str, latency_ms: float, success: bool) -> None:
     """记录一次 Agent 调用，并向调用方隐藏 Prometheus 客户端实现细节。"""
@@ -99,3 +108,27 @@ def observe_orchestration_task(
         execution_kind=normalized_kind,
         status=status or "unknown",
     ).observe(max(latency_ms, 0.0) / 1000)
+
+
+def observe_application_workflow(
+    *,
+    app_id: str,
+    deployment_mode: str,
+    execution_mode: str,
+    status: str,
+    latency_seconds: float,
+) -> None:
+    """记录一次完整应用工作流执行，标签值归一化以限制基数。"""
+    normalized_deployment = (
+        deployment_mode if deployment_mode in {"deploy_only", "standard"} else "standard"
+    )
+    normalized_execution = (
+        execution_mode if execution_mode in {"single", "scheduled"} else "single"
+    )
+    normalized_status = status if status in {"success", "error", "cancelled"} else "error"
+    APPLICATION_WORKFLOW_DURATION.labels(
+        app_id=app_id or "unknown",
+        deployment_mode=normalized_deployment,
+        execution_mode=normalized_execution,
+        status=normalized_status,
+    ).observe(max(latency_seconds, 0.0))

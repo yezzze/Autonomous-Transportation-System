@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', path='/icon/logo_white.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='/css/test.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/prometheus_chart.css') }}">
   <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
   <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
   <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
@@ -65,8 +66,8 @@
     </div>
     <div class="test-table-wrap">
       <table aria-label="编排测试应用列表">
-        <thead><tr><th>名称</th><th>应用 ID</th><th>状态</th><th>Workflow Handle</th><th>操作</th></tr></thead>
-        <tbody id="orchestration-apps-body"><tr class="empty-row"><td colspan="5">加载中...</td></tr></tbody>
+        <thead><tr><th>名称</th><th>应用 ID</th><th>部署状态</th><th>运行状态</th><th>Workflow Handle</th><th>操作</th></tr></thead>
+        <tbody id="orchestration-apps-body"><tr class="empty-row"><td colspan="6">加载中...</td></tr></tbody>
       </table>
     </div>
 
@@ -194,6 +195,7 @@
 </main>
 
 <script src="{{ url_for('static', path='/js/orchestration_visualization.js') }}"></script>
+<script src="{{ url_for('static', path='/js/prometheus_chart.js') }}"></script>
 <script src="{{ url_for('static', path='/js/test.js') }}"></script>
 </body>
 </html>

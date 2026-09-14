@@ -2331,6 +2331,73 @@ async def test_prometheus_agent_metric_history(instance_id: str, aggregation: st
     }
 
 
+def _application_workflow_metric_queries(app_id: str) -> Dict[str, str]:
+    matcher = f'app_id="{_prometheus_label_value(app_id)}"'
+    count = f'application_workflow_duration_seconds_count{{{matcher}}}'
+    return {
+        "average_duration": (
+            f"sum(rate(application_workflow_duration_seconds_sum{{{matcher}}}[5m])) / "
+            f"sum(rate({count}[5m]))"
+        ),
+        "p95_duration": (
+            "histogram_quantile(0.95, sum by (le) "
+            f"(rate(application_workflow_duration_seconds_bucket{{{matcher}}}[5m])))"
+        ),
+        "execution_count": f"sum(increase({count}[5m]))",
+        "failure_rate": (
+            "100 * sum(rate(application_workflow_duration_seconds_count{"
+            f'{matcher},status="error"}}[5m])) / sum(rate({count}[5m]))'
+        ),
+    }
+
+
+@app.get(
+    "/api/apps/{app_id}/prometheus-metrics",
+    summary="获取应用工作流 Prometheus 趋势",
+)
+async def get_application_prometheus_metrics(app_id: str, range_seconds: int = 3600):
+    from src.app.app_manager import get_app_manager
+
+    if get_app_manager().get_app(app_id) is None:
+        raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+    if range_seconds < 300 or range_seconds > 86400:
+        raise HTTPException(status_code=422, detail="range_seconds 必须在 300 到 86400 之间")
+
+    queries = _application_workflow_metric_queries(app_id)
+    import time
+    end_time = time.time()
+    results = await asyncio.gather(
+        *(
+            _query_prometheus_range(query, range_seconds, end_time=end_time)
+            for query in queries.values()
+        ),
+        return_exceptions=True,
+    )
+    metrics: Dict[str, Dict[str, Any]] = {}
+    unavailable_metrics: List[str] = []
+    query_range: Dict[str, Any] = {}
+    for name, result in zip(queries, results):
+        if isinstance(result, Exception):
+            unavailable_metrics.append(name)
+            metrics[name] = {"result_type": "matrix", "result": []}
+            continue
+        data = result.get("data") or {}
+        if not query_range:
+            query_range = result.get("query_range", {})
+        metrics[name] = {
+            "result_type": data.get("resultType"),
+            "result": data.get("result", []),
+            "warnings": result.get("warnings", []),
+        }
+    return {
+        "app_id": app_id,
+        "range_seconds": range_seconds,
+        "query_range": query_range,
+        "metrics": metrics,
+        "unavailable_metrics": unavailable_metrics,
+    }
+
+
 @app.post("/tests/orchestration/plan", summary="只读生成智能体编排预览")
 async def preview_orchestration_plan(request: _OrchestrationPlanPreviewRequest):
     """复用正式 Planner 生成计划，但不部署、调用 Agent 或注册远端子工作流。"""

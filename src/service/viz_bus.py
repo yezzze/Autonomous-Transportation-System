@@ -294,6 +294,7 @@ class VizBus:
             "schedule_active_runs", "schedule_active_count",
             "last_run_id", "last_workflow_handle", "last_run_result_preview", "last_run_error",
             "run_id", "internal_workflow_handle", "execution_kind",
+            "deployment_only",
             "skills_content", "pipeline_topology", "complexity_level",
             "orchestration_mode", "agent_registry_cache", "execution_plan",
             "current_task_index", "all_tasks_completed", "failed_tasks",

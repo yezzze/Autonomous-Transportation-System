@@ -6,6 +6,7 @@
   <title>应用详情</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', path='/icon/logo_white.png') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', path='/css/common.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/prometheus_chart.css') }}">
   <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
   <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
   <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
@@ -198,118 +199,88 @@
     .viz-topology-wrap #cy {
       margin-top: 0;
     }
-    .viz-progress-track {
-      width: 100%;
-      height: 9px;
-      border: 1px solid #d8deea;
-      border-radius: 999px;
-      background: #f1f4fa;
-      overflow: hidden;
-      margin: 8px 0 14px;
-    }
-    .viz-progress-fill {
-      height: 100%;
-      width: 0;
-      background: linear-gradient(90deg, #4a6cf7, #6f8aff);
-      transition: width .35s ease;
-    }
-    .viz-current-card {
-      border: 1px solid #d7e1fb;
-      border-radius: 10px;
-      background: linear-gradient(180deg, #f8fbff 0%, #f2f6ff 100%);
-      padding: 12px;
+    .execution-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
       margin-bottom: 14px;
     }
-    .viz-current-card .title {
-      font-size: 15px;
-      font-weight: 700;
-      color: #1a1a2e;
-      margin-bottom: 6px;
+    .execution-summary-card {
+      border: 1px solid #dce3ef;
+      border-radius: 9px;
+      padding: 12px;
+      background: #fff;
+      min-width: 0;
     }
-    .viz-current-card .meta {
+    .execution-summary-card .value {
+      color: #1e3a8a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 19px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .execution-summary-card .label {
+      margin-top: 5px;
+      color: #64748b;
+      font-size: 12px;
+    }
+    .workflow-trend-toolbar {
       display: flex;
-      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .workflow-trend-controls {
+      display: flex;
+      align-items: center;
       gap: 8px;
       font-size: 12px;
-      color: #475569;
+      color: #64748b;
     }
-    .viz-current-card .meta-tag {
-      background: #fff;
-      border: 1px solid #d9e2f3;
-      border-radius: 999px;
-      padding: 3px 8px;
+    .workflow-trend-controls select {
+      width: auto;
+      padding: 6px 9px;
     }
-    .viz-tools {
-      margin-top: 8px;
+    .workflow-trend-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
     }
-    .viz-tool-tag {
-      display: inline-block;
-      margin: 2px 4px 0 0;
-      padding: 2px 7px;
-      border-radius: 999px;
-      font-size: 11px;
-      background: #eef2ff;
-      border: 1px solid #d7defa;
-      color: #3949ab;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    .viz-timeline {
-      list-style: none;
-      padding-left: 0;
-    }
-    .viz-timeline li {
+    .workflow-trend-card {
       position: relative;
-      padding: 10px 0 10px 22px;
-      border-left: 2px solid #e4e9f2;
-      margin-left: 6px;
+      min-height: 235px;
+      border: 1px solid #dce3ef;
+      border-radius: 9px;
+      padding: 12px;
+      background: #fff;
     }
-    .viz-timeline li::before {
-      content: "";
-      position: absolute;
-      left: -6px;
-      top: 15px;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #94a3b8;
-    }
-    .viz-timeline li.completed::before {
-      background: #16a34a;
-    }
-    .viz-timeline li.running::before {
-      background: #2563eb;
-    }
-    .viz-timeline li.failed::before {
-      background: #dc2626;
-    }
-    .viz-timeline li.empty-state::before {
-      display: none;
-    }
-    .viz-timeline .ti-title {
-      font-size: 14px;
+    .workflow-trend-title {
+      color: #334155;
+      font-size: 13px;
       font-weight: 600;
-      color: #1f2937;
     }
-    .viz-timeline .ti-meta {
-      margin-top: 2px;
-      font-size: 12px;
-      color: #6b7280;
-    }
-    #panel-execution .row {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    .workflow-trend-state {
+      margin-left: 8px;
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 400;
     }
     @media (max-width: 980px) {
       .viz-grid-2,
       .row {
         grid-template-columns: 1fr;
       }
-      #panel-execution .row {
-        grid-template-columns: 1fr;
-      }
       .viz-stats-top {
         grid-template-columns: 1fr;
       }
       .viz-stats-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .execution-summary-grid,
+      .workflow-trend-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       #cy {
@@ -444,29 +415,34 @@
     </div>
 
     <div id="panel-execution" class="panel">
-      <div class="row">
-        <div>
-          <div class="card">
-            <div class="card-title">当前执行</div>
-            <div id="currentBox" class="empty-state">暂无执行任务</div>
-          </div>
-          <div class="card" style="margin-bottom:0">
-            <div class="card-title">总进度与 Magentic 状态</div>
-            <div class="viz-progress-track"><div class="viz-progress-fill" id="progressFill"></div></div>
-            <div class="viz-meta-row"><span class="k">已完成 / 总数</span><span class="v" id="p-frac">0 / 0</span></div>
-            <div class="viz-meta-row"><span class="k">百分比</span><span class="v" id="p-pct">0%</span></div>
-            <div class="viz-meta-row"><span class="k">失败数</span><span class="v" id="p-failed">0</span></div>
-            <div class="viz-meta-row"><span class="k">重规划次数</span><span class="v" id="p-replan">0</span></div>
-            <div class="viz-meta-row"><span class="k">当前轮次</span><span class="v" id="m1-round">-</span></div>
-            <div class="viz-meta-row"><span class="k">停滞计数</span><span class="v" id="m1-stall">-</span></div>
-            <div class="viz-meta-row"><span class="k">模式</span><span class="v" id="m1-mode">-</span></div>
+      <div class="execution-summary-grid" aria-label="本次执行摘要">
+        <div class="execution-summary-card"><div class="value" id="exec-summary-status">—</div><div class="label">运行状态</div></div>
+        <div class="execution-summary-card"><div class="value" id="exec-summary-elapsed">—</div><div class="label">运行/会话耗时</div></div>
+        <div class="execution-summary-card"><div class="value" id="exec-summary-started">—</div><div class="label">开始时间</div></div>
+        <div class="execution-summary-card"><div class="value" id="exec-summary-updated">—</div><div class="label">最近更新</div></div>
+        <div class="execution-summary-card"><div class="value" id="exec-summary-progress">0 / 0</div><div class="label">已完成/总任务</div></div>
+        <div class="execution-summary-card"><div class="value" id="exec-summary-failed">0</div><div class="label">失败任务</div></div>
+        <div class="execution-summary-card"><div class="value" id="exec-summary-execution-mode">单次</div><div class="label">执行模式</div></div>
+        <div class="execution-summary-card"><div class="value" id="exec-summary-deployment-mode">普通模式</div><div class="label">部署模式</div></div>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <div class="workflow-trend-toolbar">
+          <div class="card-title" style="margin:0">工作流性能趋势</div>
+          <div class="workflow-trend-controls">
+            <label for="workflow-trend-range">时间范围</label>
+            <select id="workflow-trend-range">
+              <option value="3600" selected>最近 1 小时</option>
+              <option value="21600">最近 6 小时</option>
+              <option value="86400">最近 24 小时</option>
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm" id="refresh-workflow-trends">刷新</button>
           </div>
         </div>
-        <div>
-          <div class="card" style="margin-bottom:0">
-            <div class="card-title">执行时间线</div>
-            <ul class="viz-timeline" id="timelineList"></ul>
-          </div>
+        <div class="workflow-trend-grid">
+          <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">平均执行耗时（秒）<span class="workflow-trend-state" id="trend-average-state"></span></div><div class="prometheus-chart-legend" id="trend-average-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-average-chart"></div><div class="prometheus-chart-tooltip" id="trend-average-tooltip" hidden></div></div>
+          <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">执行耗时 p95（秒）<span class="workflow-trend-state" id="trend-p95-state"></span></div><div class="prometheus-chart-legend" id="trend-p95-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-p95-chart"></div><div class="prometheus-chart-tooltip" id="trend-p95-tooltip" hidden></div></div>
+          <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">近 5 分钟执行次数<span class="workflow-trend-state" id="trend-count-state"></span></div><div class="prometheus-chart-legend" id="trend-count-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-count-chart"></div><div class="prometheus-chart-tooltip" id="trend-count-tooltip" hidden></div></div>
+          <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">近 5 分钟失败率（%）<span class="workflow-trend-state" id="trend-failure-state"></span></div><div class="prometheus-chart-legend" id="trend-failure-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-failure-chart"></div><div class="prometheus-chart-tooltip" id="trend-failure-tooltip" hidden></div></div>
         </div>
       </div>
     </div>
@@ -479,6 +455,7 @@
     </div>
   </div>
 
+  <script src="{{ url_for('static', path='/js/prometheus_chart.js') }}"></script>
   <script src="{{ url_for('static', path='/js/app_details.js') }}"></script>
 </body>
 </html>

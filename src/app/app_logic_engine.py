@@ -15,6 +15,7 @@ import asyncio
 import copy
 import logging
 import os
+import time
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -582,6 +583,7 @@ class AppLogicEngine:
             workflow_handle,
             viz_enabled=False,
             state_callback=state_callback,
+            execution_mode="scheduled",
         )
 
     # ------------------------------------------------------------------
@@ -600,6 +602,7 @@ class AppLogicEngine:
         run_id: Optional[str] = None,
         execution_kind: str = "automatic",
         aggregate_to_master: bool = False,
+        execution_mode: str = "single",
     ):
         """
         实际调用编排层运行工作流
@@ -607,6 +610,9 @@ class AppLogicEngine:
         通过 run_distributed_workflow() 与编排层集成，
         结果存储在 workflow_handle 对应的状态中。
         """
+        started_at = time.monotonic()
+        metric_status = "error"
+        deployment_mode = "deploy_only" if guidance.metadata.get("deploy_only") else "standard"
         try:
             from src.distributed_workflow import run_distributed_workflow
 
@@ -706,9 +712,11 @@ class AppLogicEngine:
                 f"[ALRE] ✅ 工作流完成: app_id={app_id}, "
                 f"workflow_handle={workflow_handle}"
             )
+            metric_status = "success"
             return result
 
         except asyncio.CancelledError:
+            metric_status = "cancelled"
             logger.info(f"[ALRE] 工作流被取消: app_id={app_id}")
             raise
         except Exception as e:
@@ -732,6 +740,23 @@ class AppLogicEngine:
                         error=str(e),
                     )
             raise
+        finally:
+            try:
+                from src.runtime.prometheus_metrics import observe_application_workflow
+
+                observe_application_workflow(
+                    app_id=app_id,
+                    deployment_mode=deployment_mode,
+                    execution_mode=execution_mode,
+                    status=metric_status,
+                    latency_seconds=time.monotonic() - started_at,
+                )
+            except Exception as metric_error:
+                logger.warning(
+                    "[ALRE] 应用工作流 Prometheus 指标记录失败: app_id=%s, error=%s",
+                    app_id,
+                    metric_error,
+                )
 
     def _on_workflow_done(self, app_id: str, workflow_handle: str, task: asyncio.Task) -> None:
         """后台工作流结束后同步应用状态，避免 UI 长时间显示 running。"""

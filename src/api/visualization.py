@@ -376,6 +376,7 @@ def extract_execution_data(state: Dict[str, Any]) -> Dict[str, Any]:
 def extract_full_view(state: Dict[str, Any]) -> Dict[str, Any]:
     """返回三个场景合并的完整快照,适合一次性推送给前端。"""
     return {
+        "deployment_only": state.get("deployment_only") is True,
         "orchestration": extract_orchestration_data(state),
         "topology": extract_topology_data(state),
         "execution": extract_execution_data(state),

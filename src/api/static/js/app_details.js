@@ -6,6 +6,8 @@ let wsWorkflow = null;
 let cy = null;
 let runtimeRefreshTimer = null;
 let runtimeRefreshBusy = false;
+let workflowTrendTimer = null;
+let workflowTrendRequestId = 0;
 
 const vizState = {
   workflowId: '',
@@ -45,6 +47,15 @@ function setActiveTab(name) {
         console.warn('resize cy failed', e);
       }
     }, 0);
+  }
+  if (name === 'execution') {
+    loadWorkflowTrends();
+    if (workflowTrendTimer === null) {
+      workflowTrendTimer = window.setInterval(loadWorkflowTrends, 15000);
+    }
+  } else if (workflowTrendTimer !== null) {
+    window.clearInterval(workflowTrendTimer);
+    workflowTrendTimer = null;
   }
 }
 
@@ -132,6 +143,9 @@ function setRuntimeInfo(app) {
   byId('toolbar-deployment-status').textContent = appStatusLabel(app?.deployment_status);
   byId('toolbar-run-status').textContent = appStatusLabel(app?.run_status);
   byId('toolbar-workflow-handle').textContent = preferredWorkflowHandle(app) || '—';
+  if (byId('exec-summary-status')) {
+    renderExecutionSummary(vizState.snapshot?.execution || {});
+  }
 
   const agentsHost = byId('agents-host');
   if (agentsHost) {
@@ -556,57 +570,92 @@ function renderPane2(topology) {
 
 function renderPane3(execution) {
   const e = execution || {};
+  renderExecutionSummary(e);
+}
+
+function formatExecutionTimestamp(value) {
+  if (value == null || value === '') return '—';
+  const numeric = Number(value);
+  const date = Number.isFinite(numeric) ? new Date(numeric * 1000) : new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN');
+}
+
+function renderExecutionSummary(execution) {
+  const e = execution || {};
   const counts = e.counts || {};
-  const mag = e.magentic || {};
+  const summary = vizState.summary || {};
+  const guidance = currentApp?.guidance_file || {};
+  const scheduled = summary.view_type === 'schedule' || Boolean(currentApp?.schedule_active);
+  const deployOnly = Boolean(guidance.metadata?.deploy_only);
+  const elapsed = Number(summary.elapsed);
 
-  const progress = Number(e.progress_percent || 0);
-  byId('p-pct').textContent = `${progress}%`;
-  byId('progressFill').style.width = `${progress}%`;
-  byId('p-frac').textContent = `${counts.completed || 0} / ${e.total || 0}`;
-  byId('p-failed').textContent = counts.failed || 0;
-  byId('p-replan').textContent = e.replanning_count || 0;
-  byId('m1-round').textContent = `${mag.round || 0} / ${mag.max_round || '-'}`;
-  byId('m1-stall').textContent = mag.stall_count || 0;
-  byId('m1-mode').textContent = mag.mode || '-';
+  const displayedRunStatus = vizState.snapshot?.deployment_only === true
+    ? currentApp?.run_status
+    : (summary.status || currentApp?.run_status);
+  byId('exec-summary-status').textContent = appStatusLabel(displayedRunStatus);
+  byId('exec-summary-elapsed').textContent = Number.isFinite(elapsed) ? `${elapsed.toFixed(2)} 秒` : '—';
+  byId('exec-summary-started').textContent = formatExecutionTimestamp(summary.started_at);
+  byId('exec-summary-updated').textContent = formatExecutionTimestamp(summary.updated_at);
+  byId('exec-summary-progress').textContent = `${counts.completed || 0} / ${e.total || 0}`;
+  byId('exec-summary-failed').textContent = counts.failed || 0;
+  byId('exec-summary-execution-mode').textContent = scheduled ? '周期执行' : '单次执行';
+  byId('exec-summary-deployment-mode').textContent = deployOnly ? 'deploy_only' : '普通模式';
+}
 
-  const cb = byId('currentBox');
-  const cur = e.current || {};
-  if (cur && cur.status && cur.status !== 'pending') {
-    cb.className = 'viz-current-card';
-    cb.innerHTML = `
-      <div class="title">${escapeHtml(cur.title || '当前任务')}</div>
-      <div class="meta">
-        <span class="meta-tag">🤖 ${escapeHtml(cur.agent_id || '-')}</span>
-        <span class="meta-tag">📡 ${escapeHtml((cur.protocol || '?').toUpperCase())}</span>
-        <span class="meta-tag">🛠 ${escapeHtml(cur.executor || '-')}</span>
-        <span class="meta-tag">📍 ${escapeHtml(cur.ip || '-')}:${escapeHtml(cur.port || '-')}</span>
-      </div>
-      ${ensureArray(cur.tools_called).length ? `<div class="viz-tools">${ensureArray(cur.tools_called).map(item => {
-        const name = typeof item === 'string' ? item : item.tool;
-        return `<span class="viz-tool-tag">${escapeHtml(name || '-')}</span>`;
-      }).join('')}</div>` : ''}
-    `;
-  } else {
-    cb.className = 'empty-state';
-    cb.textContent = e.all_completed ? '全部任务已完成' : '暂无执行任务';
-  }
+const WORKFLOW_TREND_CHARTS = {
+  average_duration: {prefix: 'trend-average', axisRange: null},
+  p95_duration: {prefix: 'trend-p95', axisRange: null},
+  execution_count: {prefix: 'trend-count', axisRange: null},
+  failure_rate: {prefix: 'trend-failure', axisRange: null},
+};
 
-  const timeline = byId('timelineList');
-  timeline.innerHTML = '';
-  ensureArray(e.timeline).forEach(item => {
-    const li = document.createElement('li');
-    li.className = item.status || '';
-    const tools = ensureArray(item.tools_called).map(c => {
-      const name = typeof c === 'string' ? c : c.tool;
-      return `<span class="viz-tool-tag">${escapeHtml(name || '-')}</span>`;
-    }).join('');
-    li.innerHTML = `
-      <div class="ti-title">${escapeHtml(item.title || '-')} <span style="font-size:11px;color:#64748b">[${escapeHtml(item.status || '-')}]</span></div>
-      <div class="ti-meta">🤖 ${escapeHtml(item.agent_id || '-')} · 📡 ${escapeHtml((item.protocol || '?').toUpperCase())} · ⏱ ${item.duration_ms != null ? `${item.duration_ms}ms` : '-'}</div>
-      ${tools ? `<div style="margin-top:4px">${tools}</div>` : ''}
-    `;
-    timeline.appendChild(li);
+function workflowTrendElements(config) {
+  return {
+    panel: byId(`${config.prefix}-chart`).closest('.prometheus-chart-panel'),
+    chart: byId(`${config.prefix}-chart`),
+    legend: byId(`${config.prefix}-legend`),
+    tooltip: byId(`${config.prefix}-tooltip`),
+    get axisRange() { return config.axisRange; },
+    set axisRange(value) { config.axisRange = value; },
+  };
+}
+
+async function loadWorkflowTrends() {
+  if (!currentApp?.app_id || !byId('panel-execution')?.classList.contains('active')) return;
+  const requestId = ++workflowTrendRequestId;
+  const refresh = byId('refresh-workflow-trends');
+  refresh.disabled = true;
+  Object.values(WORKFLOW_TREND_CHARTS).forEach(config => {
+    byId(`${config.prefix}-state`).textContent = '加载中...';
   });
+  try {
+    const rangeSeconds = Number(byId('workflow-trend-range').value);
+    const response = await fetch(`${API}/api/apps/${encodeURIComponent(currentApp.app_id)}/prometheus-metrics?range_seconds=${rangeSeconds}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    if (requestId !== workflowTrendRequestId) return;
+    const unavailable = data.unavailable_metrics || [];
+    Object.entries(WORKFLOW_TREND_CHARTS).forEach(([key, config]) => {
+      renderPrometheusChart(
+        data.metrics?.[key] || {result: []},
+        workflowTrendElements(config),
+        {
+          xMin: data.query_range?.start,
+          xMax: data.query_range?.end,
+          sampleStep: data.query_range?.step,
+        },
+      );
+      byId(`${config.prefix}-state`).textContent = unavailable.includes(key) ? '暂不可用' : '每 15 秒更新';
+    });
+  } catch (error) {
+    if (requestId !== workflowTrendRequestId) return;
+    Object.values(WORKFLOW_TREND_CHARTS).forEach(config => {
+      byId(`${config.prefix}-chart`).innerHTML = `<div class="empty-state" style="padding-top:70px">加载失败：${escapeHtml(error.message)}</div>`;
+      byId(`${config.prefix}-state`).textContent = '加载失败';
+    });
+  } finally {
+    if (requestId === workflowTrendRequestId) refresh.disabled = false;
+  }
 }
 
 function renderVizAll() {
@@ -637,9 +686,7 @@ function clearVizPanels(message) {
   byId('skillsContent').textContent = message;
   byId('platformsBox').innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
   byId('pipelineFlow').innerHTML = `<span class="empty-state">${escapeHtml(message)}</span>`;
-  byId('currentBox').className = 'empty-state';
-  byId('currentBox').textContent = message;
-  byId('timelineList').innerHTML = `<li class="empty-state" style="border:none;padding:0;margin:0">${escapeHtml(message)}</li>`;
+  renderExecutionSummary({});
 }
 
 async function resolveVizWorkflowId(app) {
@@ -754,6 +801,7 @@ async function refreshRuntimeBinding(appId) {
     byId('toolbar-deployment-status').textContent = appStatusLabel(currentApp.deployment_status);
     byId('toolbar-run-status').textContent = appStatusLabel(currentApp.run_status);
     byId('toolbar-workflow-handle').textContent = preferredWorkflowHandle(currentApp) || '—';
+    renderExecutionSummary(vizState.snapshot?.execution || {});
 
     const nextWorkflowId = await resolveVizWorkflowId(currentApp);
     if (nextWorkflowId !== previousWorkflowId) {
@@ -832,6 +880,9 @@ document.addEventListener('DOMContentLoaded', () => {
       alert(`保存失败：${error.message}`);
     }
   });
+
+  byId('refresh-workflow-trends').addEventListener('click', loadWorkflowTrends);
+  byId('workflow-trend-range').addEventListener('change', loadWorkflowTrends);
 
   byId('btn-start')?.addEventListener('click', async () => {
     try {
