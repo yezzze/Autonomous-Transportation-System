@@ -45,6 +45,9 @@ class _ScheduleState:
     active_runs: Dict[str, asyncio.Task] = field(default_factory=dict, repr=False)
     total_runs: int = 0
     started_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    stop_requested: bool = False
+    stop_reason: str = ""
+    stop_event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
 
 
 # ======================================================================
@@ -215,6 +218,8 @@ class WorkflowScheduler:
             "total_runs": state.total_runs,
             "started_at": state.started_at,
             "active_run_ids": list(state.active_runs.keys()),
+            "stop_requested": state.stop_requested,
+            "stop_reason": state.stop_reason,
         }
 
     def get_history(self, app_id: str, limit: int = 50) -> List[dict]:
@@ -248,7 +253,17 @@ class WorkflowScheduler:
                 # 固定间隔模式先等待再触发；0 间隔模式立即触发首轮，
                 # 并在每轮末尾等待该轮完成后再进入下一轮。
                 if state.interval_seconds > 0:
-                    await asyncio.sleep(state.interval_seconds)
+                    try:
+                        await asyncio.wait_for(
+                            state.stop_event.wait(),
+                            timeout=state.interval_seconds,
+                        )
+                        break
+                    except asyncio.TimeoutError:
+                        pass
+
+                if state.stop_requested:
+                    break
 
                 # 清理已完成的 runs
                 self._cleanup_done_runs(app_id, state)
@@ -304,6 +319,28 @@ class WorkflowScheduler:
                     # shield 避免停止调度循环时意外取消正在运行的工作流；
                     # 是否取消活跃任务仍由 stop_schedule(cancel_active=...) 决定。
                     await asyncio.shield(task)
+                    if state.stop_requested:
+                        break
+
+            if state.stop_requested:
+                if self._schedules.get(app_id) is state:
+                    self._schedules.pop(app_id, None)
+                self._publish_schedule_viz_state(
+                    state,
+                    node_name="schedule_completed",
+                    extra={
+                        "schedule_status": "completed",
+                        "schedule_stop_reason": state.stop_reason,
+                        "schedule_stopped_at": datetime.utcnow().isoformat(),
+                    },
+                    finish_status="completed",
+                )
+                self._mark_app_schedule_completed(app_id)
+                logger.info(
+                    "[Scheduler] 工作流请求停止周期执行: app_id=%s, reason=%s",
+                    app_id,
+                    state.stop_reason,
+                )
 
         except asyncio.CancelledError:
             logger.info(f"[Scheduler] 调度循环已取消: app_id={app_id}")
@@ -315,6 +352,7 @@ class WorkflowScheduler:
                 finish_status="run_error",
                 error=str(e),
             )
+            self._mark_app_schedule_error(app_id, str(e))
             logger.error(f"[Scheduler] 调度循环异常退出: app_id={app_id}, error={e}")
 
     async def _execute_single_run(
@@ -358,6 +396,16 @@ class WorkflowScheduler:
                 workflow_handle,
                 state_callback=_on_state_update,
             )
+
+            schedule_control = (
+                result.get("schedule_control", {}) if isinstance(result, dict) else {}
+            )
+            if isinstance(schedule_control, dict) and schedule_control.get("stop") is True:
+                state.stop_requested = True
+                state.stop_reason = str(
+                    schedule_control.get("reason") or "工作流请求停止周期执行"
+                )
+                state.stop_event.set()
 
             # 更新记录为成功
             result_summary = str(result)[:500] if result else ""
@@ -417,6 +465,37 @@ class WorkflowScheduler:
                 f"[Scheduler] 执行失败: app_id={app_id}, run_id={run_id}, "
                 f"error={e}"
             )
+
+    @staticmethod
+    def _mark_app_schedule_completed(app_id: str) -> None:
+        """Agent 正常终止周期调度后标记应用运行完成。"""
+        try:
+            from src.app.app_manager import get_app_manager
+
+            manager = get_app_manager()
+            app = manager.get_app(app_id)
+            if app:
+                app.schedule_enabled = False
+                app.update_deployment_status("deployed")
+                app.update_run_status("completed")
+                manager._save_to_disk()
+        except Exception as exc:
+            logger.warning("[Scheduler] 回写周期完成状态失败: app_id=%s, error=%s", app_id, exc)
+
+    @staticmethod
+    def _mark_app_schedule_error(app_id: str, error: str) -> None:
+        """调度循环异常退出时回写运行错误，保留既有部署。"""
+        try:
+            from src.app.app_manager import get_app_manager
+
+            manager = get_app_manager()
+            app = manager.get_app(app_id)
+            if app:
+                app.schedule_enabled = False
+                app.update_run_status("run_error", error)
+                manager._save_to_disk()
+        except Exception as exc:
+            logger.warning("[Scheduler] 回写周期错误状态失败: app_id=%s, error=%s", app_id, exc)
 
     # ------------------------------------------------------------------
     # 活跃 runs 清理

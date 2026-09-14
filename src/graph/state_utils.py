@@ -44,6 +44,9 @@ def create_magentic_state(
         "plan_generated": False,
         "all_tasks_completed": False,
         "failed_tasks": [],
+        "workflow_terminated": False,
+        "workflow_termination_reason": "",
+        "schedule_control": {},
         
         # 混合编排
         "replanning_count": 0,
@@ -104,6 +107,9 @@ def create_distributed_state(
         "plan_generated": False,
         "all_tasks_completed": False,
         "failed_tasks": [],
+        "workflow_terminated": False,
+        "workflow_termination_reason": "",
+        "schedule_control": {},
         
         # 混合编排
         "replanning_count": 0,

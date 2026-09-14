@@ -1179,6 +1179,9 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
             "workflow_handle": workflow_handle,
             "sub_workflow_id": sub_workflow_id,
             "result": str(result)[:3000],
+            "schedule_control": (
+                result.get("schedule_control", {}) if isinstance(result, dict) else {}
+            ),
         }
     except asyncio.TimeoutError:
         workflow_task.cancel()

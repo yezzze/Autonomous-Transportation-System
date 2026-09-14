@@ -43,6 +43,9 @@ async def generate_execution_plan(
         "execution_plan": [],
         "current_task_index": 0,
         "failed_tasks": [],
+        "workflow_terminated": False,
+        "workflow_termination_reason": "",
+        "schedule_control": {},
         "cross_host_sessions": {},
         "failed_remote_aoe_urls": {},
         "timeout_seconds": timeout_seconds,
@@ -286,7 +289,7 @@ async def run_distributed_workflow(
         result["orchestration_mode"] = orchestration_mode
         result["complexity_level"] = complexity if adaptive_mode else "unknown"
         if bus and workflow_id:
-            bus.finish(workflow_id, status="done", final_state=result)
+            bus.finish(workflow_id, status="completed", final_state=result)
         if state_callback:
             state_callback(dict(result), "__finish__")
 
@@ -311,7 +314,7 @@ async def run_distributed_workflow(
         else:
             logger.error(f"工作流执行出错 [wf_id=disabled]：{e}", exc_info=True)
         if bus and workflow_id:
-            bus.finish(workflow_id, status="failed", error=str(e))
+            bus.finish(workflow_id, status="run_error", error=str(e))
         if state_callback:
             snapshot = dict(last_state) if "last_state" in locals() else {}
             snapshot["error"] = str(e)

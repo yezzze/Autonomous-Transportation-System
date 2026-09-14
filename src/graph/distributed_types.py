@@ -112,6 +112,11 @@ class DistributedState(MessagesState):
     plan_generated: bool  # 是否已生成计划
     all_tasks_completed: bool  # 是否所有任务已完成
     failed_tasks: List[str]  # 失败的任务 ID 列表
+    workflow_terminated: bool
+    workflow_termination_reason: str
+    workflow_terminated_by_task_id: str
+    workflow_terminated_by_agent_id: str
+    schedule_control: Dict[str, Any]
     
     # ========== 混合编排 ==========
     replanning_count: int  # 重新规划次数

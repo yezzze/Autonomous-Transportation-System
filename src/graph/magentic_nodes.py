@@ -238,6 +238,8 @@ async def magentic_executor_node(state: DistributedState) -> Command[Literal["ma
     
     # 执行完成后，返回 Orchestrator 继续循环
     update = result.update or {}
+    if update.get("workflow_terminated"):
+        return Command(update=update, goto="magentic_reporter")
     
     return Command(
         update=update,

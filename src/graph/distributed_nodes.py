@@ -30,6 +30,51 @@ def _llm_simulator_enabled() -> bool:
     """仅接受显式的 USE_LLM_SIMULATOR=true，避免默认降级。"""
     return os.getenv("USE_LLM_SIMULATOR", "false").strip().lower() == "true"
 
+
+def extract_workflow_termination(result_data: Any) -> Dict[str, Any] | None:
+    """从 Agent 结果中提取工作流终止请求。
+
+    A2A 的 text artifact 会把 Agent 返回的 JSON 保留为字符串，因此这里既要
+    支持结构化 dict，也要支持外层响应 ``result`` 中的 JSON 字符串。遍历做
+    深度和数量限制，避免把普通文本当作需要无限展开的控制消息。
+    """
+    candidates = [(result_data, 0)]
+    visited = 0
+    while candidates and visited < 32:
+        candidate, depth = candidates.pop(0)
+        visited += 1
+
+        if isinstance(candidate, str) and depth < 4:
+            text = candidate.strip()
+            if text.startswith(("{", "[")):
+                try:
+                    candidates.append((json.loads(text), depth + 1))
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            continue
+
+        if isinstance(candidate, list) and depth < 4:
+            candidates.extend((item, depth + 1) for item in candidate[:16])
+            continue
+
+        if not isinstance(candidate, dict):
+            continue
+        workflow_control = candidate.get("workflow_control")
+        if isinstance(workflow_control, dict) and workflow_control.get("terminate") is True:
+            return {
+                "reason": str(workflow_control.get("reason") or "Agent 请求终止工作流"),
+                "stop_schedule": workflow_control.get("stop_schedule", True) is not False,
+            }
+        schedule_control = candidate.get("schedule_control")
+        if isinstance(schedule_control, dict) and schedule_control.get("stop") is True:
+            return {
+                "reason": str(schedule_control.get("reason") or "Agent 请求停止周期工作流"),
+                "stop_schedule": True,
+            }
+        if depth < 4 and "result" in candidate:
+            candidates.append((candidate.get("result"), depth + 1))
+    return None
+
 def _agent_is_local(agent: dict | None) -> bool:
     """仅根据 agent_registry.json 中的 is_local 字段判断是否本地。"""
     return bool(agent and agent.get("is_local", False))
@@ -1370,7 +1415,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
             if par_rd.get("status") == "success":
                 updated_plan[task_idx]["status"] = "completed"
                 updated_plan[task_idx]["result"] = par_rd.get("result", "")
-                result_texts.append(f"✅ {task['task_title']}: {par_rd.get('result', '')[:500]}")
+                result_texts.append(f"✅ {task['task_title']}: {str(par_rd.get('result', ''))[:500]}")
             else:
                 updated_plan[task_idx]["status"] = "failed"
                 err = par_rd.get("error_message", "未知错误")
@@ -1378,10 +1423,33 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 result_texts.append(f"❌ {task['task_title']}: {err}")
                 failed_tasks.append(task["task_id"])
 
+        termination = None
+        for parallel_result in par_results:
+            termination = extract_workflow_termination(parallel_result)
+            if termination:
+                break
+
         response_text = (
             f"### ⚡ 并行任务组 `{parallel_group}` 执行完毕（{len(group_tasks)} 个任务）\n\n"
             + "\n\n".join(result_texts)
         )
+        if termination:
+            return Command(
+                update={
+                    "messages": [HumanMessage(content=response_text, name="executor")],
+                    "execution_plan": updated_plan,
+                    "current_task_index": idx,
+                    "failed_tasks": failed_tasks,
+                    "all_tasks_completed": True,
+                    "workflow_terminated": True,
+                    "workflow_termination_reason": termination["reason"],
+                    "schedule_control": {
+                        "stop": termination["stop_schedule"],
+                        "reason": termination["reason"],
+                    },
+                },
+                goto="reporter",
+            )
         return Command(
             update={
                 "messages": [HumanMessage(content=response_text, name="executor")],
@@ -1460,6 +1528,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 "status": "success",
                 "protocol": "cross_host",
                 "agent_used": remote_info.get("sub_workflow_id", remote_info.get("remote_aoe_url", "")),
+                "schedule_control": xh_result.get("schedule_control", {}),
             }
             logger.info(f"[跨主体] ✅ 子任务完成: {current_task['task_id']}")
         else:
@@ -1514,7 +1583,12 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
             _swf_messages = _swf_result.get("messages", [])
             result_message = _swf_messages[-1].content if _swf_messages else str(_swf_result)
             task_status = "completed"
-            result_data = {"status": "success", "protocol": "sub_workflow", "agent_used": _local_swf_id}
+            result_data = {
+                "status": "success",
+                "protocol": "sub_workflow",
+                "agent_used": _local_swf_id,
+                "schedule_control": _swf_result.get("schedule_control", {}),
+            }
             logger.info(f"[子工作流] ✅ 本地子工作流执行完成: {_local_swf_id}")
         except Exception as e:
             _task_latency = (time.monotonic() - _task_start) * 1000
@@ -1680,6 +1754,35 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                     segment_metadata = dict(task.get("metadata") or {})
                     segment_metadata.update(task_metadata)
                     updated_plan[task_index]["metadata"] = segment_metadata
+
+    termination = extract_workflow_termination(result_data) if 'result_data' in locals() else None
+    if termination:
+        logger.info(
+            "Agent 请求终止工作流: task_id=%s, agent_id=%s, reason=%s",
+            current_task.get("task_id"),
+            current_task.get("assigned_agent_id"),
+            termination["reason"],
+        )
+        return Command(
+            update={
+                "messages": [HumanMessage(
+                    content=f"工作流已由 {current_task.get('assigned_agent_id', 'Agent')} 终止：{termination['reason']}",
+                    name="executor",
+                )],
+                "execution_plan": updated_plan,
+                "current_task_index": current_index + 1,
+                "all_tasks_completed": True,
+                "workflow_terminated": True,
+                "workflow_termination_reason": termination["reason"],
+                "workflow_terminated_by_task_id": current_task.get("task_id", ""),
+                "workflow_terminated_by_agent_id": current_task.get("assigned_agent_id", ""),
+                "schedule_control": {
+                    "stop": termination["stop_schedule"],
+                    "reason": termination["reason"],
+                },
+            },
+            goto="reporter",
+        )
     
     # 6. 决定下一步
     failed_tasks = state.get("failed_tasks", [])
