@@ -205,6 +205,12 @@
       gap: 12px;
       margin-bottom: 14px;
     }
+    .execution-summary-grid[hidden] {
+      display: none;
+    }
+    #completed-workflow-summary {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
     .execution-summary-card {
       border: 1px solid #dce3ef;
       border-radius: 9px;
@@ -425,6 +431,11 @@
         <div class="execution-summary-card"><div class="value" id="exec-summary-execution-mode">单次</div><div class="label">执行模式</div></div>
         <div class="execution-summary-card"><div class="value" id="exec-summary-deployment-mode">普通模式</div><div class="label">部署模式</div></div>
       </div>
+      <div id="completed-workflow-summary" class="execution-summary-grid" aria-label="Prometheus 运行统计" hidden>
+        <div class="execution-summary-card"><div class="value" id="completed-total-duration">—</div><div class="label">运行总时长</div></div>
+        <div class="execution-summary-card"><div class="value" id="completed-execution-count">—</div><div class="label">运行次数</div></div>
+        <div class="execution-summary-card"><div class="value" id="completed-average-duration">—</div><div class="label">累计平均执行耗时</div></div>
+      </div>
       <div class="card" style="margin-bottom:0">
         <div class="workflow-trend-toolbar">
           <div class="card-title" style="margin:0">工作流性能趋势</div>
@@ -439,8 +450,8 @@
           </div>
         </div>
         <div class="workflow-trend-grid">
-          <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">平均执行耗时（秒）<span class="workflow-trend-state" id="trend-average-state"></span></div><div class="prometheus-chart-legend" id="trend-average-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-average-chart"></div><div class="prometheus-chart-tooltip" id="trend-average-tooltip" hidden></div></div>
-          <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">执行耗时 p95（秒）<span class="workflow-trend-state" id="trend-p95-state"></span></div><div class="prometheus-chart-legend" id="trend-p95-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-p95-chart"></div><div class="prometheus-chart-tooltip" id="trend-p95-tooltip" hidden></div></div>
+          <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">近5分钟平均执行耗时（秒）<span class="workflow-trend-state" id="trend-average-state"></span></div><div class="prometheus-chart-legend" id="trend-average-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-average-chart"></div><div class="prometheus-chart-tooltip" id="trend-average-tooltip" hidden></div></div>
+          <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">近5分钟执行耗时 p95（秒）<span class="workflow-trend-state" id="trend-p95-state"></span></div><div class="prometheus-chart-legend" id="trend-p95-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-p95-chart"></div><div class="prometheus-chart-tooltip" id="trend-p95-tooltip" hidden></div></div>
           <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">近 5 分钟执行次数<span class="workflow-trend-state" id="trend-count-state"></span></div><div class="prometheus-chart-legend" id="trend-count-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-count-chart"></div><div class="prometheus-chart-tooltip" id="trend-count-tooltip" hidden></div></div>
           <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">近 5 分钟失败率（%）<span class="workflow-trend-state" id="trend-failure-state"></span></div><div class="prometheus-chart-legend" id="trend-failure-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-failure-chart"></div><div class="prometheus-chart-tooltip" id="trend-failure-tooltip" hidden></div></div>
         </div>

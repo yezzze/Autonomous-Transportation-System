@@ -4,6 +4,7 @@ FastAPI application for LangManus.
 
 import json
 import logging
+import math
 import os
 import re
 import uuid
@@ -2331,24 +2332,72 @@ async def test_prometheus_agent_metric_history(instance_id: str, aggregation: st
     }
 
 
-def _application_workflow_metric_queries(app_id: str) -> Dict[str, str]:
-    matcher = f'app_id="{_prometheus_label_value(app_id)}"'
+def _application_workflow_metric_queries(
+    app_id: str, workflow_handle: Optional[str] = None
+) -> Dict[str, str]:
+    matchers = [f'app_id="{_prometheus_label_value(app_id)}"']
+    if workflow_handle:
+        matchers.append(
+            f'workflow_handle="{_prometheus_label_value(workflow_handle)}"'
+        )
+    matcher = ",".join(matchers)
     count = f'application_workflow_duration_seconds_count{{{matcher}}}'
     return {
         "average_duration": (
-            f"sum(rate(application_workflow_duration_seconds_sum{{{matcher}}}[5m])) / "
-            f"sum(rate({count}[5m]))"
+            "sum by (workflow_handle) "
+            f"(rate(application_workflow_duration_seconds_sum{{{matcher}}}[5m])) / "
+            f"sum by (workflow_handle) (rate({count}[5m]))"
         ),
         "p95_duration": (
-            "histogram_quantile(0.95, sum by (le) "
+            "histogram_quantile(0.95, sum by (workflow_handle, le) "
             f"(rate(application_workflow_duration_seconds_bucket{{{matcher}}}[5m])))"
         ),
-        "execution_count": f"sum(increase({count}[5m]))",
+        "execution_count": (
+            f"sum by (workflow_handle) (increase({count}[5m]))"
+        ),
         "failure_rate": (
-            "100 * sum(rate(application_workflow_duration_seconds_count{"
-            f'{matcher},status="error"}}[5m])) / sum(rate({count}[5m]))'
+            "100 * sum by (workflow_handle) "
+            "(rate(application_workflow_duration_seconds_count{"
+            f'{matcher},status="error"}}[5m])) / '
+            f"sum by (workflow_handle) (rate({count}[5m]))"
         ),
     }
+
+
+def _application_workflow_summary_queries(
+    app_id: str, workflow_handle: Optional[str] = None
+) -> Dict[str, str]:
+    """构造累计工作流统计；已部署时由调用方限定当前主工作流句柄。"""
+    matchers = [f'app_id="{_prometheus_label_value(app_id)}"']
+    if workflow_handle:
+        matchers.append(
+            f'workflow_handle="{_prometheus_label_value(workflow_handle)}"'
+        )
+    matcher = ",".join(matchers)
+    total = f'application_workflow_duration_seconds_sum{{{matcher}}}'
+    count = f'application_workflow_duration_seconds_count{{{matcher}}}'
+    return {
+        "total_duration_seconds": f"sum({total})",
+        "execution_count": f"sum({count})",
+        "average_duration_seconds": f"sum({total}) / sum({count})",
+    }
+
+
+def _prometheus_instant_value(payload: Dict[str, Any]) -> Optional[float]:
+    data = payload.get("data") or {}
+    result = data.get("result")
+    sample = None
+    if data.get("resultType") == "scalar" and isinstance(result, list):
+        sample = result
+    elif isinstance(result, list) and result:
+        sample = result[0].get("value") if isinstance(result[0], dict) else None
+    if not isinstance(sample, list) or len(sample) < 2:
+        return None
+    try:
+        value = float(sample[1])
+        return value if math.isfinite(value) else None
+    except (TypeError, ValueError):
+        return None
 
 
 @app.get(
@@ -2358,12 +2407,18 @@ def _application_workflow_metric_queries(app_id: str) -> Dict[str, str]:
 async def get_application_prometheus_metrics(app_id: str, range_seconds: int = 3600):
     from src.app.app_manager import get_app_manager
 
-    if get_app_manager().get_app(app_id) is None:
+    app_info = get_app_manager().get_app(app_id)
+    if app_info is None:
         raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
     if range_seconds < 300 or range_seconds > 86400:
         raise HTTPException(status_code=422, detail="range_seconds 必须在 300 到 86400 之间")
 
-    queries = _application_workflow_metric_queries(app_id)
+    selected_workflow_handle = (
+        app_info.workflow_handle
+        if app_info.deployment_status == "deployed" and app_info.workflow_handle
+        else None
+    )
+    queries = _application_workflow_metric_queries(app_id, selected_workflow_handle)
     import time
     end_time = time.time()
     results = await asyncio.gather(
@@ -2371,6 +2426,15 @@ async def get_application_prometheus_metrics(app_id: str, range_seconds: int = 3
             _query_prometheus_range(query, range_seconds, end_time=end_time)
             for query in queries.values()
         ),
+        return_exceptions=True,
+    )
+    summary_queries = (
+        _application_workflow_summary_queries(app_id, selected_workflow_handle)
+        if app_info.run_status == "completed"
+        else {}
+    )
+    summary_results = await asyncio.gather(
+        *(_query_prometheus(query) for query in summary_queries.values()),
         return_exceptions=True,
     )
     metrics: Dict[str, Dict[str, Any]] = {}
@@ -2389,12 +2453,26 @@ async def get_application_prometheus_metrics(app_id: str, range_seconds: int = 3
             "result": data.get("result", []),
             "warnings": result.get("warnings", []),
         }
+    workflow_summary: Dict[str, Optional[float]] = {}
+    unavailable_summary_metrics: List[str] = []
+    for name, result in zip(summary_queries, summary_results):
+        if isinstance(result, Exception):
+            workflow_summary[name] = None
+            unavailable_summary_metrics.append(name)
+            continue
+        value = _prometheus_instant_value(result)
+        workflow_summary[name] = value
+        if value is None:
+            unavailable_summary_metrics.append(name)
     return {
         "app_id": app_id,
+        "workflow_handle": selected_workflow_handle,
         "range_seconds": range_seconds,
         "query_range": query_range,
         "metrics": metrics,
         "unavailable_metrics": unavailable_metrics,
+        "workflow_summary": workflow_summary,
+        "unavailable_summary_metrics": unavailable_summary_metrics,
     }
 
 

@@ -600,6 +600,30 @@ function renderExecutionSummary(execution) {
   byId('exec-summary-failed').textContent = counts.failed || 0;
   byId('exec-summary-execution-mode').textContent = scheduled ? '周期执行' : '单次执行';
   byId('exec-summary-deployment-mode').textContent = deployOnly ? 'deploy_only' : '普通模式';
+  const completedSummary = byId('completed-workflow-summary');
+  if (completedSummary) completedSummary.hidden = currentApp?.run_status !== 'completed';
+}
+
+function formatDurationSeconds(value) {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? `${number.toLocaleString('zh-CN', {maximumFractionDigits: 3})} 秒`
+    : '暂无数据';
+}
+
+function renderCompletedWorkflowSummary(data) {
+  const host = byId('completed-workflow-summary');
+  if (!host) return;
+  const completed = currentApp?.run_status === 'completed';
+  host.hidden = !completed;
+  if (!completed) return;
+  const summary = data?.workflow_summary || {};
+  byId('completed-total-duration').textContent = formatDurationSeconds(summary.total_duration_seconds);
+  const count = Number(summary.execution_count);
+  byId('completed-execution-count').textContent = Number.isFinite(count)
+    ? count.toLocaleString('zh-CN', {maximumFractionDigits: 0})
+    : '暂无数据';
+  byId('completed-average-duration').textContent = formatDurationSeconds(summary.average_duration_seconds);
 }
 
 const WORKFLOW_TREND_CHARTS = {
@@ -628,6 +652,10 @@ async function loadWorkflowTrends() {
   Object.values(WORKFLOW_TREND_CHARTS).forEach(config => {
     byId(`${config.prefix}-state`).textContent = '加载中...';
   });
+  if (currentApp.run_status === 'completed') {
+    ['completed-total-duration', 'completed-execution-count', 'completed-average-duration']
+      .forEach(id => { byId(id).textContent = '加载中...'; });
+  }
   try {
     const rangeSeconds = Number(byId('workflow-trend-range').value);
     const response = await fetch(`${API}/api/apps/${encodeURIComponent(currentApp.app_id)}/prometheus-metrics?range_seconds=${rangeSeconds}`);
@@ -635,6 +663,7 @@ async function loadWorkflowTrends() {
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
     if (requestId !== workflowTrendRequestId) return;
     const unavailable = data.unavailable_metrics || [];
+    renderCompletedWorkflowSummary(data);
     Object.entries(WORKFLOW_TREND_CHARTS).forEach(([key, config]) => {
       renderPrometheusChart(
         data.metrics?.[key] || {result: []},

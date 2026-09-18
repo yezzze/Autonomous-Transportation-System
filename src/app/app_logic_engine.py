@@ -746,6 +746,7 @@ class AppLogicEngine:
 
                 observe_application_workflow(
                     app_id=app_id,
+                    workflow_handle=self._workflow_handles.get(app_id) or workflow_handle,
                     deployment_mode=deployment_mode,
                     execution_mode=execution_mode,
                     status=metric_status,

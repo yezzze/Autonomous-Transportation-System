@@ -51,11 +51,12 @@ ORCHESTRATION_TASK_LATENCY = Histogram(
 )
 
 # 一次完整应用工作流从进入冻结计划执行到成功、失败或取消的端到端耗时。
-# app_id 用于区分应用；deployment_mode 与 execution_mode 均为受控低基数标签。
+# app_id 与 workflow_handle 用于区分应用及其每次部署形成的工作流；
+# deployment_mode 与 execution_mode 均为受控低基数标签。
 APPLICATION_WORKFLOW_DURATION = Histogram(
     "application_workflow_duration_seconds",
     "完整应用工作流执行时延，不包含规划、部署和调度等待时间。",
-    ("app_id", "deployment_mode", "execution_mode", "status"),
+    ("app_id", "workflow_handle", "deployment_mode", "execution_mode", "status"),
     buckets=(0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600, 1800, 3600),
 )
 
@@ -113,6 +114,7 @@ def observe_orchestration_task(
 def observe_application_workflow(
     *,
     app_id: str,
+    workflow_handle: str,
     deployment_mode: str,
     execution_mode: str,
     status: str,
@@ -128,6 +130,7 @@ def observe_application_workflow(
     normalized_status = status if status in {"success", "error", "cancelled"} else "error"
     APPLICATION_WORKFLOW_DURATION.labels(
         app_id=app_id or "unknown",
+        workflow_handle=workflow_handle or "unknown",
         deployment_mode=normalized_deployment,
         execution_mode=normalized_execution,
         status=normalized_status,
