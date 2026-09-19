@@ -1,0 +1,58 @@
+{
+  "images": [
+    {
+      "image_id": "perception2intermediatefeature-agent:0.2.0",
+      "name": "perception2intermediatefeature-agent",
+      "version": "0.2.0",
+      "capability": "perception",
+      "type": "business",
+      "description": "专门用于将自车感知数据转换为中间通信特征的 Agent，支持端端协同感知流程",
+      "exposed_external": false,
+      "metadata": {},
+      "created_at": "2026-04-25T18:45:58.601887",
+      "registered": true
+    },
+    {
+      "image_id": "simlingo-encoder-agent:0.3.2",
+      "name": "simlingo-encoder-agent",
+      "version": "0.3.2",
+      "capability": "simlingoEncoder",
+      "type": "business",
+      "description": "SimLingo 编码器 Agent，用于将输入数据编码为 SimLingo 格式",
+      "exposed_external": false,
+      "metadata": {},
+      "created_at": "2026-04-25T18:45:58.601887",
+      "registered": true
+    },
+    {
+      "image_id": "vogs-ego-agent:0.1.1",
+      "name": "vogs-ego-agent",
+      "version": "0.1.1",
+      "capability": "vogsEgo",
+      "type": "business",
+      "description": "Vogs Ego Agent，用于处理自车的感知和决策",
+      "exposed_external": false,
+      "metadata": {},
+      "created_at": "2026-04-25T18:45:58.601887",
+      "registered": true
+    },
+    {
+      "image_id": "cloudvlmacccidentdescription-agent:1.1.0",
+      "name": "cloudvlmacccidentdescription-agent",
+      "version": "1.1.0",
+      "capability": "cloudVlmAccidentDescription",
+      "type": "business",
+      "description": "Cloud VLM Accident Description Agent，用于生成事故的详细描述",
+      "exposed_external": false,
+      "metadata": {
+        "k8s": {
+          "cpu_cores": 4.0,
+          "memory_mb": 16384,
+          "gpu_count": 1
+        }
+      },
+      "created_at": "2026-04-25T18:45:58.601887",
+      "registered": true
+    }
+  ]
+}

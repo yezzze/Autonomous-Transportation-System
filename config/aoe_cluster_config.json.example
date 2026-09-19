@@ -1,11 +1,15 @@
 {
-  "local_name": "cluster-b",
-  "local_aoe_url": "http://10.112.221.121:8001",
-  "default_peer_url": "http://10.112.136.44:8001",
+  "local_name": "edge-c",
+  "local_aoe_url": "http://10.112.93.73:8000",
+  "default_peer_url": "http://10.112.221.121:8000",
   "peers": [
     {
-      "name": "cluster-a",
-      "url": "http://10.112.136.44:8001"
+      "name": "edge-a",
+      "url": "http://10.112.136.44:8000"
+    },
+    {
+      "name": "edge-b",
+      "url": "http://10.112.221.121:8000"
     }
   ],
   "default_timeout_seconds": 60

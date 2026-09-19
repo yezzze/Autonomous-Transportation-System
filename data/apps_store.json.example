@@ -1,0 +1,172 @@
+{
+  "app_sense_demo": {
+    "app_id": "app_sense_demo",
+    "name": "环境感知 Demo 结构化编排",
+    "deployment_status": "undeployed",
+    "run_status": "stopped",
+    "image_ids": [],
+    "workflow_handle": null,
+    "app_interface_url": null,
+    "deployment_error_message": null,
+    "run_error_message": null,
+    "schedule_enabled": false,
+    "created_at": "2026-03-08T00:00:00.000000",
+    "updated_at": "2026-09-09T06:50:22.739158",
+    "guidance_file": {
+      "app_id": "app_sense_demo",
+      "task_description": "单车感知演示：采集雷达/摄像头数据，生成环境表征",
+      "agents_required": [
+        "perception",
+        "cognition"
+      ],
+      "orchestration_mode": "adaptive",
+      "constraints": {
+        "timeout_seconds": 120,
+        "schedule_interval_seconds": 0,
+        "schedule_max_parallel": 1,
+        "schedule_auto_restart": false
+      },
+      "metadata": {
+        "deploy_only": false
+      },
+      "skills_content": "# 单车车辆感知应用\n\n## 核心能力\n本应用演示自主式交通系统端端单车感知流程：自车感知。\n\n## 工作流说明\n1. 自车感知 Agent 采集本机雷达/摄像头数据，生成自车中间特征\n2. 综合认知 Agent 接收单车中间特征，输出感知结果\n\n## Pipeline\nperception2intermediatefeature-agent:自车雷达周边环境，生成自车环境中间特征\n-> cooperativefeaturefusiondetectionviz-agent:接收自车中间特征，输出感知结果",
+      "created_at": "2026-03-08T00:00:00.000000"
+    }
+  },
+  "app_sense_demo_llm": {
+    "app_id": "app_sense_demo_llm",
+    "name": "环境感知 Demo 自适应编排",
+    "deployment_status": "undeployed",
+    "run_status": "stopped",
+    "image_ids": [],
+    "workflow_handle": null,
+    "app_interface_url": null,
+    "deployment_error_message": null,
+    "run_error_message": null,
+    "schedule_enabled": false,
+    "created_at": "2026-03-08T00:00:00.000000",
+    "updated_at": "2026-07-28T05:24:27.757798",
+    "guidance_file": {
+      "app_id": "app_sense_demo_llm",
+      "task_description": "单车感知演示：采集雷达/摄像头数据，生成环境表征",
+      "agents_required": [
+        "perception",
+        "cognition"
+      ],
+      "orchestration_mode": "adaptive",
+      "constraints": {
+        "timeout_seconds": 120,
+        "schedule_interval_seconds": 3,
+        "schedule_max_parallel": 1,
+        "schedule_auto_restart": false
+      },
+      "metadata": {},
+      "skills_content": "# 单车车辆感知应用\n\n## 核心能力\n本应用演示自主式交通系统端端单车感知流程：自车感知，应用应做到采集单车雷达/摄像头数据，最终得到可视化感知结果。",
+      "created_at": "2026-03-08T00:00:00.000000"
+    }
+  },
+  "simlingo_demo": {
+    "app_id": "simlingo_demo",
+    "name": "Simlingo Demo 结构化编排",
+    "deployment_status": "undeployed",
+    "run_status": "stopped",
+    "image_ids": [],
+    "workflow_handle": null,
+    "app_interface_url": null,
+    "deployment_error_message": null,
+    "run_error_message": null,
+    "schedule_enabled": false,
+    "created_at": "2026-03-08T00:00:00.000000",
+    "updated_at": "2026-09-19T07:48:16.060333",
+    "guidance_file": {
+      "app_id": "simlingo_demo",
+      "task_description": "SimLingo Demo",
+      "agents_required": [
+        "simlingo-encoder",
+        "simlingo-scheduler",
+        "simlingo-llm"
+      ],
+      "orchestration_mode": "adaptive",
+      "constraints": {
+        "timeout_seconds": 120,
+        "schedule_interval_seconds": 0,
+        "schedule_max_parallel": 1,
+        "schedule_auto_restart": false
+      },
+      "metadata": {
+        "deploy_only": true
+      },
+      "skills_content": "# Simlingo Demo \n## Pipeline\nsimlingo-encoder-agent\n-> simlingo-scheduler-agent{\"scheduler_phase\": \"budget\"}\n-> simlingo-llm-agent{\"llm_phase\": \"prefix\"}\n-> simlingo-scheduler-agent{\"scheduler_phase\": \"plan\"}\n-> simlingo-llm-agent{\"llm_phase\": \"final\"}\n-> simlingo-scheduler-agent{\"scheduler_phase\": \"decision_update\"}",
+      "created_at": "2026-03-08T00:00:00.000000"
+    }
+  },
+  "vogs_demo": {
+    "app_id": "vogs_demo",
+    "name": "Vogs Demo 结构化编排",
+    "deployment_status": "undeployed",
+    "run_status": "stopped",
+    "image_ids": [],
+    "workflow_handle": null,
+    "app_interface_url": null,
+    "deployment_error_message": null,
+    "run_error_message": null,
+    "schedule_enabled": false,
+    "created_at": "2026-03-08T00:00:00.000000",
+    "updated_at": "2026-09-18T04:02:32.540575",
+    "guidance_file": {
+      "app_id": "vogs_demo",
+      "task_description": "Vogs Demo",
+      "agents_required": [
+        "vogs-ego",
+        "vogs-collaborator"
+      ],
+      "orchestration_mode": "adaptive",
+      "constraints": {
+        "timeout_seconds": 360,
+        "schedule_interval_seconds": -1,
+        "schedule_max_parallel": 1,
+        "schedule_auto_restart": false
+      },
+      "metadata": {
+        "deploy_only": true
+      },
+      "skills_content": "# Vogs Demo \n## Pipeline\nvogs-collaborator-agent\n-> vogs-ego-agent",
+      "created_at": "2026-03-08T00:00:00.000000"
+    }
+  },
+  "vrc_accident_detection_demo": {
+    "app_id": "vrc_accident_detection_demo",
+    "name": "VRC Accident Detection Demo 结构化编排",
+    "deployment_status": "undeployed",
+    "run_status": "stopped",
+    "image_ids": [],
+    "workflow_handle": null,
+    "app_interface_url": null,
+    "deployment_error_message": null,
+    "run_error_message": null,
+    "schedule_enabled": false,
+    "created_at": "2026-03-08T00:00:00.000000",
+    "updated_at": "2026-09-19T06:50:43.665527",
+    "guidance_file": {
+      "app_id": "vrc_accident_detection_demo",
+      "task_description": "VRC Accident Detection Demo",
+      "agents_required": [
+        "vehicleaccidentprefilter",
+        "roadtokencompression",
+        "cloudvlmacccidentdescription"
+      ],
+      "orchestration_mode": "adaptive",
+      "constraints": {
+        "timeout_seconds": 360,
+        "schedule_interval_seconds": 0,
+        "schedule_max_parallel": 1,
+        "schedule_auto_restart": false
+      },
+      "metadata": {
+        "deploy_only": true
+      },
+      "skills_content": "# VRC Accident Detection Demo \n## Pipeline\nvehicleaccidentprefilter-agent\n-> roadtokencompression-agent\n-> cloudvlmacccidentdescription-agent",
+      "created_at": "2026-03-08T00:00:00.000000"
+    }
+  }
+}
