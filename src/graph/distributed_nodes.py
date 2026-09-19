@@ -300,11 +300,19 @@ async def execute_registered_subworkflow(
         logger.info(
             f"[跨主体] 子工作流执行完成: task_id={task_id}, swf={sub_workflow_id}, status={data.get('status')}"
         )
+        logger.debug(
+            "[跨主体] 子工作流执行返回结果: task_id=%s, swf=%s, response=%r",
+            task_id,
+            sub_workflow_id,
+            data,
+        )
         return {
             "status": data.get("status", "completed"),
             "workflow_handle": data.get("workflow_handle", workflow_handle),
             "sub_workflow_id": data.get("sub_workflow_id", sub_workflow_id),
             "result": data.get("result", ""),
+            "workflow_control": data.get("workflow_control", {}),
+            "schedule_control": data.get("schedule_control", {}),
             "session_id": session_id,
             "remote_aoe_url": remote_aoe_url,
             "execute_url": execute_url,
@@ -1528,6 +1536,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 "status": "success",
                 "protocol": "cross_host",
                 "agent_used": remote_info.get("sub_workflow_id", remote_info.get("remote_aoe_url", "")),
+                "workflow_control": xh_result.get("workflow_control", {}),
                 "schedule_control": xh_result.get("schedule_control", {}),
             }
             logger.info(f"[跨主体] ✅ 子任务完成: {current_task['task_id']}")

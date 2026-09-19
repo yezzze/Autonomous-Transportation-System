@@ -1174,15 +1174,46 @@ async def execute_subworkflow(sub_workflow_id: str, req: _ExecuteSubWorkflowRequ
         result = await asyncio.wait_for(asyncio.shield(workflow_task), timeout=float(timeout))
         workflow["status"] = "finalized"
         logger.info("[E_AOE] 子工作流执行完成: swf=%s, session_id=%s", sub_workflow_id, req.session_id)
+        logger.debug(
+            "[E_AOE] 子工作流执行返回结果: swf=%s, session_id=%s, result=%r",
+            sub_workflow_id,
+            req.session_id,
+            result,
+        )
+        schedule_control = (
+            result.get("schedule_control", {}) if isinstance(result, dict) else {}
+        )
+        workflow_terminated = bool(
+            isinstance(result, dict) and result.get("workflow_terminated") is True
+        )
+        # 跨平台协议必须分别表达“结束当前工作流”和“停止后续周期”。
+        # schedule_control.stop=false 不能抹掉 workflow_terminated=true。
+        workflow_control = {}
+        if workflow_terminated or (
+            isinstance(schedule_control, dict) and schedule_control.get("stop") is True
+        ):
+            reason = str(
+                (result.get("workflow_termination_reason") if isinstance(result, dict) else "")
+                or (schedule_control.get("reason") if isinstance(schedule_control, dict) else "")
+                or "远端子工作流请求终止"
+            )
+            workflow_control = {
+                "terminate": True,
+                "reason": reason,
+                "stop_schedule": (
+                    schedule_control.get("stop", True) is not False
+                    if isinstance(schedule_control, dict)
+                    else True
+                ),
+            }
         return {
             "status": "completed",
             "session_id": req.session_id,
             "workflow_handle": workflow_handle,
             "sub_workflow_id": sub_workflow_id,
             "result": str(result)[:3000],
-            "schedule_control": (
-                result.get("schedule_control", {}) if isinstance(result, dict) else {}
-            ),
+            "workflow_control": workflow_control,
+            "schedule_control": schedule_control,
         }
     except asyncio.TimeoutError:
         workflow_task.cancel()
