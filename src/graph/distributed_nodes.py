@@ -1349,6 +1349,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
         async def _exec_one(task_idx_and_task: tuple[int, dict]) -> dict:
             task_idx, task = task_idx_and_task
             _t0 = time.monotonic()
+            _started_at = time.time()
             try:
                 # 回调：在决策后立即更新 VizBus（写入 execution_plan 的 metadata）
                 def _on_decision(predicted: dict):
@@ -1360,7 +1361,8 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                             snap['execution_plan'][task_idx].setdefault('metadata', {})
                             snap['execution_plan'][task_idx]['metadata'].update({
                                 'protocol': predicted.get('protocol', 'UNKNOWN'),
-                                'executor': predicted.get('executor', snap['execution_plan'][task_idx].get('assigned_agent_id', 'unknown'))
+                                'executor': predicted.get('executor', snap['execution_plan'][task_idx].get('assigned_agent_id', 'unknown')),
+                                'started_at': _started_at,
                             })
                         publish_workflow_state(snap, 'executor.decision')
                     except Exception:
@@ -1371,6 +1373,8 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                 # 可视化执行时间线从 execution_plan.metadata.duration_ms
                 # 读取耗时，因此需要把本次测量随执行结果带回计划更新阶段。
                 _res["duration_ms"] = round(_latency, 3)
+                _res["started_at"] = _started_at
+                _res["finished_at"] = time.time()
                 try:
                     from src.runtime.prometheus_metrics import observe_orchestration_task
                     observe_orchestration_task(
@@ -1398,6 +1402,8 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                     "protocol": "error",
                     "result": "",
                     "duration_ms": round(_latency, 3),
+                    "started_at": _started_at,
+                    "finished_at": time.time(),
                 }
 
         par_results = await asyncio.gather(*[_exec_one((i, t)) for (i, t) in group_tasks])
@@ -1413,6 +1419,8 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                     "protocol": par_rd.get("protocol", "unknown"),
                     "executor": par_rd.get("tool_used") or par_rd.get("agent_used", "unknown"),
                     "duration_ms": par_rd.get("duration_ms"),
+                    "started_at": par_rd.get("started_at"),
+                    "finished_at": par_rd.get("finished_at"),
                 }
             )
             qos = (par_rd.get("metadata") or {}).get("qos")
@@ -1473,6 +1481,7 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
     # 串行任务的统一计时起点。该计时覆盖本地 Agent、本地子工作流、
     # 远端子工作流以及可能发生的降级处理，最终统一写入任务 metadata。
     _execution_started_at = time.monotonic()
+    _execution_started_at_wall = time.time()
 
     # ─── 跨主体路由检查 ───────────────────────────────────────────────
     cross_host_sessions = dict(state.get("cross_host_sessions", {}))
@@ -1631,7 +1640,8 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
                     snap['execution_plan'][current_index].setdefault('metadata', {})
                     snap['execution_plan'][current_index]['metadata'].update({
                         'protocol': predicted.get('protocol', 'UNKNOWN'),
-                        'executor': predicted.get('executor', snap['execution_plan'][current_index].get('assigned_agent_id', 'unknown'))
+                        'executor': predicted.get('executor', snap['execution_plan'][current_index].get('assigned_agent_id', 'unknown')),
+                        'started_at': _execution_started_at_wall,
                     })
                 publish_workflow_state(snap, 'executor.decision')
             except Exception:
@@ -1749,6 +1759,8 @@ async def distributed_executor_node(state: DistributedState) -> Command[Literal[
             "protocol": result_data.get("protocol", "unknown"),
             "executor": result_data.get("tool_used") or result_data.get("agent_used", "unknown"),
             "duration_ms": round((time.monotonic() - _execution_started_at) * 1000, 3),
+            "started_at": _execution_started_at_wall,
+            "finished_at": time.time(),
         })
         qos = (result_data.get("metadata") or {}).get("qos")
         if qos:

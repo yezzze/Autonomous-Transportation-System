@@ -137,6 +137,8 @@ class ScheduleExecutionRecord:
     status: str = "running"             # "running" | "completed" | "failed" | "cancelled"
     result_summary: str = ""            # 结果摘要（截断到 500 字符）
     error: Optional[str] = None         # 错误信息
+    execution_timeline: List[Dict[str, Any]] = field(default_factory=list)
+    # 本轮最终执行时间线快照，用于周期历史详情，避免依赖高速变化的实时视图。
 
     def to_dict(self) -> Dict:
         return asdict(self)

@@ -8,6 +8,15 @@ let runtimeRefreshTimer = null;
 let runtimeRefreshBusy = false;
 let workflowTrendTimer = null;
 let workflowTrendRequestId = 0;
+let appAgentMetricsLoaded = false;
+let appAgentMetricsRequestId = 0;
+let appAgentAggregation = 'p95';
+let expandedAppAgentInstanceId = null;
+let activeAppAgentDetailRow = null;
+let appAgentDetailRefreshTimer = null;
+let scheduleHistoryLoaded = false;
+let scheduleHistoryRequestId = 0;
+let expandedScheduleRunId = null;
 
 const vizState = {
   workflowId: '',
@@ -50,12 +59,17 @@ function setActiveTab(name) {
   }
   if (name === 'execution') {
     loadWorkflowTrends();
+    if (!appAgentMetricsLoaded) loadAppAgentMetrics();
+    if (!scheduleHistoryLoaded) loadScheduleHistory();
     if (workflowTrendTimer === null) {
       workflowTrendTimer = window.setInterval(loadWorkflowTrends, 15000);
     }
-  } else if (workflowTrendTimer !== null) {
-    window.clearInterval(workflowTrendTimer);
-    workflowTrendTimer = null;
+  } else {
+    if (workflowTrendTimer !== null) {
+      window.clearInterval(workflowTrendTimer);
+      workflowTrendTimer = null;
+    }
+    closeAppAgentDetails();
   }
 }
 
@@ -137,6 +151,21 @@ function appStatusLabel(status) {
     run_error: '运行错误',
   };
   return labels[status] || status || '—';
+}
+
+function appStatusBadge(status) {
+  const badge = document.createElement('span');
+  const safeStatus = String(status || 'unknown').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  badge.className = `badge-status s-${safeStatus}`;
+  badge.textContent = appStatusLabel(status);
+  return badge;
+}
+
+function timelineStatusBadge(status) {
+  const badge = appStatusBadge(status);
+  const labels = {pending: '等待中', running: '运行中', completed: '已完成', failed: '失败'};
+  badge.textContent = labels[status] || badge.textContent;
+  return badge;
 }
 
 function setRuntimeInfo(app) {
@@ -573,6 +602,266 @@ function renderPane3(execution) {
   renderExecutionSummary(e);
 }
 
+function formatTimelineTime(value) {
+  if (value == null || value === '') return '—';
+  const numeric = Number(value);
+  const date = Number.isFinite(numeric) ? new Date(numeric * 1000) : new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('zh-CN', {hour12: false});
+}
+
+function formatTimelineDuration(value) {
+  const duration = Number(value);
+  if (!Number.isFinite(duration)) return '—';
+  if (duration >= 1000) return `${(duration / 1000).toLocaleString('zh-CN', {maximumFractionDigits: 3})} 秒`;
+  return `${duration.toLocaleString('zh-CN', {maximumFractionDigits: 2})} ms`;
+}
+
+function timelineSlowThreshold(items) {
+  const durations = items
+    .map(item => Number(item.duration_ms))
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
+  if (!durations.length) return Infinity;
+  const median = durations[Math.floor(durations.length / 2)];
+  return Math.max(1000, median * 2);
+}
+
+function appendTimelineTextCell(row, value, className = '') {
+  const cell = document.createElement('td');
+  if (className) cell.className = className;
+  cell.textContent = value == null || value === '' ? '—' : String(value);
+  row.appendChild(cell);
+  return cell;
+}
+
+function createTimelineDetailRow(item) {
+  const detailRow = document.createElement('tr');
+  detailRow.className = 'execution-timeline-detail-row';
+  detailRow.dataset.detailFor = item.task_id;
+  const cell = document.createElement('td');
+  cell.colSpan = 11;
+  const detail = document.createElement('div');
+  detail.className = 'execution-timeline-detail';
+  const detailValue = value => {
+    if (value !== null && typeof value === 'object') {
+      try { return JSON.stringify(value, null, 2); } catch (_error) { return String(value); }
+    }
+    return String(value);
+  };
+  const blocks = [
+    ['任务输入', item.input_summary || item.description || '暂无输入摘要', ''],
+    ['任务输出', item.output_summary || '暂无输出摘要', ''],
+    ['错误原因', item.error_reason || '无', item.error_reason ? 'execution-timeline-error' : ''],
+    ['执行信息', [
+      `task_id: ${item.task_id || '—'}`,
+      `executor: ${item.executor || '—'}`,
+      `sub_workflow_id: ${item.sub_workflow_id || '—'}`,
+      `remote_aoe_url: ${item.remote_aoe_url || '—'}`,
+      `tools_called: ${ensureArray(item.tools_called).join(', ') || '—'}`,
+    ].join('\n'), ''],
+  ];
+  blocks.forEach(([title, value, className]) => {
+    const block = document.createElement('div');
+    block.className = `execution-timeline-detail-block ${className}`.trim();
+    const heading = document.createElement('strong');
+    heading.textContent = title;
+    const content = document.createElement('pre');
+    content.textContent = detailValue(value);
+    block.append(heading, content);
+    detail.appendChild(block);
+  });
+  cell.appendChild(detail);
+  detailRow.appendChild(cell);
+  return detailRow;
+}
+
+function renderExecutionTimeline(body, timeline, filter = 'all', sort = 'sequence', viewState = {}) {
+  if (!body) return;
+  const allItems = ensureArray(timeline).slice();
+  const slowThreshold = timelineSlowThreshold(allItems);
+  const durations = allItems.map(item => Number(item.duration_ms)).filter(Number.isFinite);
+  const longestDuration = durations.length ? Math.max(...durations) : null;
+  let items = allItems.filter(item => {
+    if (filter === 'all') return true;
+    if (filter === 'slow') return Number.isFinite(Number(item.duration_ms)) && Number(item.duration_ms) >= slowThreshold;
+    return item.status === filter;
+  });
+  if (sort === 'duration_desc') {
+    items.sort((a, b) => (Number(b.duration_ms) || -1) - (Number(a.duration_ms) || -1));
+  } else {
+    items.sort((a, b) => Number(a.index) - Number(b.index));
+  }
+
+  body.replaceChildren();
+  if (!items.length) {
+    const message = filter === 'slow' ? '暂无超过慢任务阈值的记录' : '暂无符合条件的执行记录';
+    body.innerHTML = `<tr class="empty-row"><td colspan="11">${message}</td></tr>`;
+    return;
+  }
+  items.forEach(item => {
+    const row = document.createElement('tr');
+    appendTimelineTextCell(row, Number(item.index) + 1);
+    const task = document.createElement('td');
+    task.className = 'execution-timeline-task';
+    const title = document.createElement('div');
+    title.textContent = item.title || item.task_id || '未命名任务';
+    task.appendChild(title);
+    const subtext = document.createElement('div');
+    subtext.className = 'execution-timeline-subtext';
+    subtext.textContent = item.agent_id || '未指定 Agent';
+    if (longestDuration !== null && Number(item.duration_ms) === longestDuration) {
+      subtext.textContent += ' · 最慢任务';
+    }
+    task.appendChild(subtext);
+    row.appendChild(task);
+    const status = document.createElement('td');
+    status.appendChild(timelineStatusBadge(item.status));
+    row.appendChild(status);
+    appendTimelineTextCell(row, formatTimelineTime(item.started_at));
+    appendTimelineTextCell(row, formatTimelineTime(item.finished_at));
+    appendTimelineTextCell(row, formatTimelineDuration(item.duration_ms), 'prometheus-metric-value');
+    appendTimelineTextCell(row, item.protocol || '—');
+    appendTimelineTextCell(row, item.platform === 'remote' ? '远端' : '本地');
+    appendTimelineTextCell(row, item.instance_id || '—', 'execution-timeline-id');
+    appendTimelineTextCell(row, Number(item.retry_count) || 0);
+    const operation = document.createElement('td');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-ghost btn-sm';
+    const expanded = viewState.expandedTaskId === item.task_id;
+    button.textContent = expanded ? '收起' : '查看详情';
+    button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    button.addEventListener('click', () => {
+      viewState.expandedTaskId = viewState.expandedTaskId === item.task_id ? null : item.task_id;
+      renderExecutionTimeline(body, timeline, filter, sort, viewState);
+    });
+    operation.appendChild(button);
+    row.appendChild(operation);
+    body.appendChild(row);
+    if (expanded) body.appendChild(createTimelineDetailRow(item));
+  });
+}
+
+function scheduleRecordDuration(record) {
+  if (!record.started_at || !record.finished_at) return '—';
+  const milliseconds = new Date(record.finished_at) - new Date(record.started_at);
+  return Number.isFinite(milliseconds) ? formatTimelineDuration(milliseconds) : '—';
+}
+
+function createScheduleTimelinePanel(record) {
+  const panel = document.createElement('div');
+  panel.className = 'prometheus-instance-detail';
+  const toolbar = document.createElement('div');
+  toolbar.className = 'toolbar';
+  const heading = document.createElement('div');
+  heading.className = 'prometheus-instance-detail-heading';
+  heading.style.marginBottom = '0';
+  heading.textContent = `${record.run_id} · 执行时间线`;
+  const controls = document.createElement('div');
+  controls.className = 'execution-timeline-controls';
+  controls.innerHTML = `
+    <label>状态筛选 <select data-role="filter"><option value="all">全部</option><option value="running">运行中</option><option value="failed">失败</option><option value="slow">慢任务</option></select></label>
+    <label>排序 <select data-role="sort"><option value="sequence">执行顺序</option><option value="duration_desc">耗时倒序</option></select></label>`;
+  toolbar.append(heading, controls);
+  const wrap = document.createElement('div');
+  wrap.className = 'execution-timeline-table-wrap';
+  const table = document.createElement('table');
+  table.setAttribute('aria-label', `${record.run_id} 执行时间线`);
+  table.innerHTML = '<thead><tr><th>#</th><th>任务</th><th>状态</th><th>开始时间</th><th>结束时间</th><th>耗时</th><th>协议</th><th>位置</th><th>实例 ID</th><th>重试</th><th>操作</th></tr></thead>';
+  const body = document.createElement('tbody');
+  table.appendChild(body);
+  wrap.appendChild(table);
+  panel.appendChild(toolbar);
+  if (record.error) {
+    const error = document.createElement('div');
+    error.className = 'alert error show';
+    error.textContent = `本轮执行失败：${record.error}`;
+    panel.appendChild(error);
+  }
+  panel.appendChild(wrap);
+  const viewState = {expandedTaskId: null};
+  const rerender = () => renderExecutionTimeline(
+    body,
+    record.execution_timeline || [],
+    controls.querySelector('[data-role="filter"]').value,
+    controls.querySelector('[data-role="sort"]').value,
+    viewState,
+  );
+  controls.querySelectorAll('select').forEach(select => select.addEventListener('change', () => {
+    viewState.expandedTaskId = null;
+    rerender();
+  }));
+  rerender();
+  return panel;
+}
+
+function renderScheduleHistory(records) {
+  const body = byId('schedule-history-body');
+  body.replaceChildren();
+  if (!records.length) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="7">暂无周期执行记录</td></tr>';
+    return;
+  }
+  records.forEach(record => {
+    const row = document.createElement('tr');
+    appendTimelineTextCell(row, record.run_id || '—', 'execution-timeline-id');
+    const status = document.createElement('td');
+    status.appendChild(timelineStatusBadge(record.status));
+    row.appendChild(status);
+    appendTimelineTextCell(row, record.started_at ? new Date(record.started_at).toLocaleString('zh-CN') : '—');
+    appendTimelineTextCell(row, record.finished_at ? new Date(record.finished_at).toLocaleString('zh-CN') : '—');
+    appendTimelineTextCell(row, scheduleRecordDuration(record), 'prometheus-metric-value');
+    const failedCount = ensureArray(record.execution_timeline).filter(item => item.status === 'failed').length;
+    appendTimelineTextCell(row, failedCount);
+    const operation = document.createElement('td');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-primary btn-sm';
+    const expanded = expandedScheduleRunId === record.run_id;
+    button.textContent = expanded ? '收起' : '查看时间线';
+    button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    button.addEventListener('click', () => {
+      expandedScheduleRunId = expandedScheduleRunId === record.run_id ? null : record.run_id;
+      renderScheduleHistory(records);
+    });
+    operation.appendChild(button);
+    row.appendChild(operation);
+    body.appendChild(row);
+    if (expanded) {
+      const detailRow = document.createElement('tr');
+      detailRow.className = 'execution-timeline-detail-row';
+      const detailCell = document.createElement('td');
+      detailCell.colSpan = 7;
+      detailCell.appendChild(createScheduleTimelinePanel(record));
+      detailRow.appendChild(detailCell);
+      body.appendChild(detailRow);
+    }
+  });
+}
+
+async function loadScheduleHistory() {
+  if (!currentApp?.app_id || !byId('panel-execution')?.classList.contains('active')) return;
+  const requestId = ++scheduleHistoryRequestId;
+  const refresh = byId('refresh-schedule-history');
+  const hint = byId('schedule-history-refresh-hint');
+  refresh.disabled = true;
+  try {
+    const response = await fetch(`${API}/api/apps/${encodeURIComponent(currentApp.app_id)}/schedule/history?limit=50`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    if (requestId !== scheduleHistoryRequestId) return;
+    renderScheduleHistory(data.records || []);
+    scheduleHistoryLoaded = true;
+    hint.textContent = `上次更新 ${new Date().toLocaleTimeString('zh-CN')}`;
+  } catch (error) {
+    if (requestId !== scheduleHistoryRequestId) return;
+    renderScheduleHistory([]);
+    hint.textContent = `加载失败：${error.message}`;
+  } finally {
+    if (requestId === scheduleHistoryRequestId) refresh.disabled = false;
+  }
+}
+
 function formatExecutionTimestamp(value) {
   if (value == null || value === '') return '—';
   const numeric = Number(value);
@@ -684,6 +973,221 @@ async function loadWorkflowTrends() {
     });
   } finally {
     if (requestId === workflowTrendRequestId) refresh.disabled = false;
+  }
+}
+
+function formatAgentMetric(value, digits = 3) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return Number(value).toLocaleString('zh-CN', {maximumFractionDigits: digits});
+}
+
+function appAgentAggregationLabel() {
+  return appAgentAggregation === 'average' ? '平均值' : 'p95';
+}
+
+function updateAppAgentMetricHeadings() {
+  const suffix = appAgentAggregationLabel();
+  byId('app-agent-queue-heading').textContent = `排队等待 ${suffix}`;
+  byId('app-agent-execution-heading').textContent = `执行耗时 ${suffix}`;
+  byId('app-agent-server-heading').textContent = `服务端总耗时 ${suffix}`;
+}
+
+function stopAppAgentDetailRefresh() {
+  if (appAgentDetailRefreshTimer !== null) {
+    window.clearInterval(appAgentDetailRefreshTimer);
+    appAgentDetailRefreshTimer = null;
+  }
+}
+
+function closeAppAgentDetails() {
+  stopAppAgentDetailRefresh();
+  if (activeAppAgentDetailRow) activeAppAgentDetailRow.remove();
+  activeAppAgentDetailRow = null;
+  expandedAppAgentInstanceId = null;
+  document.querySelectorAll('.app-agent-details-button').forEach(button => {
+    button.textContent = '查看详情';
+    button.setAttribute('aria-expanded', 'false');
+  });
+}
+
+const APP_AGENT_CHARTS = [
+  ['total_calls', '累计调用次数', 1],
+  ['queue_wait_p95', '排队等待', 1000],
+  ['execution_p95', '执行耗时', 1000],
+  ['server_total_p95', '服务端总耗时', 1000],
+];
+
+function renderAppAgentMetrics(instances) {
+  closeAppAgentDetails();
+  const body = byId('app-agent-metrics-body');
+  const renderedRows = new Map();
+  body.replaceChildren();
+  if (!instances.length) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="8">暂无运行中的 Agent 实例</td></tr>';
+    return renderedRows;
+  }
+  instances.forEach(instance => {
+    const row = document.createElement('tr');
+    const name = document.createElement('td');
+    name.textContent = instance.agent_id || '—';
+    row.appendChild(name);
+    const status = document.createElement('td');
+    status.appendChild(appStatusBadge(instance.status));
+    row.appendChild(status);
+    const instanceId = document.createElement('td');
+    instanceId.className = 'agent-metrics-instance-id';
+    instanceId.textContent = instance.instance_id || '—';
+    row.appendChild(instanceId);
+    [
+      instance.total_calls == null ? '—' : `${formatAgentMetric(instance.total_calls, 0)} 次`,
+      instance.queue_wait_p95_seconds == null ? '—' : `${formatAgentMetric(instance.queue_wait_p95_seconds * 1000, 2)} ms`,
+      instance.execution_p95_seconds == null ? '—' : `${formatAgentMetric(instance.execution_p95_seconds * 1000, 2)} ms`,
+      instance.server_total_p95_seconds == null ? '—' : `${formatAgentMetric(instance.server_total_p95_seconds * 1000, 2)} ms`,
+    ].forEach(value => {
+      const cell = document.createElement('td');
+      cell.className = 'prometheus-metric-value';
+      cell.textContent = value;
+      row.appendChild(cell);
+    });
+    const operation = document.createElement('td');
+    const details = document.createElement('button');
+    details.type = 'button';
+    details.className = 'btn btn-primary btn-sm app-agent-details-button';
+    details.textContent = '查看详情';
+    details.setAttribute('aria-expanded', 'false');
+    details.addEventListener('click', () => openAppAgentDetails(instance, row, details));
+    operation.appendChild(details);
+    row.appendChild(operation);
+    body.appendChild(row);
+    renderedRows.set(instance.instance_id, {instance, row, details});
+  });
+  return renderedRows;
+}
+
+async function openAppAgentDetails(instance, parentRow, trigger) {
+  if (expandedAppAgentInstanceId === instance.instance_id) {
+    closeAppAgentDetails();
+    return;
+  }
+  closeAppAgentDetails();
+  expandedAppAgentInstanceId = instance.instance_id;
+  trigger.textContent = '收起';
+  trigger.setAttribute('aria-expanded', 'true');
+
+  const detailRow = document.createElement('tr');
+  detailRow.className = 'prometheus-instance-detail-row';
+  const cell = document.createElement('td');
+  cell.colSpan = 8;
+  const panel = document.createElement('div');
+  panel.className = 'prometheus-instance-detail';
+  const heading = document.createElement('div');
+  heading.className = 'prometheus-instance-detail-heading';
+  heading.textContent = `${instance.agent_id || 'Agent'} · ${instance.instance_id} · 最近 1 小时`;
+  const grid = document.createElement('div');
+  grid.className = 'prometheus-instance-chart-grid';
+  const targets = {};
+  APP_AGENT_CHARTS.forEach(([key, title]) => {
+    const card = document.createElement('div');
+    card.className = 'prometheus-instance-chart-card';
+    const header = document.createElement('div');
+    header.className = 'prometheus-chart-header';
+    const strong = document.createElement('strong');
+    strong.textContent = key === 'total_calls' ? title : `${title} ${appAgentAggregationLabel()}（ms）`;
+    const state = document.createElement('span');
+    state.className = 'workflow-trend-state';
+    state.textContent = '加载中...';
+    header.append(strong, state);
+    const legend = document.createElement('div');
+    legend.className = 'prometheus-chart-legend';
+    const chart = document.createElement('div');
+    chart.className = 'prometheus-chart prometheus-instance-chart';
+    const tooltip = document.createElement('div');
+    tooltip.className = 'prometheus-chart-tooltip';
+    tooltip.hidden = true;
+    card.append(header, legend, chart, tooltip);
+    grid.appendChild(card);
+    targets[key] = {panel: card, chart, legend, tooltip, state, axisRange: null};
+  });
+  panel.append(heading, grid);
+  cell.appendChild(panel);
+  detailRow.appendChild(cell);
+  parentRow.after(detailRow);
+  activeAppAgentDetailRow = detailRow;
+  const detailAggregation = appAgentAggregation;
+
+  let refreshing = false;
+  let hasLoaded = false;
+  const refreshDetails = async () => {
+    if (refreshing || expandedAppAgentInstanceId !== instance.instance_id) return;
+    refreshing = true;
+    Object.values(targets).forEach(target => {
+      target.state.textContent = hasLoaded ? '刷新中...' : '加载中...';
+    });
+    try {
+      const response = await fetch(
+        `${API}/tests/prometheus/agent-metrics/${encodeURIComponent(instance.instance_id)}/history?aggregation=${encodeURIComponent(detailAggregation)}`,
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+      if (expandedAppAgentInstanceId !== instance.instance_id || !detailRow.isConnected) return;
+      const updateTime = new Date().toLocaleTimeString('zh-CN');
+      APP_AGENT_CHARTS.forEach(([key, _title, valueMultiplier]) => {
+        renderPrometheusChart(data.metrics?.[key] || {result: []}, targets[key], {
+          valueMultiplier,
+          xMin: data.query_range?.start,
+          xMax: data.query_range?.end,
+          sampleStep: data.query_range?.step,
+        });
+        targets[key].state.textContent = (data.unavailable_metrics || []).includes(key)
+          ? '指标暂不可用'
+          : `更新于 ${updateTime}`;
+      });
+      hasLoaded = true;
+    } catch (error) {
+      if (expandedAppAgentInstanceId !== instance.instance_id || !detailRow.isConnected) return;
+      Object.values(targets).forEach(target => {
+        target.state.textContent = `刷新失败：${error.message}`;
+        if (!hasLoaded) target.chart.innerHTML = '<div class="empty-state">无法加载趋势数据</div>';
+      });
+    } finally {
+      refreshing = false;
+    }
+  };
+  refreshDetails();
+  appAgentDetailRefreshTimer = window.setInterval(refreshDetails, 15000);
+}
+
+async function loadAppAgentMetrics(options = {}) {
+  if (!byId('panel-execution')?.classList.contains('active')) return;
+  const preserveExpanded = options.preserveExpanded === true;
+  const preservedInstanceId = preserveExpanded ? expandedAppAgentInstanceId : null;
+  const requestId = ++appAgentMetricsRequestId;
+  const refresh = byId('refresh-app-agent-metrics');
+  const hint = byId('app-agent-metrics-refresh-hint');
+  refresh.disabled = true;
+  try {
+    const params = new URLSearchParams({
+      aggregation: appAgentAggregation,
+      app_id: currentApp?.app_id || '',
+    });
+    const response = await fetch(`${API}/tests/prometheus/agent-metrics?${params.toString()}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    if (requestId !== appAgentMetricsRequestId) return;
+    const renderedRows = renderAppAgentMetrics(data.instances || []);
+    const preserved = preservedInstanceId ? renderedRows.get(preservedInstanceId) : null;
+    if (preserved) openAppAgentDetails(preserved.instance, preserved.row, preserved.details);
+    appAgentMetricsLoaded = true;
+    const unavailable = data.unavailable_metrics || [];
+    hint.textContent = unavailable.length
+      ? `上次更新 ${new Date().toLocaleTimeString('zh-CN')}，部分指标不可用`
+      : `上次更新 ${new Date().toLocaleTimeString('zh-CN')}`;
+  } catch (error) {
+    if (requestId !== appAgentMetricsRequestId) return;
+    renderAppAgentMetrics([]);
+    hint.textContent = `加载失败：${error.message}`;
+  } finally {
+    if (requestId === appAgentMetricsRequestId) refresh.disabled = false;
   }
 }
 
@@ -912,6 +1416,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   byId('refresh-workflow-trends').addEventListener('click', loadWorkflowTrends);
   byId('workflow-trend-range').addEventListener('change', loadWorkflowTrends);
+  byId('refresh-app-agent-metrics').addEventListener('click', () => {
+    loadAppAgentMetrics({preserveExpanded: true});
+  });
+  document.querySelectorAll('input[name="app-agent-aggregation"]').forEach(input => {
+    input.addEventListener('change', event => {
+      if (!event.target.checked) return;
+      appAgentAggregation = event.target.value;
+      updateAppAgentMetricHeadings();
+      loadAppAgentMetrics({preserveExpanded: true});
+    });
+  });
+  updateAppAgentMetricHeadings();
+  byId('refresh-schedule-history').addEventListener('click', loadScheduleHistory);
 
   byId('btn-start')?.addEventListener('click', async () => {
     try {

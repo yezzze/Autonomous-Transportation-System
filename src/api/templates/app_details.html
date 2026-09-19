@@ -274,6 +274,151 @@
       font-size: 11px;
       font-weight: 400;
     }
+    .agent-metrics-card {
+      margin-top: 14px;
+      margin-bottom: 0;
+    }
+    .agent-metrics-help {
+      margin-top: 4px;
+      color: #778;
+      font-size: 12px;
+    }
+    .agent-metrics-table-wrap {
+      overflow-x: auto;
+    }
+    .agent-metrics-instance-id {
+      color: #667;
+      font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .prometheus-metric-value {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .prometheus-aggregation-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin: 0;
+      padding: 3px;
+      border: 1px solid #d8dee9;
+      border-radius: 7px;
+      background: #f8fafc;
+    }
+    .prometheus-aggregation-toggle legend {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+    }
+    .prometheus-aggregation-toggle label {
+      padding: 5px 10px;
+      border-radius: 5px;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .prometheus-aggregation-toggle label:has(input:checked) {
+      color: #fff;
+      background: #2563eb;
+    }
+    .prometheus-aggregation-toggle input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .prometheus-instance-detail-row:hover { background: transparent; }
+    .prometheus-instance-detail-row > td { padding: 0 14px 18px; }
+    .prometheus-instance-detail {
+      padding: 16px;
+      border: 1px solid #dde5f8;
+      border-radius: 10px;
+      background: #f8faff;
+    }
+    .prometheus-instance-detail-heading {
+      margin-bottom: 14px;
+      color: #334155;
+      font-weight: 600;
+    }
+    .prometheus-instance-chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .prometheus-instance-chart-card {
+      position: relative;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #e1e6ef;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .prometheus-chart-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .prometheus-instance-chart svg { width: 100%; }
+    .execution-timeline-card {
+      margin-top: 14px;
+      margin-bottom: 0;
+    }
+    .execution-timeline-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #64748b;
+      font-size: 12px;
+    }
+    .execution-timeline-controls select {
+      width: auto;
+      padding: 6px 9px;
+    }
+    .execution-timeline-table-wrap { overflow-x: auto; }
+    .execution-timeline-task {
+      min-width: 180px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .execution-timeline-subtext {
+      margin-top: 3px;
+      color: #8490a4;
+      font-size: 11px;
+      font-weight: 400;
+    }
+    .execution-timeline-id {
+      max-width: 240px;
+      overflow-wrap: anywhere;
+      font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .execution-timeline-detail-row:hover { background: transparent; }
+    .execution-timeline-detail-row > td { padding: 0 14px 16px; }
+    .execution-timeline-detail {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid #dde5f8;
+      border-radius: 9px;
+      background: #f8faff;
+    }
+    .execution-timeline-detail-block strong {
+      display: block;
+      margin-bottom: 5px;
+      color: #475569;
+      font-size: 12px;
+    }
+    .execution-timeline-detail-block pre {
+      max-height: 220px;
+      margin: 0;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #334155;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .execution-timeline-error pre { color: #b91c1c; }
     @media (max-width: 980px) {
       .viz-grid-2,
       .row {
@@ -286,7 +431,9 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .execution-summary-grid,
-      .workflow-trend-grid {
+      .workflow-trend-grid,
+      .prometheus-instance-chart-grid,
+      .execution-timeline-detail {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       #cy {
@@ -454,6 +601,47 @@
           <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">近5分钟执行耗时 p95（秒）<span class="workflow-trend-state" id="trend-p95-state"></span></div><div class="prometheus-chart-legend" id="trend-p95-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-p95-chart"></div><div class="prometheus-chart-tooltip" id="trend-p95-tooltip" hidden></div></div>
           <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">近 5 分钟执行次数<span class="workflow-trend-state" id="trend-count-state"></span></div><div class="prometheus-chart-legend" id="trend-count-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-count-chart"></div><div class="prometheus-chart-tooltip" id="trend-count-tooltip" hidden></div></div>
           <div class="workflow-trend-card prometheus-chart-panel"><div class="workflow-trend-title">近 5 分钟失败率（%）<span class="workflow-trend-state" id="trend-failure-state"></span></div><div class="prometheus-chart-legend" id="trend-failure-legend"></div><div class="workflow-trend-chart prometheus-chart" id="trend-failure-chart"></div><div class="prometheus-chart-tooltip" id="trend-failure-tooltip" hidden></div></div>
+        </div>
+      </div>
+      <div class="card agent-metrics-card">
+        <div class="toolbar">
+          <div>
+            <div class="card-title" style="margin:0">Agent调用性能</div>
+            <div class="agent-metrics-help">显示当前应用所使用的运行中 Agent 实例最近 5 分钟 Prometheus 指标。</div>
+          </div>
+          <div class="toolbar-right">
+            <fieldset class="prometheus-aggregation-toggle" aria-label="Agent 耗时指标统计方式">
+              <legend>统计方式</legend>
+              <label><input type="radio" name="app-agent-aggregation" value="average">平均值</label>
+              <label><input type="radio" name="app-agent-aggregation" value="p95" checked>p95</label>
+            </fieldset>
+            <span class="refresh-hint" id="app-agent-metrics-refresh-hint"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="refresh-app-agent-metrics">刷新</button>
+          </div>
+        </div>
+        <div class="agent-metrics-table-wrap">
+          <table aria-label="Agent 调用性能指标">
+            <thead><tr><th>名称</th><th>状态</th><th>实例 ID</th><th>累计调用次数</th><th id="app-agent-queue-heading">排队等待 p95</th><th id="app-agent-execution-heading">执行耗时 p95</th><th id="app-agent-server-heading">服务端总耗时 p95</th><th>操作</th></tr></thead>
+            <tbody id="app-agent-metrics-body"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card execution-timeline-card">
+        <div class="toolbar">
+          <div>
+            <div class="card-title" style="margin:0">周期执行历史</div>
+            <div class="agent-metrics-help">每次周期执行完成后保存该轮的完整增强执行时间线。</div>
+          </div>
+          <div class="toolbar-right">
+            <span class="refresh-hint" id="schedule-history-refresh-hint"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="refresh-schedule-history">刷新</button>
+          </div>
+        </div>
+        <div class="execution-timeline-table-wrap">
+          <table aria-label="周期执行历史">
+            <thead><tr><th>运行 ID</th><th>状态</th><th>开始时间</th><th>完成时间</th><th>耗时</th><th>失败任务</th><th>操作</th></tr></thead>
+            <tbody id="schedule-history-body"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+          </table>
         </div>
       </div>
     </div>

@@ -363,6 +363,7 @@ class WorkflowScheduler:
         state: _ScheduleState,
     ):
         """执行单次工作流"""
+        latest_run_state: Dict[str, Any] = {}
         try:
             from src.app.app_logic_engine import get_app_logic_engine
 
@@ -374,6 +375,8 @@ class WorkflowScheduler:
             # execution_plan / progress 等实时信息，无需为每次子 run 单独打开
             # 一个 viz workflow。
             def _on_state_update(run_state: Dict[str, Any], node_name: str) -> None:
+                nonlocal latest_run_state
+                latest_run_state = run_state
                 self._publish_schedule_viz_state(
                     state,
                     node_name=node_name,
@@ -413,6 +416,7 @@ class WorkflowScheduler:
                 app_id, run_id,
                 status="completed",
                 result_summary=result_summary,
+                execution_timeline=self._extract_execution_timeline(result),
             )
             state.active_runs.pop(run_id, None)
             self._publish_schedule_viz_state(
@@ -430,7 +434,12 @@ class WorkflowScheduler:
             return result
 
         except asyncio.CancelledError:
-            self._update_record(app_id, run_id, status="cancelled")
+            self._update_record(
+                app_id,
+                run_id,
+                status="cancelled",
+                execution_timeline=self._extract_execution_timeline(latest_run_state),
+            )
             state.active_runs.pop(run_id, None)
             self._publish_schedule_viz_state(
                 state,
@@ -449,6 +458,7 @@ class WorkflowScheduler:
                 app_id, run_id,
                 status="failed",
                 error=str(e),
+                execution_timeline=self._extract_execution_timeline(latest_run_state),
             )
             state.active_runs.pop(run_id, None)
             self._publish_schedule_viz_state(
@@ -521,6 +531,7 @@ class WorkflowScheduler:
                     record.status = "completed"
                     result = task.result()
                     record.result_summary = str(result)[:500] if result else ""
+                    record.execution_timeline = self._extract_execution_timeline(result)
                 record.finished_at = datetime.utcnow().isoformat()
                 self._save_history()
 
@@ -617,6 +628,7 @@ class WorkflowScheduler:
         status: str = "",
         result_summary: str = "",
         error: str = "",
+        execution_timeline: Optional[List[Dict[str, Any]]] = None,
     ):
         """更新执行记录"""
         record = self._find_record(app_id, run_id)
@@ -628,8 +640,25 @@ class WorkflowScheduler:
             record.result_summary = result_summary
         if error:
             record.error = error
+        if execution_timeline is not None:
+            record.execution_timeline = execution_timeline
         record.finished_at = datetime.utcnow().isoformat()
         self._save_history()
+
+    @staticmethod
+    def _extract_execution_timeline(run_state: Any) -> List[Dict[str, Any]]:
+        """生成可持久化的单轮执行时间线快照。"""
+        if not isinstance(run_state, dict):
+            return []
+        try:
+            from src.api.visualization import extract_execution_data
+
+            timeline = extract_execution_data(run_state).get("timeline", [])
+            # Agent 结果可能包含消息对象；历史文件必须始终保持 JSON 可序列化。
+            return json.loads(json.dumps(timeline, ensure_ascii=False, default=str))
+        except Exception as exc:
+            logger.warning("[Scheduler] 提取执行时间线失败: %s", exc)
+            return []
 
     def _find_record(
         self, app_id: str, run_id: str

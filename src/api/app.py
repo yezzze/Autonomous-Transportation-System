@@ -2270,16 +2270,36 @@ def _prometheus_vector_by_instance(payload: Dict[str, Any]) -> Dict[str, float]:
 
 
 @app.get("/tests/prometheus/agent-metrics", summary="获取运行中 Agent 实例的 Prometheus 指标")
-async def test_prometheus_agent_metrics(aggregation: str = "p95"):
+async def test_prometheus_agent_metrics(
+    aggregation: str = "p95", app_id: Optional[str] = None
+):
     from src.runtime.lifecycle_manager import get_lifecycle_manager
 
     queries = _agent_metric_queries(aggregation)
+    workflow_handle: Optional[str] = None
+    if app_id:
+        from src.app.app_manager import get_app_manager
+
+        application = get_app_manager().get_app(app_id)
+        if application is None:
+            raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+        workflow_handle = application.workflow_handle
     instances = [
         instance for instance in get_lifecycle_manager().list_instances()
         if instance.status == "running"
+        and (
+            not app_id
+            or (
+                bool(workflow_handle)
+                and workflow_handle in (instance.subscribed_workflows or [])
+            )
+        )
     ]
     if not instances:
-        return {"instances": []}
+        empty_response: Dict[str, Any] = {"instances": []}
+        if app_id:
+            empty_response["app_id"] = app_id
+        return empty_response
 
     results = await asyncio.gather(
         *(_query_prometheus(query) for query in queries.values()),
@@ -2306,7 +2326,12 @@ async def test_prometheus_agent_metrics(aggregation: str = "p95"):
             "execution_p95_seconds": metric_values["execution_p95"].get(instance_id),
             "server_total_p95_seconds": metric_values["server_total_p95"].get(instance_id),
         })
-    return {"instances": rows, "unavailable_metrics": errors, "aggregation": aggregation}
+    return {
+        "instances": rows,
+        "unavailable_metrics": errors,
+        "aggregation": aggregation,
+        "app_id": app_id,
+    }
 
 
 @app.get(

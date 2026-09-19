@@ -332,21 +332,68 @@ def extract_execution_data(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     timeline: List[Dict[str, Any]] = []
+    cross_host_sessions = state.get("cross_host_sessions", {}) or {}
+    route_instances = state.get("route_instances", []) or []
+    route_by_task = {
+        str(item.get("task_id", "")): item
+        for item in route_instances
+        if isinstance(item, dict) and item.get("task_id")
+    }
     for i, t in enumerate(plan):
         if t.get("status", "pending") == "pending" and i > idx:
             continue
         meta = t.get("metadata", {}) or {}
+        qos = meta.get("qos", {}) or {}
+        task_id = str(t.get("task_id") or "")
+        remote_info = cross_host_sessions.get(task_id, {}) or {}
+        route = route_by_task.get(task_id, {})
+        remote_routes = (
+            remote_info.get("route_instances", [])
+            if isinstance(remote_info, dict)
+            else []
+        ) or []
+        remote_route = next(
+            (
+                item for item in remote_routes
+                if isinstance(item, dict) and str(item.get("task_id", "")) == task_id
+            ),
+            remote_routes[0] if remote_routes and isinstance(remote_routes[0], dict) else {},
+        )
+        result = t.get("result", "") or ""
         timeline.append({
             "index": i,
-            "task_id": t.get("task_id"),
+            "task_id": task_id,
             "title": t.get("task_title"),
+            "description": t.get("task_description", ""),
             "agent_id": t.get("assigned_agent_id"),
             "status": t.get("status", "pending"),
             "protocol": meta.get("protocol"),
             "executor": meta.get("executor"),
             "tools_called": meta.get("tools_called", []),
             "duration_ms": meta.get("duration_ms"),
-            "timestamp": meta.get("timestamp"),
+            "started_at": meta.get("started_at") or meta.get("timestamp"),
+            "finished_at": meta.get("finished_at"),
+            "retry_count": t.get("retry_count", 0),
+            "instance_id": (
+                qos.get("instance_id")
+                or route.get("instance_id")
+                or remote_route.get("instance_id")
+                or ""
+            ),
+            "platform": "remote" if remote_info else "local",
+            "remote_aoe_url": (
+                remote_info.get("remote_aoe_url", "")
+                if isinstance(remote_info, dict)
+                else ""
+            ),
+            "sub_workflow_id": (
+                remote_info.get("sub_workflow_id", "")
+                if isinstance(remote_info, dict)
+                else ""
+            ) or t.get("sub_workflow_id", ""),
+            "input_summary": t.get("task_description", ""),
+            "output_summary": result,
+            "error_reason": result if t.get("status") == "failed" else "",
         })
 
     return {
