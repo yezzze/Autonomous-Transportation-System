@@ -1024,13 +1024,17 @@ const APP_AGENT_CHARTS = [
   ['server_total_p95', '服务端总耗时', 1000],
 ];
 
+function appAgentInstanceKey(instance) {
+  return `${instance.cluster_name || 'cluster'}:${instance.instance_id || ''}`;
+}
+
 function renderAppAgentMetrics(instances) {
   closeAppAgentDetails();
   const body = byId('app-agent-metrics-body');
   const renderedRows = new Map();
   body.replaceChildren();
   if (!instances.length) {
-    body.innerHTML = '<tr class="empty-row"><td colspan="8">暂无运行中的 Agent 实例</td></tr>';
+    body.innerHTML = '<tr class="empty-row"><td colspan="9">暂无运行中的 Agent 实例</td></tr>';
     return renderedRows;
   }
   instances.forEach(instance => {
@@ -1038,6 +1042,11 @@ function renderAppAgentMetrics(instances) {
     const name = document.createElement('td');
     name.textContent = instance.agent_id || '—';
     row.appendChild(name);
+    const platform = document.createElement('td');
+    platform.textContent = instance.is_local
+      ? `${instance.cluster_name || '本地'}（本地）`
+      : (instance.cluster_name || '远端');
+    row.appendChild(platform);
     const status = document.createElement('td');
     status.appendChild(appStatusBadge(instance.status));
     row.appendChild(status);
@@ -1074,7 +1083,7 @@ function renderAppAgentMetrics(instances) {
     operation.append(details, customMetrics);
     row.appendChild(operation);
     body.appendChild(row);
-    renderedRows.set(instance.instance_id, {instance, row, details, customMetrics});
+    renderedRows.set(appAgentInstanceKey(instance), {instance, row, details, customMetrics});
   });
   return renderedRows;
 }
@@ -1102,19 +1111,20 @@ function appRunMetricRange() {
 }
 
 async function openAppAgentCustomMetrics(instance, parentRow, trigger) {
-  if (expandedAppAgentInstanceId === `custom:${instance.instance_id}`) {
+  const instanceKey = appAgentInstanceKey(instance);
+  if (expandedAppAgentInstanceId === `custom:${instanceKey}`) {
     closeAppAgentDetails();
     return;
   }
   closeAppAgentDetails();
-  expandedAppAgentInstanceId = `custom:${instance.instance_id}`;
+  expandedAppAgentInstanceId = `custom:${instanceKey}`;
   trigger.textContent = '收起';
   trigger.setAttribute('aria-expanded', 'true');
 
   const detailRow = document.createElement('tr');
   detailRow.className = 'prometheus-instance-detail-row';
   const cell = document.createElement('td');
-  cell.colSpan = 8;
+  cell.colSpan = 9;
   const panel = document.createElement('div');
   panel.className = 'prometheus-instance-detail';
   const heading = document.createElement('div');
@@ -1141,6 +1151,7 @@ async function openAppAgentCustomMetrics(instance, parentRow, trigger) {
     state.textContent = hasLoaded ? '刷新中...' : '加载中...';
     try {
       const params = new URLSearchParams();
+      params.set('cluster_name', instance.cluster_name || 'cluster');
       const runRange = appRunMetricRange();
       if (runRange) {
         params.set('run_started_at', String(runRange.started));
@@ -1148,7 +1159,7 @@ async function openAppAgentCustomMetrics(instance, parentRow, trigger) {
       }
       const query = params.toString();
       const response = await fetch(
-        `${API}/tests/prometheus/agent-metrics/${encodeURIComponent(instance.instance_id)}/custom-performance${query ? `?${query}` : ''}`,
+        `${API}/api/apps/${encodeURIComponent(currentApp.app_id)}/agent-metrics/${encodeURIComponent(instance.instance_id)}/custom-performance?${query}`,
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
@@ -1210,19 +1221,20 @@ async function openAppAgentCustomMetrics(instance, parentRow, trigger) {
 }
 
 async function openAppAgentDetails(instance, parentRow, trigger) {
-  if (expandedAppAgentInstanceId === instance.instance_id) {
+  const instanceKey = appAgentInstanceKey(instance);
+  if (expandedAppAgentInstanceId === instanceKey) {
     closeAppAgentDetails();
     return;
   }
   closeAppAgentDetails();
-  expandedAppAgentInstanceId = instance.instance_id;
+  expandedAppAgentInstanceId = instanceKey;
   trigger.textContent = '收起';
   trigger.setAttribute('aria-expanded', 'true');
 
   const detailRow = document.createElement('tr');
   detailRow.className = 'prometheus-instance-detail-row';
   const cell = document.createElement('td');
-  cell.colSpan = 8;
+  cell.colSpan = 9;
   const panel = document.createElement('div');
   panel.className = 'prometheus-instance-detail';
   const heading = document.createElement('div');
@@ -1286,7 +1298,7 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
   let refreshing = false;
   let hasLoaded = false;
   const refreshDetails = async () => {
-    if (refreshing || expandedAppAgentInstanceId !== instance.instance_id) return;
+    if (refreshing || expandedAppAgentInstanceId !== instanceKey) return;
     summaryGrid.hidden = currentApp?.run_status !== 'completed';
     refreshing = true;
     Object.values(targets).forEach(target => {
@@ -1294,11 +1306,11 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
     });
     try {
       const response = await fetch(
-        `${API}/tests/prometheus/agent-metrics/${encodeURIComponent(instance.instance_id)}/history?aggregation=${encodeURIComponent(detailAggregation)}`,
+        `${API}/api/apps/${encodeURIComponent(currentApp.app_id)}/agent-metrics/${encodeURIComponent(instance.instance_id)}/history?cluster_name=${encodeURIComponent(instance.cluster_name || 'cluster')}&aggregation=${encodeURIComponent(detailAggregation)}`,
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
-      if (expandedAppAgentInstanceId !== instance.instance_id || !detailRow.isConnected) return;
+      if (expandedAppAgentInstanceId !== instanceKey || !detailRow.isConnected) return;
       const updateTime = new Date().toLocaleTimeString('zh-CN');
       const summary = data.execution_summary || {};
       summaryTargets.total_duration_seconds.textContent = formatDurationSeconds(summary.total_duration_seconds);
@@ -1323,7 +1335,7 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
       });
       hasLoaded = true;
     } catch (error) {
-      if (expandedAppAgentInstanceId !== instance.instance_id || !detailRow.isConnected) return;
+      if (expandedAppAgentInstanceId !== instanceKey || !detailRow.isConnected) return;
       Object.values(targets).forEach(target => {
         target.state.textContent = `刷新失败：${error.message}`;
         if (!hasLoaded) target.chart.innerHTML = '<div class="empty-state">无法加载趋势数据</div>';
@@ -1352,11 +1364,7 @@ async function loadAppAgentMetrics(options = {}) {
   const hint = byId('app-agent-metrics-refresh-hint');
   refresh.disabled = true;
   try {
-    const params = new URLSearchParams({
-      aggregation: appAgentAggregation,
-      app_id: currentApp?.app_id || '',
-    });
-    const response = await fetch(`${API}/tests/prometheus/agent-metrics?${params.toString()}`);
+    const response = await fetch(`${API}/api/apps/${encodeURIComponent(currentApp.app_id)}/agent-metrics?aggregation=${encodeURIComponent(appAgentAggregation)}`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
     if (requestId !== appAgentMetricsRequestId) return;
@@ -1369,9 +1377,11 @@ async function loadAppAgentMetrics(options = {}) {
     }
     appAgentMetricsLoaded = true;
     const unavailable = data.unavailable_metrics || [];
-    hint.textContent = unavailable.length
-      ? `上次更新 ${new Date().toLocaleTimeString('zh-CN')}，部分指标不可用`
-      : `上次更新 ${new Date().toLocaleTimeString('zh-CN')}`;
+    const failedClusters = ensureArray(data.clusters).filter(cluster => cluster.status !== 'ok');
+    const suffix = failedClusters.length
+      ? `，平台不可用：${failedClusters.map(cluster => cluster.name).join('、')}`
+      : (unavailable.length ? '，部分指标不可用' : '');
+    hint.textContent = `上次更新 ${new Date().toLocaleTimeString('zh-CN')}${suffix}`;
   } catch (error) {
     if (requestId !== appAgentMetricsRequestId) return;
     renderAppAgentMetrics([]);

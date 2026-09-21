@@ -2288,7 +2288,9 @@ def _prometheus_vector_by_instance(payload: Dict[str, Any]) -> Dict[str, float]:
 
 @app.get("/tests/prometheus/agent-metrics", summary="获取运行中 Agent 实例的 Prometheus 指标")
 async def test_prometheus_agent_metrics(
-    aggregation: str = "p95", app_id: Optional[str] = None
+    aggregation: str = "p95",
+    app_id: Optional[str] = None,
+    instance_ids: Optional[str] = None,
 ):
     from src.runtime.lifecycle_manager import get_lifecycle_manager
 
@@ -2301,11 +2303,17 @@ async def test_prometheus_agent_metrics(
         if application is None:
             raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
         workflow_handle = application.workflow_handle
+    requested_instance_ids = {
+        value.strip() for value in (instance_ids or "").split(",") if value.strip()
+    }
+    if app_id and requested_instance_ids:
+        raise HTTPException(status_code=422, detail="app_id 与 instance_ids 不能同时提供")
     instances = [
         instance for instance in get_lifecycle_manager().list_instances()
         if instance.status == "running"
         and (
-            not app_id
+            (requested_instance_ids and instance.instance_id in requested_instance_ids)
+            or (not app_id and not requested_instance_ids)
             or (
                 bool(workflow_handle)
                 and workflow_handle in (instance.subscribed_workflows or [])
@@ -2502,6 +2510,195 @@ async def test_prometheus_agent_custom_performance(
             for metric_name in metric_names
         ],
     }
+
+
+def _application_agent_metric_targets(app_id: str) -> Dict[str, Any]:
+    """解析应用使用的本地实例及受信任 peer 上的远端实例。"""
+    from src.app.app_manager import get_app_manager
+    from src.runtime.lifecycle_manager import get_lifecycle_manager
+    from src.service.viz_bus import get_viz_bus
+
+    application = get_app_manager().get_app(app_id)
+    if application is None:
+        raise HTTPException(status_code=404, detail=f"应用 {app_id} 不存在")
+
+    config = _load_aoe_config()
+    local_name = config.get("local_name") or "cluster"
+    local_instances = [
+        instance.instance_id
+        for instance in get_lifecycle_manager().list_instances()
+        if instance.status == "running"
+        and application.workflow_handle
+        and application.workflow_handle in (instance.subscribed_workflows or [])
+    ]
+    peers_by_url = {
+        str(peer.get("url") or "").rstrip("/"): peer
+        for peer in config.get("peers") or []
+    }
+    remote_targets: Dict[str, Dict[str, Any]] = {}
+    entry = get_viz_bus().get(application.workflow_handle) if application.workflow_handle else None
+    cross_host_sessions = (entry.state.get("cross_host_sessions") or {}) if entry else {}
+    for raw_info in cross_host_sessions.values():
+        if not isinstance(raw_info, dict):
+            continue
+        remote_url = str(raw_info.get("remote_aoe_url") or "").rstrip("/")
+        peer = peers_by_url.get(remote_url)
+        if not peer:
+            continue
+        cluster_name = str(peer.get("name") or "peer")
+        target = remote_targets.setdefault(cluster_name, {
+            "name": cluster_name,
+            "url": remote_url,
+            "instance_ids": set(),
+        })
+        for binding in raw_info.get("route_instances") or []:
+            instance_id = str(binding.get("instance_id") or "").strip()
+            if instance_id:
+                target["instance_ids"].add(instance_id)
+    return {
+        "application": application,
+        "local_name": local_name,
+        "local_instance_ids": set(local_instances),
+        "remote_targets": remote_targets,
+    }
+
+
+def _application_agent_metric_target(
+    app_id: str, cluster_name: str, instance_id: str
+) -> Dict[str, Any]:
+    targets = _application_agent_metric_targets(app_id)
+    if cluster_name == targets["local_name"]:
+        if instance_id not in targets["local_instance_ids"]:
+            raise HTTPException(status_code=404, detail="当前应用未使用该本地 Agent 实例")
+        return {"is_local": True, "name": cluster_name, "url": ""}
+    remote = targets["remote_targets"].get(cluster_name)
+    if not remote or instance_id not in remote["instance_ids"]:
+        raise HTTPException(status_code=404, detail="当前应用未使用该远端 Agent 实例")
+    return {"is_local": False, **remote}
+
+
+@app.get("/api/apps/{app_id}/agent-metrics", summary="聚合应用的跨平台 Agent 性能")
+async def get_application_agent_metrics(app_id: str, aggregation: str = "p95"):
+    import httpx
+
+    targets = _application_agent_metric_targets(app_id)
+    local_result = await test_prometheus_agent_metrics(
+        aggregation=aggregation,
+        instance_ids=",".join(sorted(targets["local_instance_ids"])),
+    ) if targets["local_instance_ids"] else {"instances": [], "unavailable_metrics": []}
+    instances = [
+        {**row, "cluster_name": targets["local_name"], "is_local": True}
+        for row in local_result.get("instances", [])
+    ]
+    clusters = [{
+        "name": targets["local_name"],
+        "is_local": True,
+        "status": "ok",
+        "error": None,
+    }]
+
+    async def fetch_remote(client: httpx.AsyncClient, remote: Dict[str, Any]):
+        try:
+            response = await client.get(
+                f'{remote["url"]}/tests/prometheus/agent-metrics',
+                params={
+                    "aggregation": aggregation,
+                    "instance_ids": ",".join(sorted(remote["instance_ids"])),
+                },
+            )
+            response.raise_for_status()
+            return remote, response.json(), None
+        except Exception as exc:
+            return remote, None, str(exc)
+
+    remotes = list(targets["remote_targets"].values())
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        remote_results = await asyncio.gather(*(fetch_remote(client, remote) for remote in remotes))
+    unavailable_metrics = list(local_result.get("unavailable_metrics", []))
+    for remote, payload, error in remote_results:
+        clusters.append({
+            "name": remote["name"],
+            "is_local": False,
+            "status": "error" if error else "ok",
+            "error": error,
+        })
+        if error or payload is None:
+            continue
+        instances.extend({
+            **row,
+            "cluster_name": remote["name"],
+            "is_local": False,
+        } for row in payload.get("instances", []))
+        unavailable_metrics.extend(
+            f'{remote["name"]}:{metric}'
+            for metric in payload.get("unavailable_metrics", [])
+        )
+    return {
+        "app_id": app_id,
+        "aggregation": aggregation,
+        "instances": instances,
+        "clusters": clusters,
+        "unavailable_metrics": unavailable_metrics,
+    }
+
+
+@app.get(
+    "/api/apps/{app_id}/agent-metrics/{instance_id}/history",
+    summary="代理应用 Agent 性能历史详情",
+)
+async def get_application_agent_metric_history(
+    app_id: str, instance_id: str, cluster_name: str, aggregation: str = "p95"
+):
+    import httpx
+
+    target = _application_agent_metric_target(app_id, cluster_name, instance_id)
+    if target["is_local"]:
+        return await test_prometheus_agent_metric_history(instance_id, aggregation)
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            response = await client.get(
+                f'{target["url"]}/tests/prometheus/agent-metrics/{instance_id}/history',
+                params={"aggregation": aggregation},
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"远端性能详情查询失败: {exc}") from exc
+
+
+@app.get(
+    "/api/apps/{app_id}/agent-metrics/{instance_id}/custom-performance",
+    summary="代理应用 Agent 自定义性能指标",
+)
+async def get_application_agent_custom_performance(
+    app_id: str,
+    instance_id: str,
+    cluster_name: str,
+    run_started_at: Optional[float] = None,
+    run_finished_at: Optional[float] = None,
+):
+    import httpx
+
+    target = _application_agent_metric_target(app_id, cluster_name, instance_id)
+    if target["is_local"]:
+        return await test_prometheus_agent_custom_performance(
+            instance_id, run_started_at, run_finished_at
+        )
+    params: Dict[str, Any] = {}
+    if run_started_at is not None:
+        params["run_started_at"] = run_started_at
+    if run_finished_at is not None:
+        params["run_finished_at"] = run_finished_at
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            response = await client.get(
+                f'{target["url"]}/tests/prometheus/agent-metrics/{instance_id}/custom-performance',
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"远端自定义指标查询失败: {exc}") from exc
 
 
 def _application_workflow_metric_queries(
