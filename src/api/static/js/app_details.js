@@ -62,7 +62,10 @@ function setActiveTab(name) {
     if (!appAgentMetricsLoaded) loadAppAgentMetrics();
     if (!scheduleHistoryLoaded) loadScheduleHistory();
     if (workflowTrendTimer === null) {
-      workflowTrendTimer = window.setInterval(loadWorkflowTrends, 15000);
+      workflowTrendTimer = window.setInterval(() => {
+        loadWorkflowTrends();
+        loadAppAgentMetrics({preserveExpanded: true});
+      }, 15000);
     }
   } else {
     if (workflowTrendTimer !== null) {
@@ -1249,7 +1252,7 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
     ['total_duration_seconds', '运行总时长'],
     ['execution_count', '运行次数'],
     ['average_duration_seconds', '累计平均执行耗时'],
-    ['total_server_duration_seconds', '累计服务端总耗时'],
+    ['average_server_duration_seconds', '累计服务端平均耗时'],
   ].forEach(([key, label]) => {
     const card = document.createElement('div');
     card.className = 'execution-summary-card';
@@ -1321,7 +1324,7 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
         ? executionCount.toLocaleString('zh-CN', {maximumFractionDigits: 0})
         : '暂无数据';
       summaryTargets.average_duration_seconds.textContent = formatDurationSeconds(summary.average_duration_seconds);
-      summaryTargets.total_server_duration_seconds.textContent = formatDurationSeconds(summary.total_server_duration_seconds);
+      summaryTargets.average_server_duration_seconds.textContent = formatDurationSeconds(summary.average_server_duration_seconds);
       APP_AGENT_CHARTS.forEach(([key, _title, valueMultiplier]) => {
         renderPrometheusChart(data.metrics?.[key] || {result: []}, targets[key], {
           valueMultiplier,

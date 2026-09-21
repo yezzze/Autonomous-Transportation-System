@@ -2260,12 +2260,14 @@ def _agent_execution_summary_queries(instance_id: str) -> Dict[str, str]:
     matcher = f'instance_id="{_prometheus_label_value(instance_id)}"'
     total = f'agent_execution_seconds_sum{{{matcher}}}'
     count = f'agent_execution_seconds_count{{{matcher}}}'
+    server_total = f'agent_server_total_seconds_sum{{{matcher}}}'
+    server_count = f'agent_server_total_seconds_count{{{matcher}}}'
     return {
         "total_duration_seconds": f"sum({total})",
         "execution_count": f"sum({count})",
         "average_duration_seconds": f"sum({total}) / sum({count})",
-        "total_server_duration_seconds": (
-            f"sum(agent_server_total_seconds_sum{{{matcher}}})"
+        "average_server_duration_seconds": (
+            f"sum({server_total}) / sum({server_count})"
         ),
     }
 
@@ -2472,27 +2474,71 @@ async def test_prometheus_agent_custom_performance(
             )
         if run_finished_at <= run_started_at:
             raise HTTPException(status_code=422, detail="本次运行时间范围无效")
-        duration_seconds = max(int(run_finished_at - run_started_at), 1)
-        average_query = (
-            "sum by (metric_name) (increase("
-            f"agent_performance_sum{{{matcher}}}[{duration_seconds}s])) / "
-            "sum by (metric_name) (increase("
-            f"agent_performance_count{{{matcher}}}[{duration_seconds}s]))"
+        duration_seconds = max(int(math.ceil(run_finished_at - run_started_at)), 1)
+        summary_queries = {
+            "sum": f"sum by (metric_name) (agent_performance_sum{{{matcher}}})",
+            "count": f"sum by (metric_name) (agent_performance_count{{{matcher}}})",
+        }
+        end_sum_result, end_count_result, start_sum_result, start_count_result, created_result, resets_result = (
+            await asyncio.gather(
+                _query_prometheus(summary_queries["sum"], evaluation_time=run_finished_at),
+                _query_prometheus(summary_queries["count"], evaluation_time=run_finished_at),
+                _query_prometheus(summary_queries["sum"], evaluation_time=run_started_at),
+                _query_prometheus(summary_queries["count"], evaluation_time=run_started_at),
+                _query_prometheus(
+                    f"max by (metric_name) (agent_performance_created{{{matcher}}})",
+                    evaluation_time=run_finished_at,
+                ),
+                _query_prometheus(
+                    "sum by (metric_name) (resets("
+                    f"agent_performance_count{{{matcher}}}[{duration_seconds}s] "
+                    f"@ {run_finished_at}))"
+                ),
+            )
         )
-        average_result = await _query_prometheus(
-            average_query,
-            evaluation_time=run_finished_at,
-        )
-        for item in (average_result.get("data") or {}).get("result", []):
-            metric_name = str((item.get("metric") or {}).get("metric_name") or "").strip()
-            sample = item.get("value") or []
-            if not metric_name or len(sample) < 2:
-                continue
-            try:
-                value = float(sample[1])
-                averages[metric_name] = value if math.isfinite(value) else None
-            except (TypeError, ValueError):
+
+        def values_by_metric(payload: Dict[str, Any]) -> Dict[str, float]:
+            values: Dict[str, float] = {}
+            for item in (payload.get("data") or {}).get("result", []):
+                metric_name = str(
+                    (item.get("metric") or {}).get("metric_name") or ""
+                ).strip()
+                sample = item.get("value") or []
+                if not metric_name or len(sample) < 2:
+                    continue
+                try:
+                    value = float(sample[1])
+                    if math.isfinite(value):
+                        values[metric_name] = value
+                except (TypeError, ValueError):
+                    continue
+            return values
+
+        end_sums = values_by_metric(end_sum_result)
+        end_counts = values_by_metric(end_count_result)
+        start_sums = values_by_metric(start_sum_result)
+        start_counts = values_by_metric(start_count_result)
+        created_values = values_by_metric(created_result)
+        reset_counts = values_by_metric(resets_result)
+        for metric_name in set(end_sums) | set(end_counts):
+            created_at = created_values.get(metric_name)
+            created_during_run = (
+                created_at is not None
+                and run_started_at <= created_at <= run_finished_at
+            )
+            start_sum = start_sums.get(metric_name, 0.0 if created_during_run else math.nan)
+            start_count = start_counts.get(metric_name, 0.0 if created_during_run else math.nan)
+            end_sum = end_sums.get(metric_name, math.nan)
+            end_count = end_counts.get(metric_name, math.nan)
+            count_delta = end_count - start_count
+            if (
+                reset_counts.get(metric_name, 0) > 0
+                or not all(math.isfinite(value) for value in (start_sum, start_count, end_sum, end_count))
+                or count_delta <= 0
+            ):
                 averages[metric_name] = None
+                continue
+            averages[metric_name] = (end_sum - start_sum) / count_delta
 
     metric_names = sorted(set(trends) | set(averages))
     return {
