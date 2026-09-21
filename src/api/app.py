@@ -2474,25 +2474,31 @@ async def test_prometheus_agent_custom_performance(
             )
         if run_finished_at <= run_started_at:
             raise HTTPException(status_code=422, detail="本次运行时间范围无效")
-        duration_seconds = max(int(math.ceil(run_finished_at - run_started_at)), 1)
+        # 工作流完成与 Prometheus 抓取不是原子操作。结束后保留两个常见的
+        # 15 秒抓取周期，确保最后一批已完成调用进入 _sum/_count。
+        scrape_grace_seconds = 30
+        sampled_finished_at = run_finished_at + scrape_grace_seconds
+        duration_seconds = max(
+            int(math.ceil(sampled_finished_at - run_started_at)), 1
+        )
         summary_queries = {
             "sum": f"sum by (metric_name) (agent_performance_sum{{{matcher}}})",
             "count": f"sum by (metric_name) (agent_performance_count{{{matcher}}})",
         }
         end_sum_result, end_count_result, start_sum_result, start_count_result, created_result, resets_result = (
             await asyncio.gather(
-                _query_prometheus(summary_queries["sum"], evaluation_time=run_finished_at),
-                _query_prometheus(summary_queries["count"], evaluation_time=run_finished_at),
+                _query_prometheus(summary_queries["sum"], evaluation_time=sampled_finished_at),
+                _query_prometheus(summary_queries["count"], evaluation_time=sampled_finished_at),
                 _query_prometheus(summary_queries["sum"], evaluation_time=run_started_at),
                 _query_prometheus(summary_queries["count"], evaluation_time=run_started_at),
                 _query_prometheus(
                     f"max by (metric_name) (agent_performance_created{{{matcher}}})",
-                    evaluation_time=run_finished_at,
+                    evaluation_time=sampled_finished_at,
                 ),
                 _query_prometheus(
                     "sum by (metric_name) (resets("
                     f"agent_performance_count{{{matcher}}}[{duration_seconds}s] "
-                    f"@ {run_finished_at}))"
+                    f"@ {sampled_finished_at}))"
                 ),
             )
         )
