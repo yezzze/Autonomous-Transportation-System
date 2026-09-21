@@ -2073,7 +2073,9 @@ _DEFAULT_PROMETHEUS_URL = (
 )
 
 
-async def _query_prometheus(query: str) -> Dict[str, Any]:
+async def _query_prometheus(
+    query: str, evaluation_time: Optional[float] = None
+) -> Dict[str, Any]:
     """执行一次固定目标的 Prometheus 即时查询并规范化上游错误。"""
     import httpx
 
@@ -2083,10 +2085,10 @@ async def _query_prometheus(query: str) -> Dict[str, Any]:
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(
-                f"{prometheus_url}/api/v1/query",
-                params={"query": query},
-            )
+            params: Dict[str, Any] = {"query": query}
+            if evaluation_time is not None:
+                params["time"] = evaluation_time
+            response = await client.get(f"{prometheus_url}/api/v1/query", params=params)
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="Prometheus 查询超时") from exc
     except httpx.RequestError as exc:
@@ -2253,6 +2255,21 @@ def _agent_metric_history_queries(instance_id: str, aggregation: str = "p95") ->
     }
 
 
+def _agent_execution_summary_queries(instance_id: str) -> Dict[str, str]:
+    """构造 Agent 实例的累计执行统计。"""
+    matcher = f'instance_id="{_prometheus_label_value(instance_id)}"'
+    total = f'agent_execution_seconds_sum{{{matcher}}}'
+    count = f'agent_execution_seconds_count{{{matcher}}}'
+    return {
+        "total_duration_seconds": f"sum({total})",
+        "execution_count": f"sum({count})",
+        "average_duration_seconds": f"sum({total}) / sum({count})",
+        "total_server_duration_seconds": (
+            f"sum(agent_server_total_seconds_sum{{{matcher}}})"
+        ),
+    }
+
+
 def _prometheus_vector_by_instance(payload: Dict[str, Any]) -> Dict[str, float]:
     values: Dict[str, float] = {}
     for item in (payload.get("data") or {}).get("result", []):
@@ -2353,18 +2370,22 @@ async def test_prometheus_agent_metric_history(instance_id: str, aggregation: st
         )
 
     queries = _agent_metric_history_queries(instance_id, aggregation)
+    summary_queries = _agent_execution_summary_queries(instance_id)
     end_time = time.time()
     results = await asyncio.gather(
         *(
             _query_prometheus_range(query, 3600, end_time=end_time)
             for query in queries.values()
         ),
+        *(_query_prometheus(query) for query in summary_queries.values()),
         return_exceptions=True,
     )
+    history_results = results[:len(queries)]
+    summary_results = results[len(queries):]
     metrics: Dict[str, Dict[str, Any]] = {}
     unavailable_metrics: List[str] = []
     query_range: Dict[str, Any] = {}
-    for name, result in zip(queries, results):
+    for name, result in zip(queries, history_results):
         if isinstance(result, Exception):
             unavailable_metrics.append(name)
             metrics[name] = {"result_type": "matrix", "result": []}
@@ -2377,6 +2398,14 @@ async def test_prometheus_agent_metric_history(instance_id: str, aggregation: st
             "result": data.get("result", []),
             "warnings": result.get("warnings", []),
         }
+    execution_summary: Dict[str, Optional[float]] = {}
+    unavailable_summary: List[str] = []
+    for name, result in zip(summary_queries, summary_results):
+        if isinstance(result, Exception):
+            execution_summary[name] = None
+            unavailable_summary.append(name)
+            continue
+        execution_summary[name] = _prometheus_instant_value(result)
     return {
         "agent_id": instance.agent_id,
         "instance_id": instance.instance_id,
@@ -2384,7 +2413,94 @@ async def test_prometheus_agent_metric_history(instance_id: str, aggregation: st
         "query_range": query_range,
         "metrics": metrics,
         "unavailable_metrics": unavailable_metrics,
+        "execution_summary": execution_summary,
+        "unavailable_summary": unavailable_summary,
         "aggregation": aggregation,
+    }
+
+
+@app.get(
+    "/tests/prometheus/agent-metrics/{instance_id}/custom-performance",
+    summary="获取 Agent 实例的自定义性能指标",
+)
+async def test_prometheus_agent_custom_performance(
+    instance_id: str,
+    run_started_at: Optional[float] = None,
+    run_finished_at: Optional[float] = None,
+):
+    import time
+
+    from src.runtime.lifecycle_manager import get_lifecycle_manager
+
+    instance = get_lifecycle_manager().get_instance(instance_id)
+    if instance is None:
+        raise HTTPException(status_code=404, detail=f"实例 {instance_id} 不存在")
+    if instance.status != "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"实例 {instance_id} 当前状态为 {instance.status}",
+        )
+
+    matcher = f'instance_id="{_prometheus_label_value(instance_id)}"'
+    end_time = time.time()
+    trend_result = await _query_prometheus_range(
+        f"agent_performance_latest{{{matcher}}}",
+        3600,
+        end_time=end_time,
+    )
+    trend_data = trend_result.get("data") or {}
+    trends: Dict[str, List[Dict[str, Any]]] = {}
+    for series in trend_data.get("result", []):
+        metric_name = str((series.get("metric") or {}).get("metric_name") or "").strip()
+        if metric_name:
+            trends.setdefault(metric_name, []).append(series)
+
+    averages: Dict[str, Optional[float]] = {}
+    if run_started_at is not None or run_finished_at is not None:
+        if run_started_at is None or run_finished_at is None:
+            raise HTTPException(
+                status_code=422,
+                detail="run_started_at 与 run_finished_at 必须同时提供",
+            )
+        if run_finished_at <= run_started_at:
+            raise HTTPException(status_code=422, detail="本次运行时间范围无效")
+        duration_seconds = max(int(run_finished_at - run_started_at), 1)
+        average_query = (
+            "sum by (metric_name) (increase("
+            f"agent_performance_sum{{{matcher}}}[{duration_seconds}s])) / "
+            "sum by (metric_name) (increase("
+            f"agent_performance_count{{{matcher}}}[{duration_seconds}s]))"
+        )
+        average_result = await _query_prometheus(
+            average_query,
+            evaluation_time=run_finished_at,
+        )
+        for item in (average_result.get("data") or {}).get("result", []):
+            metric_name = str((item.get("metric") or {}).get("metric_name") or "").strip()
+            sample = item.get("value") or []
+            if not metric_name or len(sample) < 2:
+                continue
+            try:
+                value = float(sample[1])
+                averages[metric_name] = value if math.isfinite(value) else None
+            except (TypeError, ValueError):
+                averages[metric_name] = None
+
+    metric_names = sorted(set(trends) | set(averages))
+    return {
+        "agent_id": instance.agent_id,
+        "instance_id": instance.instance_id,
+        "range_seconds": 3600,
+        "query_range": trend_result.get("query_range", {}),
+        "metrics": [
+            {
+                "metric_name": metric_name,
+                "result_type": trend_data.get("resultType"),
+                "result": trends.get(metric_name, []),
+                "run_average": averages.get(metric_name),
+            }
+            for metric_name in metric_names
+        ],
     }
 
 

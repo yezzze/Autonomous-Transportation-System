@@ -894,6 +894,7 @@ function renderExecutionSummary(execution) {
 }
 
 function formatDurationSeconds(value) {
+  if (value === null || value === undefined || value === '') return '暂无数据';
   const number = Number(value);
   return Number.isFinite(number)
     ? `${number.toLocaleString('zh-CN', {maximumFractionDigits: 3})} 秒`
@@ -908,7 +909,9 @@ function renderCompletedWorkflowSummary(data) {
   if (!completed) return;
   const summary = data?.workflow_summary || {};
   byId('completed-total-duration').textContent = formatDurationSeconds(summary.total_duration_seconds);
-  const count = Number(summary.execution_count);
+  const count = summary.execution_count === null || summary.execution_count === undefined
+    ? NaN
+    : Number(summary.execution_count);
   byId('completed-execution-count').textContent = Number.isFinite(count)
     ? count.toLocaleString('zh-CN', {maximumFractionDigits: 0})
     : '暂无数据';
@@ -1008,6 +1011,10 @@ function closeAppAgentDetails() {
     button.textContent = '查看详情';
     button.setAttribute('aria-expanded', 'false');
   });
+  document.querySelectorAll('.app-agent-custom-metrics-button').forEach(button => {
+    button.textContent = '查看自定义性能指标';
+    button.setAttribute('aria-expanded', 'false');
+  });
 }
 
 const APP_AGENT_CHARTS = [
@@ -1056,12 +1063,150 @@ function renderAppAgentMetrics(instances) {
     details.textContent = '查看详情';
     details.setAttribute('aria-expanded', 'false');
     details.addEventListener('click', () => openAppAgentDetails(instance, row, details));
-    operation.appendChild(details);
+    const customMetrics = document.createElement('button');
+    customMetrics.type = 'button';
+    customMetrics.className = 'btn btn-ghost btn-sm app-agent-custom-metrics-button';
+    customMetrics.textContent = '查看自定义性能指标';
+    customMetrics.setAttribute('aria-expanded', 'false');
+    customMetrics.addEventListener('click', () => openAppAgentCustomMetrics(instance, row, customMetrics));
+    operation.style.display = 'flex';
+    operation.style.gap = '8px';
+    operation.append(details, customMetrics);
     row.appendChild(operation);
     body.appendChild(row);
-    renderedRows.set(instance.instance_id, {instance, row, details});
+    renderedRows.set(instance.instance_id, {instance, row, details, customMetrics});
   });
   return renderedRows;
+}
+
+function appRunMetricRange() {
+  if (currentApp?.run_status !== 'completed') return null;
+  const summary = vizState.summary || {};
+  const timeline = ensureArray(vizState.snapshot?.execution?.timeline);
+  const parseSeconds = value => {
+    if (value === null || value === undefined || value === '') return NaN;
+    if (Number.isFinite(Number(value))) {
+      const numeric = Number(value);
+      return numeric > 1e12 ? numeric / 1000 : numeric;
+    }
+    return new Date(value).getTime() / 1000;
+  };
+  const taskStarts = timeline.map(item => parseSeconds(item.started_at)).filter(Number.isFinite);
+  const taskFinishes = timeline.map(item => parseSeconds(item.finished_at)).filter(Number.isFinite);
+  const started = parseSeconds(summary.started_at) || (taskStarts.length ? Math.min(...taskStarts) : NaN);
+  const finishedValue = summary.finished_at || summary.updated_at || currentApp.updated_at;
+  const finished = parseSeconds(finishedValue) || (taskFinishes.length ? Math.max(...taskFinishes) : NaN);
+  return Number.isFinite(started) && Number.isFinite(finished) && finished > started
+    ? {started, finished}
+    : null;
+}
+
+async function openAppAgentCustomMetrics(instance, parentRow, trigger) {
+  if (expandedAppAgentInstanceId === `custom:${instance.instance_id}`) {
+    closeAppAgentDetails();
+    return;
+  }
+  closeAppAgentDetails();
+  expandedAppAgentInstanceId = `custom:${instance.instance_id}`;
+  trigger.textContent = '收起';
+  trigger.setAttribute('aria-expanded', 'true');
+
+  const detailRow = document.createElement('tr');
+  detailRow.className = 'prometheus-instance-detail-row';
+  const cell = document.createElement('td');
+  cell.colSpan = 8;
+  const panel = document.createElement('div');
+  panel.className = 'prometheus-instance-detail';
+  const heading = document.createElement('div');
+  heading.className = 'prometheus-instance-detail-heading';
+  heading.textContent = `${instance.agent_id || 'Agent'} · 自定义性能指标 · 最近 1 小时`;
+  const state = document.createElement('span');
+  state.className = 'workflow-trend-state';
+  state.textContent = '加载中...';
+  heading.appendChild(state);
+  const grid = document.createElement('div');
+  grid.className = 'prometheus-instance-chart-grid';
+  panel.append(heading, grid);
+  cell.appendChild(panel);
+  detailRow.appendChild(cell);
+  parentRow.after(detailRow);
+  activeAppAgentDetailRow = detailRow;
+
+  let refreshing = false;
+  let hasLoaded = false;
+  const detailKey = expandedAppAgentInstanceId;
+  const refreshDetails = async () => {
+    if (refreshing || expandedAppAgentInstanceId !== detailKey) return;
+    refreshing = true;
+    state.textContent = hasLoaded ? '刷新中...' : '加载中...';
+    try {
+      const params = new URLSearchParams();
+      const runRange = appRunMetricRange();
+      if (runRange) {
+        params.set('run_started_at', String(runRange.started));
+        params.set('run_finished_at', String(runRange.finished));
+      }
+      const query = params.toString();
+      const response = await fetch(
+        `${API}/tests/prometheus/agent-metrics/${encodeURIComponent(instance.instance_id)}/custom-performance${query ? `?${query}` : ''}`,
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+      if (expandedAppAgentInstanceId !== detailKey || !detailRow.isConnected) return;
+      grid.replaceChildren();
+      const metrics = ensureArray(data.metrics);
+      if (!metrics.length) {
+        grid.innerHTML = '<div class="empty-state">该 Agent 暂无自定义性能指标</div>';
+      }
+      metrics.forEach(metric => {
+        const card = document.createElement('div');
+        card.className = 'prometheus-instance-chart-card';
+        const header = document.createElement('div');
+        header.className = 'prometheus-chart-header';
+        const title = document.createElement('strong');
+        title.textContent = metric.metric_name;
+        header.appendChild(title);
+        if (currentApp?.run_status === 'completed') {
+          const average = document.createElement('span');
+          average.className = 'custom-metric-run-average';
+          average.textContent = `本次运行平均值：${formatAgentMetric(metric.run_average, 6)}`;
+          header.appendChild(average);
+        }
+        const legend = document.createElement('div');
+        legend.className = 'prometheus-chart-legend';
+        const chart = document.createElement('div');
+        chart.className = 'prometheus-chart prometheus-instance-chart';
+        const tooltip = document.createElement('div');
+        tooltip.className = 'prometheus-chart-tooltip';
+        tooltip.hidden = true;
+        card.append(header, legend, chart, tooltip);
+        grid.appendChild(card);
+        const chartResult = ensureArray(metric.result).map(series => ({
+          ...series,
+          metric: {metric_name: metric.metric_name},
+        }));
+        renderPrometheusChart(
+          {result_type: metric.result_type, result: chartResult},
+          {panel: card, chart, legend, tooltip, axisRange: null},
+          {
+            xMin: data.query_range?.start,
+            xMax: data.query_range?.end,
+            sampleStep: data.query_range?.step,
+          },
+        );
+      });
+      state.textContent = `更新于 ${new Date().toLocaleTimeString('zh-CN')}`;
+      hasLoaded = true;
+    } catch (error) {
+      if (expandedAppAgentInstanceId !== detailKey || !detailRow.isConnected) return;
+      state.textContent = `刷新失败：${error.message}`;
+      if (!hasLoaded) grid.innerHTML = '<div class="empty-state">无法加载自定义性能指标</div>';
+    } finally {
+      refreshing = false;
+    }
+  };
+  refreshDetails();
+  appAgentDetailRefreshTimer = window.setInterval(refreshDetails, 15000);
 }
 
 async function openAppAgentDetails(instance, parentRow, trigger) {
@@ -1083,6 +1228,29 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
   const heading = document.createElement('div');
   heading.className = 'prometheus-instance-detail-heading';
   heading.textContent = `${instance.agent_id || 'Agent'} · ${instance.instance_id} · 最近 1 小时`;
+  const summaryGrid = document.createElement('div');
+  summaryGrid.className = 'execution-summary-grid';
+  summaryGrid.setAttribute('aria-label', `${instance.agent_id || 'Agent'} 累计运行统计`);
+  summaryGrid.hidden = currentApp?.run_status !== 'completed';
+  const summaryTargets = {};
+  [
+    ['total_duration_seconds', '运行总时长'],
+    ['execution_count', '运行次数'],
+    ['average_duration_seconds', '累计平均执行耗时'],
+    ['total_server_duration_seconds', '累计服务端总耗时'],
+  ].forEach(([key, label]) => {
+    const card = document.createElement('div');
+    card.className = 'execution-summary-card';
+    const value = document.createElement('div');
+    value.className = 'value';
+    value.textContent = '加载中...';
+    const caption = document.createElement('div');
+    caption.className = 'label';
+    caption.textContent = label;
+    card.append(value, caption);
+    summaryGrid.appendChild(card);
+    summaryTargets[key] = value;
+  });
   const grid = document.createElement('div');
   grid.className = 'prometheus-instance-chart-grid';
   const targets = {};
@@ -1108,7 +1276,7 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
     grid.appendChild(card);
     targets[key] = {panel: card, chart, legend, tooltip, state, axisRange: null};
   });
-  panel.append(heading, grid);
+  panel.append(heading, summaryGrid, grid);
   cell.appendChild(panel);
   detailRow.appendChild(cell);
   parentRow.after(detailRow);
@@ -1119,6 +1287,7 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
   let hasLoaded = false;
   const refreshDetails = async () => {
     if (refreshing || expandedAppAgentInstanceId !== instance.instance_id) return;
+    summaryGrid.hidden = currentApp?.run_status !== 'completed';
     refreshing = true;
     Object.values(targets).forEach(target => {
       target.state.textContent = hasLoaded ? '刷新中...' : '加载中...';
@@ -1131,6 +1300,16 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
       if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
       if (expandedAppAgentInstanceId !== instance.instance_id || !detailRow.isConnected) return;
       const updateTime = new Date().toLocaleTimeString('zh-CN');
+      const summary = data.execution_summary || {};
+      summaryTargets.total_duration_seconds.textContent = formatDurationSeconds(summary.total_duration_seconds);
+      const executionCount = summary.execution_count === null || summary.execution_count === undefined
+        ? NaN
+        : Number(summary.execution_count);
+      summaryTargets.execution_count.textContent = Number.isFinite(executionCount)
+        ? executionCount.toLocaleString('zh-CN', {maximumFractionDigits: 0})
+        : '暂无数据';
+      summaryTargets.average_duration_seconds.textContent = formatDurationSeconds(summary.average_duration_seconds);
+      summaryTargets.total_server_duration_seconds.textContent = formatDurationSeconds(summary.total_server_duration_seconds);
       APP_AGENT_CHARTS.forEach(([key, _title, valueMultiplier]) => {
         renderPrometheusChart(data.metrics?.[key] || {result: []}, targets[key], {
           valueMultiplier,
@@ -1149,6 +1328,9 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
         target.state.textContent = `刷新失败：${error.message}`;
         if (!hasLoaded) target.chart.innerHTML = '<div class="empty-state">无法加载趋势数据</div>';
       });
+      if (!hasLoaded) {
+        Object.values(summaryTargets).forEach(target => { target.textContent = '加载失败'; });
+      }
     } finally {
       refreshing = false;
     }
@@ -1160,7 +1342,11 @@ async function openAppAgentDetails(instance, parentRow, trigger) {
 async function loadAppAgentMetrics(options = {}) {
   if (!byId('panel-execution')?.classList.contains('active')) return;
   const preserveExpanded = options.preserveExpanded === true;
-  const preservedInstanceId = preserveExpanded ? expandedAppAgentInstanceId : null;
+  const preservedDetailKey = preserveExpanded ? expandedAppAgentInstanceId : null;
+  const preservedCustom = String(preservedDetailKey || '').startsWith('custom:');
+  const preservedInstanceId = preservedCustom
+    ? String(preservedDetailKey).slice('custom:'.length)
+    : preservedDetailKey;
   const requestId = ++appAgentMetricsRequestId;
   const refresh = byId('refresh-app-agent-metrics');
   const hint = byId('app-agent-metrics-refresh-hint');
@@ -1176,7 +1362,11 @@ async function loadAppAgentMetrics(options = {}) {
     if (requestId !== appAgentMetricsRequestId) return;
     const renderedRows = renderAppAgentMetrics(data.instances || []);
     const preserved = preservedInstanceId ? renderedRows.get(preservedInstanceId) : null;
-    if (preserved) openAppAgentDetails(preserved.instance, preserved.row, preserved.details);
+    if (preservedCustom && preserved) {
+      openAppAgentCustomMetrics(preserved.instance, preserved.row, preserved.customMetrics);
+    } else if (preserved) {
+      openAppAgentDetails(preserved.instance, preserved.row, preserved.details);
+    }
     appAgentMetricsLoaded = true;
     const unavailable = data.unavailable_metrics || [];
     hint.textContent = unavailable.length
@@ -1224,22 +1414,27 @@ function clearVizPanels(message) {
 
 async function resolveVizWorkflowId(app) {
   const preferred = preferredWorkflowHandle(app);
-  if (preferred) {
-    return preferred;
-  }
-
   try {
     const res = await fetch('/api/viz/workflows?limit=100');
-    if (!res.ok) return '';
+    if (!res.ok) return preferred || '';
     const data = await res.json();
     const list = ensureArray(data.workflows);
+    const preferredSummary = preferred ? list.find(w => w.id === preferred) : null;
+    if (preferredSummary) {
+      vizState.summary = preferredSummary;
+      return preferred;
+    }
     const exact = list.find(w => w.app_id === app?.app_id);
-    if (exact) return exact.id;
+    if (exact) {
+      vizState.summary = exact;
+      return exact.id;
+    }
     const guess = list.find(w => String(w.title || '').includes(String(app?.app_id || '')));
+    if (guess) vizState.summary = guess;
     return guess ? guess.id : '';
   } catch (error) {
     console.warn('resolve viz workflow failed', error);
-    return '';
+    return preferred || '';
   }
 }
 
