@@ -823,7 +823,11 @@ async def distributed_planner_node(state: DistributedState) -> Command[Literal["
             else identify_cross_host_tasks(execution_plan, all_agents)
         )
         frozen_signature = []
-        cross_host_sessions: dict[str, Dict[str, Any]] = {}
+        cross_host_sessions: dict[str, Dict[str, Any]] = (
+            dict(state.get("cross_host_sessions") or {})
+            if state.get("route_prevalidated")
+            else {}
+        )
         if cross_host and not state.get("planning_preview", False):
             logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
             cross_host_sessions = await register_cross_host_workflows(
@@ -1119,7 +1123,11 @@ interface ExecutionPlan {{
             else identify_cross_host_tasks(execution_plan, available_agents)
         )
         frozen_signature = []
-        cross_host_sessions: dict[str, Dict[str, Any]] = {}
+        cross_host_sessions: dict[str, Dict[str, Any]] = (
+            dict(state.get("cross_host_sessions") or {})
+            if state.get("route_prevalidated")
+            else {}
+        )
         if cross_host and not state.get("planning_preview", False):
             logger.info(f"[跨主体] 识别到 {len(cross_host)} 个跨节点任务: {cross_host}")
             cross_host_sessions = await register_cross_host_workflows(

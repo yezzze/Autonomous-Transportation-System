@@ -2538,6 +2538,10 @@ def _application_agent_metric_targets(app_id: str) -> Dict[str, Any]:
     remote_targets: Dict[str, Dict[str, Any]] = {}
     entry = get_viz_bus().get(application.workflow_handle) if application.workflow_handle else None
     cross_host_sessions = (entry.state.get("cross_host_sessions") or {}) if entry else {}
+    if not cross_host_sessions:
+        from src.app.app_logic_engine import get_app_logic_engine
+
+        cross_host_sessions = get_app_logic_engine().get_cross_host_sessions(app_id)
     for raw_info in cross_host_sessions.values():
         if not isinstance(raw_info, dict):
             continue

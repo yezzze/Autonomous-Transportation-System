@@ -907,6 +907,10 @@ class AppLogicEngine:
             snapshots.append(instance.to_dict())
         return snapshots
 
+    def get_cross_host_sessions(self, app_id: str) -> Dict[str, Dict[str, Any]]:
+        """返回应用的远端实例绑定副本，供完成态指标聚合恢复使用。"""
+        return copy.deepcopy(self._cross_host_sessions.get(app_id, {}))
+
     def _resource_config_from_image(
         self, image, capability: Optional[str] = None
     ) -> Optional[ResourceConfig]:
