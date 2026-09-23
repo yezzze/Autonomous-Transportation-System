@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -110,6 +111,12 @@ def load_config(
     config = _deep_merge(DEFAULT_CONFIG, user_config)
     config["_config_path"] = str(config_path)
     _resolve_relative_paths(config, config_path.parent)
+
+    MOBILENET_CLIP_RATIO = os.getenv("MOBILENET_CLIP_RATIO", "").strip()
+
+    if MOBILENET_CLIP_RATIO:
+        config["vehicle"]["mobilenet_clip_ratio"] = float(MOBILENET_CLIP_RATIO)
+
     validate_config(config, role=role)
     return config
 

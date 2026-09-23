@@ -946,7 +946,7 @@ def _build_agent_card() -> AgentCard:
             "车端事故初筛 Agent：MobileNetV3-Small 扫描事故概率，"
             "导出采样帧并通过 NATS 发送给路端。"
         ),
-        version="1.1.0",
+        version="1.2.0",
         default_input_modes=["application/json", "text/plain"],
         default_output_modes=["text/plain"],
         capabilities=AgentCapabilities(streaming=True),

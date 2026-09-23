@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: vehicleaccidentprefilter-agent
-          image: vehicleaccidentprefilter-agent:1.1.0
+          image: vehicleaccidentprefilter-agent:1.2.0
           imagePullPolicy: Never
           ports:
             - containerPort: 9001
@@ -44,6 +44,8 @@ spec:
               value: baseline
               # value: ours
             # 未显式传 video_path/video_base64 时启用 video_auto。
+            - name: MOBILENET_CLIP_RATIO
+              value: "0.5"
             - name: VIDEO_PATH
               value: "true"
             - name: VIDEO_LIST

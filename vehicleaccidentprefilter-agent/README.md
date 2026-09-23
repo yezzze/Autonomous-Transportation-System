@@ -25,7 +25,7 @@
 ```bash
 docker build \
   --build-context weights=/data/gaoshuo/fjh/agent_packages_release/weights \
-  -t vehicleaccidentprefilter-agent:1.1.0 \
+  -t vehicleaccidentprefilter-agent:1.2.0 \
   .
 ```
 
