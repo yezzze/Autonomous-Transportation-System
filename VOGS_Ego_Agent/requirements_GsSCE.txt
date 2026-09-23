@@ -12,6 +12,7 @@ cython
 tensorboardX
 shapely==2.0.0
 einops
+jaxtyping==0.3.7
 timm
 icecream
 h5py

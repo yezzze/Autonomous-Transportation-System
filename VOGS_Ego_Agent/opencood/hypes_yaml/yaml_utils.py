@@ -70,6 +70,19 @@ def load_yaml(file, opt=None, config=None):
         list(u'-+0123456789.'))
     
     param = yaml.load(stream, Loader=loader)
+    stream.close()
+
+    # Runtime paths can be supplied by container/orchestration environments.
+    # An explicitly defined environment variable takes precedence over YAML,
+    # including when different model directories carry different config files.
+    test_dir = os.getenv("TEST_DIR")
+    if test_dir is not None:
+        param["test_dir"] = test_dir
+
+    output_dir = os.getenv("OUTPUT_DIR")
+    if output_dir is not None:
+        param["output_dir"] = output_dir
+
     if 'lidar_pose' in param:
         if param['lidar_pose'] is not None and isinstance(param['lidar_pose'], np.ndarray) and param['lidar_pose'].shape == (4, 4):
             param['lidar_pose'] = matrix_to_pose(param['lidar_pose'])

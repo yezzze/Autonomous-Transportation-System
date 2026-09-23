@@ -31,7 +31,7 @@ cav_lidar_range: &cav_lidar [-20, -20, -2.3, 20, 20, 0.9]
 
 
 heter:
-  assignment_path: "opencood/logs/heter_modality_assign/opv2v_4modality.json"
+  assignment_path: "opencood/modality_assign/opv2v_4modality.json"
   ego_modality: &ego_modality "m4"
   mapping_dict:
     m1: m4

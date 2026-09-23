@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vogs-ego-agent
+  labels:
+    app.kubernetes.io/name: vogs-ego-agent
+    app.kubernetes.io/component: inference
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vogs-ego-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vogs-ego-agent
+        app.kubernetes.io/component: inference
+    spec:
+      terminationGracePeriodSeconds: 60
+      initContainers:
+        - name: prepare-output-directory
+          image: vogs-ego-agent:0.1.1
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "chown -R 1000:1000 /output"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: output
+              mountPath: /output
+      containers:
+        - name: vogs-ego-agent
+          image: vogs-ego-agent:0.1.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9001
+              protocol: TCP
+          env:
+            - name: A2A_AGENT_URL
+              value: http://192.168.49.2:30192
+            - name: NATS_SERVER_URL
+              value: nats://nats:4222
+            - name: NATS_CONTROL_MAX_BYTES
+              value: "67108864"
+            - name: CLUSTER_ID
+              value: edge-c
+            - name: AGENT_ID
+              value: vogs-ego-agent
+            - name: AGENT_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: AGENT_MAX_CONCURRENT_TASKS
+              value: "1"
+            - name: LOAD_MODEL
+              value: ours
+            - name: NUM_FRAMES
+              value: "100"
+            - name: TEST_DIR
+              value: /dataset/OPV2V/validate
+            - name: OUTPUT_DIR
+              value: /app/output_results
+          resources:
+            requests:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: 32Gi
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /.well-known/agent-card.json
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 90
+          # readinessProbe:
+          #   httpGet:
+          #     path: /.well-known/agent-card.json
+          #     port: http
+          #   periodSeconds: 10
+          #   timeoutSeconds: 5
+          #   failureThreshold: 3
+          # livenessProbe:
+          #   httpGet:
+          #     path: /.well-known/agent-card.json
+          #     port: http
+          #   periodSeconds: 30
+          #   timeoutSeconds: 5
+          #   failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          volumeMounts:
+            - name: dataset
+              mountPath: /dataset/OPV2V
+              readOnly: true
+            - name: output
+              mountPath: /app/output_results
+      volumes:
+        # Host directory mounted into the Minikube node, for example with:
+        # minikube mount <host-opv2v-root>:/mnt/opv2v
+        # Mounting the root also exposes surround/validate, which occ_raw uses.
+        - name: dataset
+          hostPath:
+            path: /mnt/opv2v
+            type: Directory
+        # /data survives normal Minikube stop/start cycles.
+        - name: output
+          hostPath:
+            path: /mnt/opv2v/output
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vogs-ego-agent
+  labels:
+    app.kubernetes.io/name: vogs-ego-agent
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: vogs-ego-agent
+  ports:
+    - name: http
+      protocol: TCP
+      port: 9001
+      targetPort: http
+      nodePort: 30192
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vogs-ego-agent
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: vogs-ego-agent
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vogs-ego-agent
+  endpoints:
+    - port: http
+      path: /metrics/
+      interval: 15s
+      scrapeTimeout: 10s
