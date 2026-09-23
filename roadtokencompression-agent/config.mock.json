@@ -1,0 +1,55 @@
+{
+  "runtime": {
+    "mock": true,
+    "request_timeout_seconds": 900,
+    "random_seed": 20260804
+  },
+  "paths": {
+    "work_dir": "./work"
+  },
+  "models": {
+    "qwen": "./weights/qwen/Qwen2.5-VL-3B-Instruct",
+    "compression_checkpoint": "./weights/compression/best_compression_module.pth",
+    "embedding_model": "./weights/embedding/text2vec-base-chinese",
+    "kb_path_1": "./assets/kb_accident_law",
+    "kb_path_2": "./assets/kb_accident_law_1"
+  },
+  "road": {
+    "host": "0.0.0.0",
+    "port": 5201,
+    "description_frames": 64,
+    "max_frame_size": 320,
+    "use_compression": true,
+    "token_keep_ratio": 0.9,
+    "token_quantization": "int8"
+  },
+  "cloud": {
+    "host": "0.0.0.0",
+    "port": 5202,
+    "summary_max_new_tokens": 96,
+    "restore_mode": "zero_fill",
+    "enable_rag": false,
+    "description_only": true
+  },
+  "network": {
+    "road_url": "http://road:5201",
+    "cloud_url": "http://cloud:5202",
+    "simulate": true,
+    "include_return_path": true,
+    "wifi": {
+      "bandwidth_mbps": 100.0,
+      "one_way_latency_ms": 10.0
+    },
+    "wired": {
+      "bandwidth_mbps": 1000.0,
+      "one_way_latency_ms": 1.0
+    }
+  },
+  "benchmark": {
+    "repeats": 1,
+    "warmup_runs": 0,
+    "normal_reference": "未检测到交通事故。",
+    "min_efficiency_improvement_percent": 10.0,
+    "max_driving_score_drop_percent": 2.0
+  }
+}

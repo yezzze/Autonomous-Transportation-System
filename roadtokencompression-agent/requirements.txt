@@ -1,0 +1,21 @@
+# Agent 模板（agents_source_code/Agent_Template）标准依赖
+a2a-sdk[fastapi]==1.1.2
+fastapi==0.141.1
+uvicorn==0.52.4
+pydantic==2.13.4
+nats-py==2.15.0
+numpy==1.26.4
+prometheus-client==0.26.0
+
+# 路端业务依赖
+torch==2.1.2
+torchvision==0.16.2
+transformers==4.49.0
+safetensors==0.8.0
+accelerate==1.14.0
+qwen-vl-utils==0.0.8
+opencv-python==4.11.0.86
+Pillow==12.2.0
+decord==0.6.0
+av==17.1.0
+requests==2.34.2
