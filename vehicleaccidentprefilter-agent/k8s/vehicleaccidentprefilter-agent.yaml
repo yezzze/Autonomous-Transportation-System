@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vehicleaccidentprefilter-agent
+  labels:
+    app: vehicleaccidentprefilter-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vehicleaccidentprefilter-agent
+  template:
+    metadata:
+      labels:
+        app: vehicleaccidentprefilter-agent
+    spec:
+      containers:
+        - name: vehicleaccidentprefilter-agent
+          image: vehicleaccidentprefilter-agent:1.1.0
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9001
+              name: http
+          env:
+            - name: A2A_AGENT_URL
+              value: http://192.168.49.2:30131
+            - name: AGENT_MAX_CONCURRENT_TASKS
+              value: "1"
+            - name: CLUSTER_ID
+              value: edge-c
+            - name: AGENT_ID
+              value: vehicleaccidentprefilter-agent
+            - name: AGENT_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: NATS_SERVER_URL
+              value: nats://nats:4222
+            - name: NATS_CONTROL_MAX_BYTES
+              value: "67108864"
+            - name: NATS_BINARY_MAX_BYTES
+              value: "67108864"
+            - name: TASK_TYPE
+              value: baseline
+              # value: ours
+            # 未显式传 video_path/video_base64 时启用 video_auto。
+            - name: VIDEO_PATH
+              value: "true"
+            - name: VIDEO_LIST
+              value: /app/data/hard_case_100_ids.txt
+            - name: VIDEO_MANIFEST
+              value: /app/data/hard_case_100_manifest.json
+            - name: CONTAINER_DATA_DIR
+              value: /app/data
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: agent-data
+              mountPath: /app/data
+              readOnly: true
+            - name: agent-work
+              mountPath: /app/work
+            - name: agent-outputs
+              mountPath: /app/outputs
+          startupProbe:
+            httpGet:
+              path: /.well-known/agent-card.json
+              port: http
+            periodSeconds: 1
+            timeoutSeconds: 3
+            failureThreshold: 90
+          # readinessProbe:
+          #   httpGet:
+          #     path: /.well-known/agent-card.json
+          #     port: http
+          #   periodSeconds: 10
+          #   timeoutSeconds: 3
+          #   failureThreshold: 3
+      volumes:
+        # minikube 节点内需预先存在 /mnt/vrc/data，并包含清单、真值和视频。
+        - name: agent-data
+          hostPath:
+            path: /mnt/vrc/data
+            type: Directory
+        - name: agent-work
+          emptyDir: {}
+        - name: agent-outputs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vehicleaccidentprefilter-agent
+  labels:
+    app: vehicleaccidentprefilter-agent
+spec:
+  selector:
+    app: vehicleaccidentprefilter-agent
+  ports:
+    - name: http
+      protocol: TCP
+      port: 9001
+      nodePort: 30131
+      targetPort: 9001
+  type: NodePort
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vehicleaccidentprefilter-agent
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      app: vehicleaccidentprefilter-agent
+  endpoints:
+    - port: http
+      path: /metrics/
+      interval: 15s
+      scrapeTimeout: 10s

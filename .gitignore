@@ -21,6 +21,10 @@ ENV/
 .idea/
 .DS_Store
 Thumbs.db
+._*
+
+# Operating-system metadata
+Desktop.ini
 
 # Logs and temporary files
 *.log
