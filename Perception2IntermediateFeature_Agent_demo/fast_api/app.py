@@ -74,6 +74,7 @@ from utils.prometheus_metrics import (
     AgentCallTiming,
     get_current_timing,
     observe_call,
+    observe_performance_metric,
     reset_current_timing,
     set_current_timing,
 )
@@ -499,19 +500,26 @@ class Perception2IntermediateFeatureExecutor(AgentExecutor):
             timing.server_total_ms = (time.monotonic() - request_received) * 1000
             observe_call(timing, status)
             logger.info(
-                "[Agent QoS] %s",
-                json.dumps(
-                    {**timing.to_dict(), "status": status},
-                    ensure_ascii=False,
-                    sort_keys=True,
-                ),
-            )
+                            "[Agent QoS] %s",
+                            json.dumps(
+                                {
+                                    **timing.to_dict(), 
+                                    "status": status,
+                                    "performance": dict(timing.performance)
+                                },
+                                ensure_ascii=False,
+                                sort_keys=True,
+                            ),
+                        )
             if timing_token is not None:
                 reset_current_timing(timing_token)
             if acquired_slot:
                 _execution_slots.release()
 
-        qos_metadata = {"qos": timing.to_dict()}
+        qos_metadata = {
+                    "qos": timing.to_dict(),
+                    "performance": dict(timing.performance),
+                    }
         if error_message is not None:
             await updater.update_status(
                 state=TaskState.TASK_STATE_FAILED,
@@ -599,7 +607,7 @@ def _build_agent_card() -> AgentCard:
             "FastAPI agent that converts point cloud perception data into "
             "intermediate features and exposes standard A2A JSON-RPC."
         ),
-        version="0.2.0",
+        version="0.2.1",
         default_input_modes=["application/json", "text/plain"],
         default_output_modes=["text/plain"],
         capabilities=AgentCapabilities(streaming=True),

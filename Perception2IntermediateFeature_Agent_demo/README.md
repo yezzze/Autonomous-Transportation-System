@@ -66,7 +66,7 @@ checkpoints/point_pillar_where2comm/
 构建：
 
 ```bash
-docker build -t perception2intermediatefeature-agent:0.2.0 .
+docker build -t perception2intermediatefeature-agent:0.2.1 .
 ```
 
 镜像基于 CUDA 12.8，并安装 PyTorch cu128 依赖。
@@ -89,7 +89,7 @@ docker run --rm \
   -e MCP_SERVER_PORT=8123 \
   -e MODEL_CHECKPOINT_PATH=/app/checkpoints/point_pillar_where2comm/ \
   --name perception2intermediatefeature-agent \
-  perception2intermediatefeature-agent:0.2.0
+  perception2intermediatefeature-agent:0.2.1
 ```
 
 如果模型文件位于镜像外，可以额外挂载模型目录：

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: perception2intermediatefeature-agent
-          image: perception2intermediatefeature-agent:0.2.0
+          image: perception2intermediatefeature-agent:0.2.1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9031
@@ -47,9 +47,20 @@ spec:
               value: "67108864"
           resources:
             requests:
+              cpu: "4"
+              memory: 4Gi
               nvidia.com/gpu: "1"
             limits:
+              cpu: "4"
+              memory: 4Gi
               nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /.well-known/agent-card.json
+              port: http
+            periodSeconds: 1
+            timeoutSeconds: 5
+            failureThreshold: 90
 ---
 apiVersion: v1
 kind: Service
