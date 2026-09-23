@@ -50,3 +50,5 @@ error_traceback.txt
 .env.*
 
 .codex
+
+*.pth

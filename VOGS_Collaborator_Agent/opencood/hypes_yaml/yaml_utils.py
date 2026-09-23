@@ -70,6 +70,14 @@ def load_yaml(file, opt=None, config=None):
         list(u'-+0123456789.'))
     
     param = yaml.load(stream, Loader=loader)
+    stream.close()
+
+    # Allow container/orchestration environments to override the dataset path.
+    # An explicitly defined environment variable takes precedence over YAML.
+    test_dir = os.getenv("TEST_DIR")
+    if test_dir is not None:
+        param["test_dir"] = test_dir
+
     if 'lidar_pose' in param:
         if param['lidar_pose'] is not None and isinstance(param['lidar_pose'], np.ndarray) and param['lidar_pose'].shape == (4, 4):
             param['lidar_pose'] = matrix_to_pose(param['lidar_pose'])
